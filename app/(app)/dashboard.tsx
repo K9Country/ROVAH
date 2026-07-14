@@ -22,12 +22,12 @@ type DashboardAction = {
 };
  
 const dashboardActions: DashboardAction[] = [
-  {
-    title: 'Find a Private Space',
-    description: 'Search private properties near you.',
-    icon: '🔍',
-    route: '/search',
-  },
+{
+  title: 'Find a Private Space',
+  description: 'Search private properties near you.',
+  icon: '🔍',
+  route: '/search',
+},
   {
     title: 'My Reservations',
     description: 'View upcoming and previous visits.',
@@ -80,12 +80,8 @@ export default function DashboardScreen() {
         ? 'Good afternoon'
         : 'Good evening';
  
-  const handleNavigation = (action: DashboardAction) => {
-    if (!action.route) {
-      return;
-    }
- 
-    router.push(action.route as never);
+  const handleNavigation = (route: string) => {
+    router.push(route as never);
   };
  
   const handleSignOut = async () => {
@@ -134,14 +130,7 @@ export default function DashboardScreen() {
  
         <Pressable
           accessibilityRole="button"
-          onPress={() =>
-            handleNavigation({
-              title: 'Find a Private Space',
-              description: '',
-              icon: '',
-              route: '/search',
-            })
-          }
+          onPress={() => handleNavigation('/search')}
           style={({ pressed }) => [
             styles.featureCard,
             pressed && styles.cardPressed,
@@ -174,7 +163,7 @@ export default function DashboardScreen() {
             <Pressable
               accessibilityRole="button"
               key={action.title}
-              onPress={() => handleNavigation(action)}
+              onPress={() => action.route && handleNavigation(action.route)}
               style={({ pressed }) => [
                 styles.actionCard,
                 pressed && styles.cardPressed,
@@ -207,14 +196,7 @@ export default function DashboardScreen() {
  
           <Pressable
             accessibilityRole="button"
-            onPress={() =>
-              handleNavigation({
-                title: 'Become a Host',
-                description: '',
-                icon: '',
-                route: '/host',
-              })
-            }
+            onPress={() => handleNavigation('/host')}
             style={({ pressed }) => [
               styles.hostButton,
               pressed && styles.cardPressed,

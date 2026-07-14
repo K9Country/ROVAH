@@ -1,69 +1,358 @@
 import { router } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
- 
-export default function PlaceholderScreen() {
+
+import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../services/auth-context';
+import type { HostProfile } from '../../types/host-profile';
+
+export default function HostOnboardingScreen() {
+  const { session } = useAuth();
+  const [fullName, setFullName] = useState(
+    session?.user.user_metadata?.full_name ?? ''
+  );
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [city, setCity] = useState('');
+  const [state, setState] = useState('');
+  const [confirmsPropertyControl, setConfirmsPropertyControl] =
+    useState(false);
+  const [agreesToHostTerms, setAgreesToHostTerms] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    const loadHostProfile = async () => {
+      if (!session?.user.id) {
+        setIsLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('host_profiles')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .maybeSingle();
+
+      if (error) {
+        Alert.alert(
+          'Unable to load host profile',
+          'Please check your connection and try again.'
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      const profile = data as HostProfile | null;
+
+      if (profile) {
+        setFullName(profile.full_name);
+        setPhoneNumber(profile.phone_number);
+        setCity(profile.city);
+        setState(profile.state);
+        setConfirmsPropertyControl(profile.confirms_property_control);
+        setAgreesToHostTerms(profile.agrees_to_host_terms);
+      }
+
+      setIsLoading(false);
+    };
+
+    void loadHostProfile();
+  }, [session?.user.id]);
+
+  const handleContinue = async () => {
+    const normalizedName = fullName.trim();
+    const normalizedPhone = phoneNumber.trim();
+    const normalizedCity = city.trim();
+    const normalizedState = state.trim();
+
+    if (!session?.user.id) {
+      Alert.alert('Sign in required', 'Please sign in before becoming a host.');
+      return;
+    }
+
+    if (!normalizedName || !normalizedPhone || !normalizedCity || !normalizedState) {
+      Alert.alert(
+        'Missing information',
+        'Complete your name, phone number, city, and state.'
+      );
+      return;
+    }
+
+    if (!confirmsPropertyControl || !agreesToHostTerms) {
+      Alert.alert(
+        'Confirmation required',
+        'Confirm that you control the property and agree to the host requirements.'
+      );
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+
+      const { error } = await supabase.from('host_profiles').upsert(
+        {
+          user_id: session.user.id,
+          full_name: normalizedName,
+          phone_number: normalizedPhone,
+          city: normalizedCity,
+          state: normalizedState,
+          confirms_property_control: confirmsPropertyControl,
+          agrees_to_host_terms: agreesToHostTerms,
+          onboarding_status: 'submitted',
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id' }
+      );
+
+      if (error) {
+        Alert.alert('Unable to save host profile', error.message);
+        return;
+      }
+
+      router.push('/create-property');
+    } catch {
+      Alert.alert(
+        'Something went wrong',
+        'We could not save your host profile. Please try again.'
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.centeredState}>
+          <ActivityIndicator size="large" color="#263A24" />
+          <Text style={styles.stateText}>Loading host setup...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        <Text style={styles.title}>Host a Private Space</Text>
- 
-        <Text style={styles.description}>
-          This section is connected and ready for development.
-        </Text>
- 
-        <Pressable
-          onPress={() => router.back()}
-          style={styles.button}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.keyboardView}
+      >
+        <ScrollView
+          contentContainerStyle={styles.container}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.buttonText}>Back to Dashboard</Text>
-        </Pressable>
-      </View>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.back()}
+            style={styles.backButton}
+          >
+            <Text style={styles.backButtonText}>← Dashboard</Text>
+          </Pressable>
+
+          <View style={styles.headingArea}>
+            <View style={styles.logoBadge}>
+              <Text style={styles.logoText}>K9</Text>
+            </View>
+            <Text style={styles.eyebrow}>HOST WITH K9 COUNTRY</Text>
+            <Text style={styles.title}>Share your private space</Text>
+            <Text style={styles.description}>
+              Start with a few details. You’ll add your property information,
+              photos, access instructions, and availability next.
+            </Text>
+          </View>
+
+          <View style={styles.form}>
+            <FormField
+              label="Full name"
+              value={fullName}
+              onChangeText={setFullName}
+              placeholder="Your full name"
+              autoComplete="name"
+              autoCapitalize="words"
+            />
+            <FormField
+              label="Phone number"
+              value={phoneNumber}
+              onChangeText={setPhoneNumber}
+              placeholder="(555) 555-5555"
+              autoComplete="tel"
+              keyboardType="phone-pad"
+            />
+            <View style={styles.locationRow}>
+              <View style={styles.cityField}>
+                <FormField
+                  label="City"
+                  value={city}
+                  onChangeText={setCity}
+                  placeholder="Your city"
+                  autoCapitalize="words"
+                />
+              </View>
+              <View style={styles.stateField}>
+                <FormField
+                  label="State"
+                  value={state}
+                  onChangeText={setState}
+                  placeholder="State"
+                  autoCapitalize="characters"
+                  maxLength={2}
+                />
+              </View>
+            </View>
+
+            <View style={styles.confirmationCard}>
+              <ConfirmationRow
+                checked={confirmsPropertyControl}
+                label="I own this property or have permission to list and host it."
+                onPress={() => setConfirmsPropertyControl((current) => !current)}
+              />
+              <View style={styles.confirmationDivider} />
+              <ConfirmationRow
+                checked={agreesToHostTerms}
+                label="I agree to provide accurate listing details and follow K9 Country host requirements."
+                onPress={() => setAgreesToHostTerms((current) => !current)}
+              />
+            </View>
+
+            <Pressable
+              accessibilityRole="button"
+              disabled={isSubmitting}
+              onPress={handleContinue}
+              style={({ pressed }) => [
+                styles.primaryButton,
+                pressed && styles.buttonPressed,
+                isSubmitting && styles.buttonDisabled,
+              ]}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator color="#FFFDF8" />
+              ) : (
+                <Text style={styles.primaryButtonText}>Continue to Create Property</Text>
+              )}
+            </Pressable>
+
+            <Text style={styles.footerText}>
+              Submitting a host profile does not publish a property. Every
+              property stays private until you complete and submit its listing.
+            </Text>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
- 
+
+type FormFieldProps = {
+  label: string;
+  value: string;
+  onChangeText: (value: string) => void;
+  placeholder: string;
+  autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
+  autoComplete?: 'name' | 'tel';
+  keyboardType?: 'default' | 'phone-pad';
+  maxLength?: number;
+};
+
+function FormField({
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  autoCapitalize = 'sentences',
+  autoComplete,
+  keyboardType = 'default',
+  maxLength,
+}: FormFieldProps) {
+  return (
+    <View>
+      <Text style={styles.label}>{label}</Text>
+      <TextInput
+        accessibilityLabel={label}
+        autoCapitalize={autoCapitalize}
+        autoComplete={autoComplete}
+        keyboardType={keyboardType}
+        maxLength={maxLength}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor="#8A877D"
+        style={styles.input}
+        value={value}
+      />
+    </View>
+  );
+}
+
+function ConfirmationRow({
+  checked,
+  label,
+  onPress,
+}: {
+  checked: boolean;
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable accessibilityRole="checkbox" accessibilityState={{ checked }} onPress={onPress} style={styles.confirmationRow}>
+      <View style={[styles.checkbox, checked && styles.checkboxChecked]}>
+        {checked ? <Text style={styles.checkmark}>✓</Text> : null}
+      </View>
+      <Text style={styles.confirmationText}>{label}</Text>
+    </Pressable>
+  );
+}
+
+const colors = {
+  forest: '#263A24',
+  cream: '#F4ECDD',
+  warmWhite: '#FFFDF8',
+  brown: '#8A4F17',
+  muted: '#6D6A60',
+  border: '#D7CBB8',
+};
+
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#F4ECDD',
-  },
- 
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-  },
- 
-  title: {
-    color: '#263A24',
-    fontSize: 28,
-    fontWeight: '900',
-    textAlign: 'center',
-  },
- 
-  description: {
-    color: '#6D6A60',
-    fontSize: 16,
-    lineHeight: 24,
-    textAlign: 'center',
-    marginTop: 12,
-    marginBottom: 24,
-  },
- 
-  button: {
-    minHeight: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 14,
-    backgroundColor: '#8A4F17',
-    paddingHorizontal: 24,
-  },
- 
-  buttonText: {
-    color: '#FFFDF8',
-    fontSize: 16,
-    fontWeight: '800',
-  },
+  safeArea: { flex: 1, backgroundColor: colors.cream },
+  keyboardView: { flex: 1 },
+  container: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 36 },
+  centeredState: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  stateText: { color: colors.muted, fontSize: 15, marginTop: 14 },
+  backButton: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' },
+  backButtonText: { color: colors.forest, fontSize: 16, fontWeight: '700' },
+  headingArea: { alignItems: 'center', marginTop: 14, marginBottom: 28 },
+  logoBadge: { width: 72, height: 72, alignItems: 'center', justifyContent: 'center', borderRadius: 36, backgroundColor: colors.forest, borderColor: colors.brown, borderWidth: 4, marginBottom: 18 },
+  logoText: { color: colors.cream, fontSize: 32, fontWeight: '900' },
+  eyebrow: { color: colors.brown, fontSize: 12, fontWeight: '900', letterSpacing: 1.25, marginBottom: 8 },
+  title: { color: colors.forest, fontSize: 29, fontWeight: '900', textAlign: 'center', marginBottom: 10 },
+  description: { color: colors.muted, fontSize: 16, lineHeight: 23, textAlign: 'center', maxWidth: 370 },
+  form: { gap: 18 },
+  label: { color: colors.forest, fontSize: 15, fontWeight: '800', marginBottom: 8 },
+  input: { minHeight: 56, borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.warmWhite, color: colors.forest, fontSize: 16, paddingHorizontal: 16 },
+  locationRow: { flexDirection: 'row', gap: 12 },
+  cityField: { flex: 1 },
+  stateField: { width: 88 },
+  confirmationCard: { borderColor: colors.border, borderRadius: 16, borderWidth: 1, backgroundColor: colors.warmWhite, paddingHorizontal: 16 },
+  confirmationRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 16 },
+  checkbox: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center', borderColor: colors.brown, borderRadius: 6, borderWidth: 2, marginRight: 12, marginTop: 1 },
+  checkboxChecked: { backgroundColor: colors.forest, borderColor: colors.forest },
+  checkmark: { color: colors.warmWhite, fontSize: 16, fontWeight: '900' },
+  confirmationText: { flex: 1, color: colors.muted, fontSize: 14, lineHeight: 21 },
+  confirmationDivider: { height: 1, backgroundColor: colors.border },
+  primaryButton: { minHeight: 56, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: colors.brown, marginTop: 2, paddingHorizontal: 16 },
+  primaryButtonText: { color: colors.warmWhite, fontSize: 16, fontWeight: '800', textAlign: 'center' },
+  buttonPressed: { opacity: 0.78 },
+  buttonDisabled: { opacity: 0.65 },
+  footerText: { color: colors.muted, fontSize: 12, lineHeight: 18, textAlign: 'center', paddingHorizontal: 8 },
 });
