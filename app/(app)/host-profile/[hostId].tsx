@@ -88,14 +88,13 @@ export default function HostPublicProfileScreen() {
             <Image accessibilityLabel={`${hostName}'s profile photo`} contentFit="cover" source={profileImageUrl ? { uri: profileImageUrl } : require('../../../assets/images/k9-11.png')} style={styles.avatar} />
           </View>
           <View style={styles.heroCopy}>
-            <Text style={styles.eyebrow}>K9 COUNTRY HOST</Text>
             <Text style={styles.title}>{hostName}</Text>
             <Text style={styles.subtitle}>{sites.length} {sites.length === 1 ? 'private site' : 'private sites'} available to guests</Text>
           </View>
         </View>
 
         <View style={styles.summaryCard}>
-          <Text style={styles.summaryLabel}>GUEST SITE RATING</Text>
+          <Text style={styles.summaryLabel}>ALL SITES GUEST RATING</Text>
           <Text style={styles.summaryValue}>{overallRating ? `${overallRating} / 5` : 'New host'}</Text>
           <Text style={styles.summaryText}>{reviews.length} {reviews.length === 1 ? 'guest review' : 'guest reviews'} across their sites</Text>
         </View>
