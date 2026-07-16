@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../../constants/theme';
+import { getAuthEmailRedirectUrl } from '../../lib/auth-redirect';
 import { supabase } from '../../lib/supabase';
 
 function getSignupErrorMessage(error: unknown) {
@@ -95,6 +96,7 @@ export default function SignUpScreen() {
           data: {
             full_name: normalizedName,
           },
+          emailRedirectTo: getAuthEmailRedirectUrl(intent),
         },
       });
  

@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors } from '../../constants/theme';
+import { getAuthEmailRedirectUrl } from '../../lib/auth-redirect';
 import { supabase } from '../../lib/supabase';
 
 const hostModeStorageKey = '@k9-country/host-mode';
@@ -69,7 +70,11 @@ export default function VerifyEmailScreen() {
 
     try {
       setIsResending(true);
-      const { error } = await supabase.auth.resend({ type: 'signup', email });
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email,
+        options: { emailRedirectTo: getAuthEmailRedirectUrl(intent) },
+      });
       if (error) {
         Alert.alert('Unable to send a new code', error.message);
         return;
@@ -92,7 +97,7 @@ export default function VerifyEmailScreen() {
           <Text style={styles.title}>Verify your email</Text>
           <Text style={styles.description}>We sent a six-digit code to:</Text>
           <Text style={styles.email}>{email}</Text>
-          <Text style={styles.hint}>Enter the code to activate your account. Email links alone cannot activate it.</Text>
+          <Text style={styles.hint}>Enter the code from your K9 Country email. If your email has a confirmation button instead, tap it to activate your account.</Text>
 
           <TextInput
             accessibilityLabel="Six-digit email verification code"
