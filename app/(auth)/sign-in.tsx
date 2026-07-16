@@ -17,6 +17,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
  
 import { colors } from '../../constants/theme';
+import { getAuthEmailRedirectUrl } from '../../lib/auth-redirect';
 import { supabase } from '../../lib/supabase';
 
 const rememberedEmailKey = '@k9-country/remembered-email';
@@ -57,13 +58,24 @@ export default function SignInScreen() {
         password,
       });
  
-      if (error) {
-        if (error.message.toLowerCase().includes('email not confirmed')) {
-          router.replace(
-            `/verify-email?email=${encodeURIComponent(normalizedEmail)}&intent=${intent === 'host' ? 'host' : 'guest'}` as never
-          );
-          return;
-        }
+        if (error) {
+          if (error.message.toLowerCase().includes('email not confirmed')) {
+            const { error: resendError } = await supabase.auth.resend({
+              type: 'signup',
+              email: normalizedEmail,
+              options: { emailRedirectTo: getAuthEmailRedirectUrl(intent) },
+            });
+
+            if (resendError) {
+              Alert.alert('Verification email not sent', resendError.message);
+              return;
+            }
+
+            router.replace(
+            `/verify-email?email=${encodeURIComponent(normalizedEmail)}&intent=${intent === 'host' ? 'host' : 'guest'}&resent=true` as never
+            );
+            return;
+          }
 
         if (
           intent === 'host' &&

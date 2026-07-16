@@ -21,7 +21,7 @@ import { supabase } from '../../lib/supabase';
 const hostModeStorageKey = '@k9-country/host-mode';
 
 export default function VerifyEmailScreen() {
-  const { email: rawEmail, intent } = useLocalSearchParams<{ email?: string; intent?: string }>();
+  const { email: rawEmail, intent, resent } = useLocalSearchParams<{ email?: string; intent?: string; resent?: string }>();
   const email = typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : '';
   const isHost = intent === 'host';
   const [code, setCode] = useState('');
@@ -95,7 +95,7 @@ export default function VerifyEmailScreen() {
         <View style={styles.container}>
           <View style={styles.logoBadge}><Text style={styles.logoText}>K9</Text></View>
           <Text style={styles.title}>Verify your email</Text>
-          <Text style={styles.description}>We sent a six-digit code to:</Text>
+          <Text style={styles.description}>{resent === 'true' ? 'A fresh verification email was sent to:' : 'We sent a six-digit code to:'}</Text>
           <Text style={styles.email}>{email}</Text>
           <Text style={styles.hint}>Enter the code from your K9 Country email. If your email has a confirmation button instead, tap it to activate your account.</Text>
 
