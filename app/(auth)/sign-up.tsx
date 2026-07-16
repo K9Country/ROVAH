@@ -1,4 +1,3 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -15,8 +14,6 @@ import {
     View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { getAuthEmailRedirectUrl } from '../../lib/auth-redirect';
- 
 import { colors } from '../../constants/theme';
 import { supabase } from '../../lib/supabase';
 
@@ -46,10 +43,6 @@ export default function SignUpScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isResending, setIsResending] = useState(false);
-  const [verificationEmail, setVerificationEmail] = useState<string | null>(null);
-  const [verificationMessage, setVerificationMessage] = useState('');
-  const [resendCooldownSeconds, setResendCooldownSeconds] = useState(0);
 
   const signInRoute = intent === 'host' ? '/sign-in?intent=host' : '/sign-in';
 
@@ -59,60 +52,6 @@ export default function SignUpScreen() {
     }
   }, [initialEmail]);
 
-  useEffect(() => {
-    if (!verificationEmail || resendCooldownSeconds <= 0) {
-      return;
-    }
-
-    const timer = setInterval(() => {
-      setResendCooldownSeconds((seconds) => Math.max(seconds - 1, 0));
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [resendCooldownSeconds, verificationEmail]);
-
-  const handleResendVerification = async () => {
-    if (!verificationEmail) {
-      return;
-    }
-
-    if (resendCooldownSeconds > 0) {
-      return;
-    }
-
-    try {
-      setIsResending(true);
-
-      const { error } = await supabase.auth.resend({
-        type: 'signup',
-        email: verificationEmail,
-        options: {
-          emailRedirectTo: getAuthEmailRedirectUrl(intent),
-        },
-      });
-
-      if (error) {
-        const isRateLimited = error.message.toLowerCase().includes('rate limit');
-        setVerificationMessage(
-          isRateLimited
-            ? 'K9 Country\'s test email service has reached its sending limit. Try again later, or connect a custom email provider before inviting more users.'
-            : getSignupErrorMessage(error)
-        );
-        if (isRateLimited) {
-          setResendCooldownSeconds(60);
-        }
-        return;
-      }
-
-      setVerificationMessage('A new verification email has been sent. Check your inbox and spam folder.');
-      setResendCooldownSeconds(60);
-    } catch {
-      setVerificationMessage('We could not resend the verification email. Please try again later.');
-    } finally {
-      setIsResending(false);
-    }
-  };
- 
   const handleSignUp = async () => {
     const normalizedName = fullName.trim();
     const normalizedEmail = email.trim().toLowerCase();
@@ -149,11 +88,10 @@ export default function SignUpScreen() {
     try {
       setIsLoading(true);
  
-      const { data, error } = await supabase.auth.signUp({
+      const { error } = await supabase.auth.signUp({
         email: normalizedEmail,
         password,
         options: {
-          emailRedirectTo: getAuthEmailRedirectUrl(intent),
           data: {
             full_name: normalizedName,
           },
@@ -165,15 +103,9 @@ export default function SignUpScreen() {
         return;
       }
  
-      if (data.session) {
-        await AsyncStorage.setItem('@k9-country/host-mode', intent === 'host' ? 'host' : 'guest');
-        router.replace(intent === 'host' ? '/host-dashboard' : '/dashboard');
-        return;
-      }
- 
-      setVerificationEmail(normalizedEmail);
-      setVerificationMessage('We sent a verification link to your email address. Open it before signing in.');
-      setResendCooldownSeconds(60);
+      router.replace(
+        `/verify-email?email=${encodeURIComponent(normalizedEmail)}&intent=${intent === 'host' ? 'host' : 'guest'}` as never
+      );
     } catch {
       Alert.alert(
         'Something went wrong',
@@ -184,57 +116,6 @@ export default function SignUpScreen() {
     }
   };
  
-  if (verificationEmail) {
-    return (
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.verificationContainer}>
-          <View style={styles.logoBadge}><Text style={styles.logoText}>K9</Text></View>
-
-          <Text style={styles.title}>Check your email</Text>
-
-          <Text style={styles.verificationText}>
-            {verificationMessage}
-          </Text>
-
-          <Text style={styles.verificationEmail}>{verificationEmail}</Text>
-
-          <Text style={styles.verificationHint}>
-            If you do not see it, check your spam or junk folder before requesting another email.
-          </Text>
-
-          <Pressable
-            accessibilityRole="button"
-            disabled={isResending || resendCooldownSeconds > 0}
-            onPress={handleResendVerification}
-            style={({ pressed }) => [
-              styles.resendButton,
-              pressed && styles.buttonPressed,
-              (isResending || resendCooldownSeconds > 0) && styles.buttonDisabled,
-            ]}
-          >
-            {isResending ? (
-              <ActivityIndicator color={colors.forest} />
-            ) : (
-              <Text style={styles.resendButtonText}>
-                {resendCooldownSeconds > 0
-                  ? `Resend verification email in ${resendCooldownSeconds}s`
-                  : 'Resend verification email'}
-              </Text>
-            )}
-          </Pressable>
-
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.replace(signInRoute as never)}
-            style={styles.textButton}
-          >
-            <Text style={styles.textButtonText}>Go to Sign In</Text>
-          </Pressable>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
   return (
     <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.safeArea}>
       <KeyboardAvoidingView

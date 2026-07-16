@@ -17,7 +17,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
  
 import { colors } from '../../constants/theme';
-import { getAuthEmailRedirectUrl } from '../../lib/auth-redirect';
 import { supabase } from '../../lib/supabase';
 
 const rememberedEmailKey = '@k9-country/remembered-email';
@@ -29,43 +28,6 @@ export default function SignInScreen() {
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [rememberEmail, setRememberEmail] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
-
-  const handleResendVerification = async (emailToVerify: string) => {
-    try {
-      setIsLoading(true);
-
-      const { error } = await supabase.auth.resend({
-        type: 'signup',
-        email: emailToVerify,
-        options: {
-          emailRedirectTo: getAuthEmailRedirectUrl(intent),
-        },
-      });
-
-      if (error) {
-        const isRateLimited = error.message.toLowerCase().includes('rate limit');
-        Alert.alert(
-          'Unable to resend verification email',
-          isRateLimited
-            ? 'Email requests are temporarily limited. Please wait a few minutes before trying again.'
-            : error.message
-        );
-        return;
-      }
-
-      Alert.alert(
-        'Verification email sent',
-        'Check your inbox and spam folder, then open the verification link.'
-      );
-    } catch {
-      Alert.alert(
-        'Unable to resend verification email',
-        'Please try again later.'
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   useEffect(() => {
     const loadRememberedEmail = async () => {
@@ -97,16 +59,8 @@ export default function SignInScreen() {
  
       if (error) {
         if (error.message.toLowerCase().includes('email not confirmed')) {
-          Alert.alert(
-            'Email verification required',
-            'Confirm your email address before signing in.',
-            [
-              { text: 'Cancel', style: 'cancel' },
-              {
-                text: 'Resend email',
-                onPress: () => void handleResendVerification(normalizedEmail),
-              },
-            ]
+          router.replace(
+            `/verify-email?email=${encodeURIComponent(normalizedEmail)}&intent=${intent === 'host' ? 'host' : 'guest'}` as never
           );
           return;
         }
