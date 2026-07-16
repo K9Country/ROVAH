@@ -1,8 +1,11 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    Image,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -11,14 +14,23 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
  
+import { UnreadMessageIcon } from '../../components/unread-message-icon';
+import { colors, shadows, typography } from '../../constants/theme';
+import { getUnreadConversationIds } from '../../lib/messaging';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../services/auth-context';
+import type { PropertyConversation } from '../../types/messaging';
  
 type DashboardAction = {
   title: string;
   description: string;
   icon: string;
   route?: string;
+};
+
+type MemoryPhoto = {
+  path: string;
+  url: string;
 };
  
 const dashboardActions: DashboardAction[] = [
@@ -47,12 +59,6 @@ const dashboardActions: DashboardAction[] = [
     route: '/messages',
   },
   {
-    title: 'Become a Host',
-    description: 'Earn income from your private land.',
-    icon: '🏡',
-    route: '/host',
-  },
-  {
     title: 'Profile & Settings',
     description: 'Manage your account and preferences.',
     icon: '⚙',
@@ -63,32 +69,181 @@ const dashboardActions: DashboardAction[] = [
 export default function DashboardScreen() {
   const { session } = useAuth();
   const [isSigningOut, setIsSigningOut] = useState(false);
- 
-  const fullName =
-    session?.user.user_metadata?.full_name ||
-    session?.user.email ||
-    'K9 Country Member';
- 
-  const firstName = fullName.split(' ')[0];
- 
-  const currentHour = new Date().getHours();
- 
-  const greeting =
-    currentHour < 12
-      ? 'Good morning'
-      : currentHour < 17
-        ? 'Good afternoon'
-        : 'Good evening';
- 
+  const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
+  const [canAccessHostDashboard, setCanAccessHostDashboard] = useState(false);
+  const [memories, setMemories] = useState<MemoryPhoto[]>([]);
+
+  const isHostAccount = Boolean(session?.user.id) && canAccessHostDashboard;
+  const [isLoadingMemories, setIsLoadingMemories] = useState(true);
+  const [isUploadingMemories, setIsUploadingMemories] = useState(false);
+  const [memoryStatus, setMemoryStatus] = useState('');
+
+  const loadUnreadMessages = useCallback(async () => {
+    if (!session?.user.id) {
+      setHasUnreadMessages(false);
+      return;
+    }
+
+    const { data } = await supabase
+      .from('property_conversations')
+      .select('*')
+      .eq('guest_id', session.user.id);
+    const unreadConversationIds = await getUnreadConversationIds(
+      (data ?? []) as PropertyConversation[],
+      session.user.id
+    );
+    setHasUnreadMessages(unreadConversationIds.size > 0);
+  }, [session?.user.id]);
+
+  const loadMemories = useCallback(async () => {
+    if (!session?.user.id) {
+      setMemories([]);
+      setIsLoadingMemories(false);
+      return;
+    }
+
+    setIsLoadingMemories(true);
+    const { data: files, error: listError } = await supabase.storage
+      .from('guest-memories')
+      .list(session.user.id, { limit: 30, sortBy: { column: 'created_at', order: 'desc' } });
+
+    if (listError) {
+      setMemoryStatus('We could not load your memories.');
+      setIsLoadingMemories(false);
+      return;
+    }
+
+    const paths = (files ?? [])
+      .filter((file) => file.name)
+      .map((file) => `${session.user.id}/${file.name}`);
+
+    if (!paths.length) {
+      setMemories([]);
+      setIsLoadingMemories(false);
+      return;
+    }
+
+    const { data: signedUrls, error: signedUrlError } = await supabase.storage
+      .from('guest-memories')
+      .createSignedUrls(paths, 60 * 60);
+
+    if (signedUrlError) {
+      setMemoryStatus('We could not load your memories.');
+    } else {
+      setMemories(
+        (signedUrls ?? [])
+          .map((file, index) => ({ path: paths[index], url: file.signedUrl }))
+          .filter((file): file is MemoryPhoto => Boolean(file.url))
+      );
+    }
+    setIsLoadingMemories(false);
+  }, [session?.user.id]);
+
+  useEffect(() => {
+    const checkHostAccess = async () => {
+      if (!session?.user.id) {
+        setCanAccessHostDashboard(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('host_profiles')
+        .select('user_id')
+        .eq('user_id', session.user.id)
+        .maybeSingle();
+
+      if (!error) {
+        setCanAccessHostDashboard(Boolean(data));
+      } else {
+        setCanAccessHostDashboard(false);
+      }
+    };
+
+    void checkHostAccess();
+  }, [session?.user.id]);
+
+  useEffect(() => {
+    void loadUnreadMessages();
+    const refreshInterval = setInterval(
+      () => void loadUnreadMessages(),
+      15_000
+    );
+    return () => clearInterval(refreshInterval);
+  }, [loadUnreadMessages]);
+
+  useEffect(() => {
+    void loadMemories();
+  }, [loadMemories]);
+
   const handleNavigation = (route: string) => {
     router.push(route as never);
   };
+
+  const uploadMemories = async (assets: ImagePicker.ImagePickerAsset[]) => {
+    if (!session?.user.id || !assets.length) return;
+
+    try {
+      setIsUploadingMemories(true);
+      await Promise.all(
+        assets.map(async (asset, index) => {
+          const extension = (asset.mimeType?.split('/')[1] ?? 'jpg')
+            .replace('jpeg', 'jpg')
+            .replace(/[^a-z0-9]/gi, '');
+          const path = `${session.user.id}/${Date.now()}-${index}.${extension || 'jpg'}`;
+          const response = await fetch(asset.uri);
+          const { error } = await supabase.storage
+            .from('guest-memories')
+            .upload(path, await response.arrayBuffer(), {
+              contentType: asset.mimeType ?? 'image/jpeg',
+              upsert: false,
+            });
+          if (error) throw error;
+        })
+      );
+      await loadMemories();
+    } catch {
+      setMemoryStatus('We could not upload those photos. Please try again.');
+    } finally {
+      setIsUploadingMemories(false);
+    }
+  };
+
+  const addMemories = async () => {
+    setMemoryStatus('');
+    const result = await ImagePicker.launchImageLibraryAsync({
+      allowsMultipleSelection: true,
+      mediaTypes: ['images'],
+      quality: 0.8,
+      selectionLimit: 10,
+    });
+    if (!result.canceled) await uploadMemories(result.assets);
+  };
+
+  const takeMemoryPhoto = async () => {
+    if (!session?.user.id || isUploadingMemories) return;
+
+    setMemoryStatus('');
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      setMemoryStatus('Camera permission is needed to take a memory photo.');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+    });
+    if (!result.canceled) await uploadMemories(result.assets);
+  };
+
+  const memberActions = dashboardActions.slice(1);
  
   const handleSignOut = async () => {
     try {
       setIsSigningOut(true);
  
       const { error } = await supabase.auth.signOut();
+      await AsyncStorage.removeItem('@k9-country/host-mode');
  
       if (error) {
         Alert.alert('Unable to sign out', error.message);
@@ -113,21 +268,9 @@ export default function DashboardScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <View>
-            <Text style={styles.greeting}>
-              {greeting}, {firstName}
-            </Text>
- 
-            <Text style={styles.headerDescription}>
-              What would you like to do today?
-            </Text>
-          </View>
- 
-          <View style={styles.logoBadge}>
-            <Text style={styles.logoText}>K9</Text>
-          </View>
+          <Image source={require('../../assets/images/k9-10.png')} style={styles.k9HeaderImage} />
         </View>
- 
+
         <Pressable
           accessibilityRole="button"
           onPress={() => handleNavigation('/search')}
@@ -155,11 +298,9 @@ export default function DashboardScreen() {
             <Text style={styles.featureLink}>Search properties →</Text>
           </View>
         </Pressable>
- 
-        <Text style={styles.sectionTitle}>Your K9 Country</Text>
- 
+
         <View style={styles.grid}>
-          {dashboardActions.slice(1).map((action) => (
+          {memberActions.map((action) => (
             <Pressable
               accessibilityRole="button"
               key={action.title}
@@ -169,7 +310,14 @@ export default function DashboardScreen() {
                 pressed && styles.cardPressed,
               ]}
             >
-              <Text style={styles.actionIcon}>{action.icon}</Text>
+              {action.title === 'Messages' ? (
+                <UnreadMessageIcon
+                  hasUnread={hasUnreadMessages}
+                  style={styles.actionMessageIcon}
+                />
+              ) : (
+                <Text style={styles.actionIcon}>{action.icon}</Text>
+              )}
  
               <Text style={styles.actionTitle}>{action.title}</Text>
  
@@ -179,31 +327,52 @@ export default function DashboardScreen() {
             </Pressable>
           ))}
         </View>
- 
-        <View style={styles.hostHighlight}>
-          <View style={styles.hostHighlightText}>
-            <Text style={styles.hostEyebrow}>HOST OPPORTUNITY</Text>
- 
-            <Text style={styles.hostTitle}>
-              Have private fenced land?
-            </Text>
- 
-            <Text style={styles.hostDescription}>
-              Help dogs enjoy safe, private outdoor time while earning income
-              from your property.
-            </Text>
+
+        <View style={styles.memoriesSection}>
+          <View style={styles.memoriesHeader}>
+            <View style={styles.memoriesCopy}>
+              <Text style={styles.memoriesTitle}>Memories</Text>
+              <Text style={styles.memoriesDescription}>Keep favorite moments from visits with your pet.</Text>
+            </View>
+            <Pressable
+              accessibilityLabel="Upload memory photos"
+              accessibilityRole="button"
+              disabled={isUploadingMemories}
+              onPress={() => void addMemories()}
+              style={[styles.uploadMemoriesButton, isUploadingMemories && styles.buttonDisabled]}
+            >
+              {isUploadingMemories ? <ActivityIndicator color={colors.warmWhite} /> : <Text style={styles.uploadMemoriesButtonText}>+ Upload</Text>}
+            </Pressable>
+            <Pressable
+              accessibilityHint="Opens your camera so you can take and upload a memory photo"
+              accessibilityLabel="Take a memory photo"
+              accessibilityRole="button"
+              disabled={isUploadingMemories}
+              onPress={() => void takeMemoryPhoto()}
+              style={[styles.cameraMemoriesButton, isUploadingMemories && styles.buttonDisabled]}
+            >
+              {isUploadingMemories ? (
+                <ActivityIndicator color={colors.warmWhite} />
+              ) : (
+                <View style={styles.cameraIcon}>
+                  <View style={styles.cameraIconTop} />
+                  <View style={styles.cameraIconLens} />
+                </View>
+              )}
+            </Pressable>
           </View>
- 
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => handleNavigation('/host')}
-            style={({ pressed }) => [
-              styles.hostButton,
-              pressed && styles.cardPressed,
-            ]}
-          >
-            <Text style={styles.hostButtonText}>Learn About Hosting</Text>
-          </Pressable>
+
+          {isLoadingMemories ? (
+            <View style={styles.memoriesEmpty}><ActivityIndicator color={colors.forest} /></View>
+          ) : memories.length ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.memoriesScroll}>
+              {memories.map((memory) => <Image key={memory.path} source={{ uri: memory.url }} style={styles.memoryImage} />)}
+            </ScrollView>
+          ) : (
+            <View style={styles.memoriesEmpty}><Text style={styles.memoriesEmptyText}>Add photos from your site visits and adventures together.</Text></View>
+          )}
+
+          {memoryStatus ? <Text style={styles.memoryStatus}>{memoryStatus}</Text> : null}
         </View>
  
         <View style={styles.accountSection}>
@@ -229,22 +398,28 @@ export default function DashboardScreen() {
               <Text style={styles.signOutButtonText}>Sign Out</Text>
             )}
           </Pressable>
+
+          {isHostAccount ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push('/host-dashboard' as never)}
+              style={styles.hostReturnLink}
+            >
+              <Text style={styles.hostReturnLinkText}>Return to Host Area</Text>
+            </Pressable>
+          ) : null}
+
+          <Pressable accessibilityRole="button" onPress={() => router.push('/settings' as never)} style={styles.hostReturnLink}>
+            <Text style={styles.hostReturnLinkText}>Settings & Privacy</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" onPress={() => router.push('/support' as never)} style={styles.hostReturnLink}>
+            <Text style={styles.hostReturnLinkText}>Safety & Support</Text>
+          </Pressable>
         </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
- 
-const colors = {
-  forest: '#263A24',
-  olive: '#3D522C',
-  cream: '#F4ECDD',
-  warmWhite: '#FFFDF8',
-  brown: '#8A4F17',
-  muted: '#6D6A60',
-  border: '#D7CBB8',
-  lightGreen: '#E8ECDD',
-};
  
 const styles = StyleSheet.create({
   safeArea: {
@@ -254,53 +429,25 @@ const styles = StyleSheet.create({
  
   container: {
     paddingHorizontal: 20,
-    paddingTop: 18,
+    paddingTop: 0,
     paddingBottom: 36,
   },
  
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 24,
-  },
+  header: { alignItems: 'center', justifyContent: 'center', marginBottom: 0 },
+
+  userIntro: { marginBottom: 16, paddingHorizontal: 2 },
  
-  greeting: {
-    color: colors.forest,
-    fontSize: 28,
-    fontWeight: '900',
-  },
+  memberName: { color: colors.brown, fontFamily: typography.display, fontSize: 44, fontWeight: '900', marginTop: 0 },
  
   headerDescription: {
     color: colors.muted,
-    fontSize: 15,
-    marginTop: 5,
+    fontSize: 13,
+    marginTop: 0,
   },
  
-  logoBadge: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.forest,
-    borderWidth: 3,
-    borderColor: colors.brown,
-  },
+  k9HeaderImage: { height: 266, marginTop: 0, resizeMode: 'contain', transform: [{ translateX: 12 }], width: '121%' },
  
-  logoText: {
-    color: colors.cream,
-    fontSize: 24,
-    fontWeight: '900',
-  },
- 
-  featureCard: {
-    flexDirection: 'row',
-    backgroundColor: colors.forest,
-    borderRadius: 22,
-    padding: 20,
-    marginBottom: 28,
-  },
+  featureCard: { backgroundColor: colors.forest, borderRadius: 22, flexDirection: 'row', marginBottom: 16, padding: 18, ...shadows.card },
  
   featureIcon: {
     width: 54,
@@ -354,93 +501,75 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     marginBottom: 14,
   },
- 
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+
+  hostReturnLink: {
+    alignSelf: 'center',
+    marginTop: 24,
   },
+
+  hostReturnLinkText: {
+    color: colors.brown,
+    fontSize: 13,
+    fontWeight: '700',
+    textDecorationLine: 'underline',
+  },
+ 
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+
+  memoriesSection: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 18, borderWidth: 1, marginTop: 14, padding: 15, ...shadows.card },
+  memoriesHeader: { alignItems: 'center', flexDirection: 'row', gap: 12, marginBottom: 13 },
+  memoriesCopy: { flex: 1 },
+  memoriesTitle: { color: colors.forest, fontSize: 19, fontWeight: '900', marginBottom: 3 },
+  memoriesDescription: { color: colors.muted, fontSize: 13, lineHeight: 18 },
+  uploadMemoriesButton: { alignItems: 'center', backgroundColor: colors.forest, borderRadius: 11, justifyContent: 'center', minHeight: 42, paddingHorizontal: 13 },
+  uploadMemoriesButtonText: { color: colors.gold, fontSize: 14, fontWeight: '900' },
+  cameraMemoriesButton: { alignItems: 'center', backgroundColor: colors.forest, borderRadius: 11, height: 42, justifyContent: 'center', width: 42 },
+  cameraIcon: { borderColor: colors.gold, borderRadius: 4, borderWidth: 1.8, height: 16, justifyContent: 'center', position: 'relative', width: 22 },
+  cameraIconTop: { backgroundColor: colors.gold, borderTopLeftRadius: 2, borderTopRightRadius: 2, height: 3, left: 4, position: 'absolute', top: -5, width: 8 },
+  cameraIconLens: { alignSelf: 'center', borderColor: '#F0B56F', borderRadius: 5, borderWidth: 1.6, height: 9, width: 9 },
+  memoriesScroll: { gap: 10 },
+  memoryImage: { backgroundColor: colors.lightGreen, borderRadius: 13, height: 180, width: 180 },
+  memoriesEmpty: { alignItems: 'center', backgroundColor: colors.cream, borderColor: colors.border, borderRadius: 13, borderStyle: 'dashed', borderWidth: 1, justifyContent: 'center', minHeight: 180, padding: 18 },
+  memoriesEmptyText: { color: colors.muted, fontSize: 14, lineHeight: 20, textAlign: 'center' },
+  memoryStatus: { color: colors.red, fontSize: 13, fontWeight: '700', marginTop: 10 },
  
   actionCard: {
     width: '48%',
-    minHeight: 164,
+    minHeight: 134,
     backgroundColor: colors.warmWhite,
     borderRadius: 18,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: 17,
-    marginBottom: 14,
+    padding: 13,
+    marginBottom: 10,
+    ...shadows.card,
   },
  
   actionIcon: {
     fontSize: 26,
-    marginBottom: 13,
+    marginBottom: 8,
+  },
+
+  actionMessageIcon: {
+    marginBottom: 8,
   },
  
   actionTitle: {
     color: colors.forest,
     fontSize: 17,
     fontWeight: '900',
-    marginBottom: 7,
+    marginBottom: 4,
   },
  
   actionDescription: {
     color: colors.muted,
     fontSize: 13,
-    lineHeight: 19,
+    lineHeight: 17,
   },
  
   cardPressed: {
     opacity: 0.75,
     transform: [{ scale: 0.99 }],
-  },
- 
-  hostHighlight: {
-    backgroundColor: colors.lightGreen,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#CBD1BD',
-    padding: 20,
-    marginTop: 12,
-  },
- 
-  hostHighlightText: {
-    marginBottom: 18,
-  },
- 
-  hostEyebrow: {
-    color: colors.brown,
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 1.2,
-    marginBottom: 6,
-  },
- 
-  hostTitle: {
-    color: colors.forest,
-    fontSize: 21,
-    fontWeight: '900',
-    marginBottom: 8,
-  },
- 
-  hostDescription: {
-    color: colors.muted,
-    fontSize: 14,
-    lineHeight: 21,
-  },
- 
-  hostButton: {
-    minHeight: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 13,
-    backgroundColor: colors.brown,
-  },
- 
-  hostButtonText: {
-    color: colors.warmWhite,
-    fontSize: 15,
-    fontWeight: '800',
   },
  
   accountSection: {
@@ -482,4 +611,5 @@ const styles = StyleSheet.create({
   buttonDisabled: {
     opacity: 0.6,
   },
+
 });

@@ -1,12 +1,20 @@
+export type HostStatus = 'pending' | 'active' | 'suspended' | 'rejected';
+
 export type HostProfile = {
+  id: string;
   user_id: string;
   full_name: string;
-  phone_number: string;
-  city: string;
-  state: string;
-  confirms_property_control: boolean;
-  agrees_to_host_terms: boolean;
-  onboarding_status: 'started' | 'submitted' | 'approved' | 'rejected';
+  email: string | null;
+  phone: string | null;
+  city: string | null;
+  state: string | null;
+  controls_property: boolean;
+  accepted_host_terms_at: string | null;
+  onboarding_completed_at: string | null;
+  status: HostStatus;
+  is_verified: boolean;
+  is_active: boolean;
+  profile_image_path: string | null;
   created_at: string;
   updated_at: string;
 };

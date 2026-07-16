@@ -1,0 +1,10 @@
+env: load .env
+env: export EXPO_PUBLIC_SUPABASE_URL EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+Networking has been disabled
+Starting project at C:\Users\north\k9-country
+React Compiler enabled
+Starting Metro Bundler
+warning: Bundler cache is empty, rebuilding (this may take a minute)
+Skipping dependency validation in offline mode
+Waiting on http://localhost:8082
+Logs for your project will appear below.

@@ -1,30 +1,28 @@
 import { Stack } from 'expo-router';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
  
+import { colors } from '../constants/theme';
 import { AuthProvider, useAuth } from '../services/auth-context';
  
 function RootNavigator() {
-  const { session, isLoading } = useAuth();
+  const { isLoading } = useAuth();
  
   if (isLoading) {
     return (
       <View style={styles.loadingScreen}>
-        <ActivityIndicator size="large" color="#263A24" />
+        <ActivityIndicator size="large" color={colors.forest} />
       </View>
     );
   }
  
   return (
-    <Stack screenOptions={{ headerShown: false }}>
+      <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
- 
-      <Stack.Protected guard={!session}>
-        <Stack.Screen name="(auth)" />
-      </Stack.Protected>
- 
-      <Stack.Protected guard={Boolean(session)}>
-        <Stack.Screen name="(app)" />
-      </Stack.Protected>
+      <Stack.Screen name="host-info" />
+      <Stack.Screen name="legal" />
+      <Stack.Screen name="auth/callback" />
+      <Stack.Screen name="(auth)" />
+      <Stack.Screen name="(app)" />
     </Stack>
   );
 }
@@ -42,6 +40,6 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F4ECDD',
+    backgroundColor: colors.cream,
   },
 });

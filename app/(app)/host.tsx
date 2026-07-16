@@ -14,6 +14,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ModeLabel } from '../../components/mode-label';
+import { colors, typography } from '../../constants/theme';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../services/auth-context';
 import type { HostProfile } from '../../types/host-profile';
@@ -23,12 +25,11 @@ export default function HostOnboardingScreen() {
   const [fullName, setFullName] = useState(
     session?.user.user_metadata?.full_name ?? ''
   );
-  const [phoneNumber, setPhoneNumber] = useState('');
+  const [phone, setPhone] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
-  const [confirmsPropertyControl, setConfirmsPropertyControl] =
-    useState(false);
-  const [agreesToHostTerms, setAgreesToHostTerms] = useState(false);
+  const [controlsProperty, setControlsProperty] = useState(false);
+  const [acceptsHostTerms, setAcceptsHostTerms] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -58,11 +59,11 @@ export default function HostOnboardingScreen() {
 
       if (profile) {
         setFullName(profile.full_name);
-        setPhoneNumber(profile.phone_number);
-        setCity(profile.city);
-        setState(profile.state);
-        setConfirmsPropertyControl(profile.confirms_property_control);
-        setAgreesToHostTerms(profile.agrees_to_host_terms);
+        setPhone(profile.phone ?? '');
+        setCity(profile.city ?? '');
+        setState(profile.state ?? '');
+        setControlsProperty(profile.controls_property);
+        setAcceptsHostTerms(Boolean(profile.accepted_host_terms_at));
       }
 
       setIsLoading(false);
@@ -73,7 +74,7 @@ export default function HostOnboardingScreen() {
 
   const handleContinue = async () => {
     const normalizedName = fullName.trim();
-    const normalizedPhone = phoneNumber.trim();
+    const normalizedPhone = phone.trim();
     const normalizedCity = city.trim();
     const normalizedState = state.trim();
 
@@ -90,7 +91,7 @@ export default function HostOnboardingScreen() {
       return;
     }
 
-    if (!confirmsPropertyControl || !agreesToHostTerms) {
+    if (!controlsProperty || !acceptsHostTerms) {
       Alert.alert(
         'Confirmation required',
         'Confirm that you control the property and agree to the host requirements.'
@@ -101,17 +102,19 @@ export default function HostOnboardingScreen() {
     try {
       setIsSubmitting(true);
 
+      const completedAt = new Date().toISOString();
+
       const { error } = await supabase.from('host_profiles').upsert(
         {
           user_id: session.user.id,
           full_name: normalizedName,
-          phone_number: normalizedPhone,
+          email: session.user.email?.trim().toLowerCase() ?? null,
+          phone: normalizedPhone,
           city: normalizedCity,
-          state: normalizedState,
-          confirms_property_control: confirmsPropertyControl,
-          agrees_to_host_terms: agreesToHostTerms,
-          onboarding_status: 'submitted',
-          updated_at: new Date().toISOString(),
+          state: normalizedState.toUpperCase(),
+          controls_property: true,
+          accepted_host_terms_at: completedAt,
+          onboarding_completed_at: completedAt,
         },
         { onConflict: 'user_id' }
       );
@@ -121,7 +124,7 @@ export default function HostOnboardingScreen() {
         return;
       }
 
-      router.push('/create-property');
+      router.replace('/host-dashboard');
     } catch {
       Alert.alert(
         'Something went wrong',
@@ -135,6 +138,7 @@ export default function HostOnboardingScreen() {
   if (isLoading) {
     return (
       <SafeAreaView style={styles.safeArea}>
+        <ModeLabel mode="Host" page={1} />
         <View style={styles.centeredState}>
           <ActivityIndicator size="large" color="#263A24" />
           <Text style={styles.stateText}>Loading host setup...</Text>
@@ -145,6 +149,7 @@ export default function HostOnboardingScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      <ModeLabel mode="Host" page={1} />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardView}
@@ -163,9 +168,7 @@ export default function HostOnboardingScreen() {
           </Pressable>
 
           <View style={styles.headingArea}>
-            <View style={styles.logoBadge}>
-              <Text style={styles.logoText}>K9</Text>
-            </View>
+            <View style={styles.logoBadge}><Text style={styles.logoText}>K9</Text></View>
             <Text style={styles.eyebrow}>HOST WITH K9 COUNTRY</Text>
             <Text style={styles.title}>Share your private space</Text>
             <Text style={styles.description}>
@@ -185,8 +188,8 @@ export default function HostOnboardingScreen() {
             />
             <FormField
               label="Phone number"
-              value={phoneNumber}
-              onChangeText={setPhoneNumber}
+              value={phone}
+              onChangeText={setPhone}
               placeholder="(555) 555-5555"
               autoComplete="tel"
               keyboardType="phone-pad"
@@ -215,15 +218,15 @@ export default function HostOnboardingScreen() {
 
             <View style={styles.confirmationCard}>
               <ConfirmationRow
-                checked={confirmsPropertyControl}
+                checked={controlsProperty}
                 label="I own this property or have permission to list and host it."
-                onPress={() => setConfirmsPropertyControl((current) => !current)}
+                onPress={() => setControlsProperty((current) => !current)}
               />
               <View style={styles.confirmationDivider} />
               <ConfirmationRow
-                checked={agreesToHostTerms}
+                checked={acceptsHostTerms}
                 label="I agree to provide accurate listing details and follow K9 Country host requirements."
-                onPress={() => setAgreesToHostTerms((current) => !current)}
+                onPress={() => setAcceptsHostTerms((current) => !current)}
               />
             </View>
 
@@ -245,8 +248,8 @@ export default function HostOnboardingScreen() {
             </Pressable>
 
             <Text style={styles.footerText}>
-              Submitting a host profile does not publish a property. Every
-              property stays private until you complete and submit its listing.
+              Your host profile is submitted for review. You can create a
+              property draft next, but it cannot be published until approved.
             </Text>
           </View>
         </ScrollView>
@@ -314,15 +317,6 @@ function ConfirmationRow({
   );
 }
 
-const colors = {
-  forest: '#263A24',
-  cream: '#F4ECDD',
-  warmWhite: '#FFFDF8',
-  brown: '#8A4F17',
-  muted: '#6D6A60',
-  border: '#D7CBB8',
-};
-
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.cream },
   keyboardView: { flex: 1 },
@@ -335,7 +329,7 @@ const styles = StyleSheet.create({
   logoBadge: { width: 72, height: 72, alignItems: 'center', justifyContent: 'center', borderRadius: 36, backgroundColor: colors.forest, borderColor: colors.brown, borderWidth: 4, marginBottom: 18 },
   logoText: { color: colors.cream, fontSize: 32, fontWeight: '900' },
   eyebrow: { color: colors.brown, fontSize: 12, fontWeight: '900', letterSpacing: 1.25, marginBottom: 8 },
-  title: { color: colors.forest, fontSize: 29, fontWeight: '900', textAlign: 'center', marginBottom: 10 },
+  title: { color: colors.forest, fontFamily: typography.display, fontSize: 29, fontWeight: '900', textAlign: 'center', marginBottom: 10 },
   description: { color: colors.muted, fontSize: 16, lineHeight: 23, textAlign: 'center', maxWidth: 370 },
   form: { gap: 18 },
   label: { color: colors.forest, fontSize: 15, fontWeight: '800', marginBottom: 8 },

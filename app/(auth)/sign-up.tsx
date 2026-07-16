@@ -1,5 +1,7 @@
-import { router } from 'expo-router';
-import { useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Image } from 'expo-image';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -13,15 +15,103 @@ import {
     View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { getAuthEmailRedirectUrl } from '../../lib/auth-redirect';
  
+import { colors } from '../../constants/theme';
 import { supabase } from '../../lib/supabase';
+
+function getSignupErrorMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : '';
+  const normalizedMessage = message.toLowerCase();
+
+  if (
+    normalizedMessage.includes('unexpected_failure') ||
+    normalizedMessage.includes('"status":500') ||
+    normalizedMessage.includes('status:500')
+  ) {
+    return 'We could not send your verification email right now. Please try again shortly or contact K9 Country support.';
+  }
+
+  return message || 'We could not create your account. Please try again.';
+}
  
 export default function SignUpScreen() {
+  const { intent, email: initialEmail } = useLocalSearchParams<{
+    intent?: string;
+    email?: string;
+  }>();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [verificationEmail, setVerificationEmail] = useState<string | null>(null);
+  const [verificationMessage, setVerificationMessage] = useState('');
+  const [resendCooldownSeconds, setResendCooldownSeconds] = useState(0);
+
+  const signInRoute = intent === 'host' ? '/sign-in?intent=host' : '/sign-in';
+
+  useEffect(() => {
+    if (initialEmail) {
+      setEmail(initialEmail);
+    }
+  }, [initialEmail]);
+
+  useEffect(() => {
+    if (!verificationEmail || resendCooldownSeconds <= 0) {
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setResendCooldownSeconds((seconds) => Math.max(seconds - 1, 0));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [resendCooldownSeconds, verificationEmail]);
+
+  const handleResendVerification = async () => {
+    if (!verificationEmail) {
+      return;
+    }
+
+    if (resendCooldownSeconds > 0) {
+      return;
+    }
+
+    try {
+      setIsResending(true);
+
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: verificationEmail,
+        options: {
+          emailRedirectTo: getAuthEmailRedirectUrl(intent),
+        },
+      });
+
+      if (error) {
+        const isRateLimited = error.message.toLowerCase().includes('rate limit');
+        setVerificationMessage(
+          isRateLimited
+            ? 'K9 Country\'s test email service has reached its sending limit. Try again later, or connect a custom email provider before inviting more users.'
+            : getSignupErrorMessage(error)
+        );
+        if (isRateLimited) {
+          setResendCooldownSeconds(60);
+        }
+        return;
+      }
+
+      setVerificationMessage('A new verification email has been sent. Check your inbox and spam folder.');
+      setResendCooldownSeconds(60);
+    } catch {
+      setVerificationMessage('We could not resend the verification email. Please try again later.');
+    } finally {
+      setIsResending(false);
+    }
+  };
  
   const handleSignUp = async () => {
     const normalizedName = fullName.trim();
@@ -63,6 +153,7 @@ export default function SignUpScreen() {
         email: normalizedEmail,
         password,
         options: {
+          emailRedirectTo: getAuthEmailRedirectUrl(intent),
           data: {
             full_name: normalizedName,
           },
@@ -70,34 +161,19 @@ export default function SignUpScreen() {
       });
  
       if (error) {
-        Alert.alert('Unable to create account', error.message);
+        Alert.alert('Unable to create account', getSignupErrorMessage(error));
         return;
       }
  
       if (data.session) {
-        Alert.alert(
-          'Account created',
-          'Welcome to K9 Country.',
-          [
-            {
-              text: 'Continue',
-              onPress: () => router.replace('/dashboard'),
-            },
-          ]
-        );
+        await AsyncStorage.setItem('@k9-country/host-mode', intent === 'host' ? 'host' : 'guest');
+        router.replace(intent === 'host' ? '/host-dashboard' : '/dashboard');
         return;
       }
  
-      Alert.alert(
-        'Check your email',
-        'Your account was created. Open the confirmation email from K9 Country before signing in.',
-        [
-          {
-            text: 'Go to Sign In',
-            onPress: () => router.replace('/sign-in'),
-          },
-        ]
-      );
+      setVerificationEmail(normalizedEmail);
+      setVerificationMessage('We sent a verification link to your email address. Open it before signing in.');
+      setResendCooldownSeconds(60);
     } catch {
       Alert.alert(
         'Something went wrong',
@@ -108,8 +184,59 @@ export default function SignUpScreen() {
     }
   };
  
+  if (verificationEmail) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.verificationContainer}>
+          <View style={styles.logoBadge}><Text style={styles.logoText}>K9</Text></View>
+
+          <Text style={styles.title}>Check your email</Text>
+
+          <Text style={styles.verificationText}>
+            {verificationMessage}
+          </Text>
+
+          <Text style={styles.verificationEmail}>{verificationEmail}</Text>
+
+          <Text style={styles.verificationHint}>
+            If you do not see it, check your spam or junk folder before requesting another email.
+          </Text>
+
+          <Pressable
+            accessibilityRole="button"
+            disabled={isResending || resendCooldownSeconds > 0}
+            onPress={handleResendVerification}
+            style={({ pressed }) => [
+              styles.resendButton,
+              pressed && styles.buttonPressed,
+              (isResending || resendCooldownSeconds > 0) && styles.buttonDisabled,
+            ]}
+          >
+            {isResending ? (
+              <ActivityIndicator color={colors.forest} />
+            ) : (
+              <Text style={styles.resendButtonText}>
+                {resendCooldownSeconds > 0
+                  ? `Resend verification email in ${resendCooldownSeconds}s`
+                  : 'Resend verification email'}
+              </Text>
+            )}
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.replace(signInRoute as never)}
+            style={styles.textButton}
+          >
+            <Text style={styles.textButtonText}>Go to Sign In</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.safeArea}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardView}
@@ -119,26 +246,62 @@ export default function SignUpScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
+          {intent !== 'host' ? (
+            <View style={styles.createHeroBleed}>
+              <Image
+                accessibilityLabel="K9 Country create account artwork"
+                contentFit="cover"
+                source={require('../../assets/images/k9-5.png')}
+                style={styles.createHero}
+              />
+            </View>
+          ) : null}
+
           <Pressable
             accessibilityRole="button"
             onPress={() => router.back()}
             style={styles.backButton}
           >
-            <Text style={styles.backButtonText}>← Back</Text>
+            <Text style={[styles.backButtonText, intent === 'host' && styles.hostBackButtonText]}>← Back</Text>
           </Pressable>
  
-          <View style={styles.headingArea}>
-            <View style={styles.logoBadge}>
-              <Text style={styles.logoText}>K9</Text>
+          {intent === 'host' ? (
+            <View style={styles.hostHeroBleed}>
+              <Image
+                accessibilityLabel="K9 Country host account artwork"
+                contentFit="cover"
+                source={require('../../assets/images/k9-6.png')}
+                style={styles.hostHero}
+              />
             </View>
- 
-            <Text style={styles.title}>Create your account</Text>
- 
-            <Text style={styles.description}>
-              Use one K9 Country account as a guest, a host, or both.
-            </Text>
-          </View>
- 
+          ) : null}
+
+          {intent === 'host' ? (
+            <View style={styles.hostHeading}>
+              <Text style={styles.title}>Create your host account</Text>
+              <Text style={styles.description}>
+                Create your account, then tell us about the private space you want to share.
+              </Text>
+            </View>
+          ) : (
+            <>
+              <View style={styles.stepsBannerBleed}>
+                <Image
+                  accessibilityLabel="K9 Country account setup steps"
+                  contentFit="contain"
+                  source={require('../../assets/images/k9-3.png')}
+                  style={styles.stepsBanner}
+                />
+              </View>
+
+              <Text style={styles.joinTitle}>Join the Pack</Text>
+
+              <Text style={styles.description}>
+                Create your member account to search, save, and reserve private spaces.
+              </Text>
+            </>
+          )}
+
           <View style={styles.form}>
             <View>
               <Text style={styles.label}>Full name</Text>
@@ -185,7 +348,7 @@ export default function SignUpScreen() {
                 placeholder="At least 8 characters"
                 placeholderTextColor="#8A877D"
                 returnKeyType="next"
-                secureTextEntry
+                secureTextEntry={!isPasswordVisible}
                 style={styles.input}
                 value={password}
               />
@@ -203,10 +366,23 @@ export default function SignUpScreen() {
                 placeholder="Enter your password again"
                 placeholderTextColor="#8A877D"
                 returnKeyType="done"
-                secureTextEntry
+                secureTextEntry={!isPasswordVisible}
                 style={styles.input}
                 value={confirmPassword}
               />
+
+              <Pressable
+                accessibilityLabel={
+                  isPasswordVisible ? 'Hide passwords' : 'Show passwords'
+                }
+                accessibilityRole="button"
+                onPress={() => setIsPasswordVisible((current) => !current)}
+                style={styles.showPasswordButton}
+              >
+                <Text style={styles.showPasswordText}>
+                  {isPasswordVisible ? 'Hide Passwords' : 'Show Passwords'}
+                </Text>
+              </Pressable>
             </View>
  
             <Pressable
@@ -222,7 +398,9 @@ export default function SignUpScreen() {
               {isLoading ? (
                 <ActivityIndicator color="#FFFDF8" />
               ) : (
-                <Text style={styles.primaryButtonText}>Create Account</Text>
+                <Text style={styles.primaryButtonText}>
+                  {intent === 'host' ? 'Create Host Account' : 'Create Account'}
+                </Text>
               )}
             </Pressable>
  
@@ -230,10 +408,18 @@ export default function SignUpScreen() {
               By creating an account, you agree to K9 Country’s Terms of
               Service, Privacy Policy, and applicable safety rules.
             </Text>
+
+            <Pressable
+              accessibilityRole="link"
+              onPress={() => router.push('/legal' as never)}
+              style={styles.termsLink}
+            >
+              <Text style={styles.termsLinkText}>Read Terms, Privacy & Community Rules</Text>
+            </Pressable>
  
             <Pressable
               accessibilityRole="button"
-              onPress={() => router.replace('/sign-in')}
+              onPress={() => router.replace(signInRoute as never)}
               style={styles.textButton}
             >
               <Text style={styles.textButtonText}>
@@ -246,15 +432,6 @@ export default function SignUpScreen() {
     </SafeAreaView>
   );
 }
- 
-const colors = {
-  forest: '#263A24',
-  cream: '#F4ECDD',
-  warmWhite: '#FFFDF8',
-  brown: '#8A4F17',
-  muted: '#6D6A60',
-  border: '#D7CBB8',
-};
  
 const styles = StyleSheet.create({
   safeArea: {
@@ -269,14 +446,17 @@ const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
     paddingHorizontal: 24,
-    paddingTop: 12,
-    paddingBottom: 34,
+    paddingTop: 0,
+    paddingBottom: 24,
   },
  
   backButton: {
-    alignSelf: 'flex-start',
-    minHeight: 44,
+    left: 16,
+    minHeight: 36,
+    position: 'absolute',
+    top: 48,
     justifyContent: 'center',
+    zIndex: 1,
   },
  
   backButtonText: {
@@ -284,11 +464,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
- 
-  headingArea: {
-    alignItems: 'center',
-    marginTop: 12,
-    marginBottom: 28,
+
+  hostBackButtonText: {
+    color: colors.warmWhite,
   },
  
   logoBadge: {
@@ -302,38 +480,85 @@ const styles = StyleSheet.create({
     borderColor: colors.brown,
     marginBottom: 18,
   },
- 
-  logoText: {
-    color: colors.cream,
-    fontSize: 32,
-    fontWeight: '900',
+
+  hostHeading: {
+    alignItems: 'center',
+    marginTop: -48,
+    marginBottom: 12,
   },
+
+  hostHeroBleed: {
+    alignSelf: 'stretch',
+    marginHorizontal: -24,
+  },
+
+  hostHero: {
+    aspectRatio: 9 / 16,
+    transform: [{ translateY: -60 }],
+    width: '100%',
+  },
+
+  createHeroBleed: {
+    alignSelf: 'stretch',
+    marginHorizontal: -24,
+  },
+
+  createHero: {
+    alignSelf: 'center',
+    aspectRatio: 2 / 3,
+    transform: [{ translateY: 48 }],
+    width: '56%',
+  },
+
+  stepsBannerBleed: {
+    alignSelf: 'stretch',
+    marginHorizontal: -24,
+    marginTop: -10,
+    marginBottom: -20,
+    zIndex: 1,
+  },
+
+  stepsBanner: {
+    aspectRatio: 1.775,
+    width: '100%',
+  },
+  logoText: { color: colors.cream, fontSize: 32, fontWeight: '900' },
  
   title: {
     color: colors.forest,
     fontSize: 29,
     fontWeight: '900',
     textAlign: 'center',
-    marginBottom: 10,
+    marginBottom: 6,
+  },
+
+  joinTitle: {
+    alignSelf: 'center',
+    color: colors.forest,
+    fontSize: 30,
+    fontWeight: '900',
+    marginBottom: 12,
   },
  
   description: {
     color: colors.muted,
     fontSize: 16,
-    lineHeight: 23,
+    lineHeight: 21,
     textAlign: 'center',
     maxWidth: 360,
+    alignSelf: 'center',
+    marginBottom: 12,
   },
  
   form: {
-    gap: 17,
+    gap: 12,
   },
  
   label: {
     color: colors.forest,
     fontSize: 15,
     fontWeight: '800',
-    marginBottom: 8,
+    marginBottom: 6,
   },
  
   input: {
@@ -369,13 +594,84 @@ const styles = StyleSheet.create({
   buttonDisabled: {
     opacity: 0.65,
   },
- 
+
+  verificationContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 28,
+  },
+
+  verificationText: {
+    color: colors.muted,
+    fontSize: 16,
+    lineHeight: 23,
+    textAlign: 'center',
+    marginTop: 2,
+  },
+
+  verificationEmail: {
+    color: colors.forest,
+    fontSize: 16,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginTop: 16,
+  },
+
+  verificationHint: {
+    color: colors.muted,
+    fontSize: 14,
+    lineHeight: 21,
+    textAlign: 'center',
+    marginTop: 18,
+    marginBottom: 22,
+  },
+
+  resendButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
+  },
+
+  resendButtonText: {
+    color: colors.forest,
+    fontSize: 16,
+    fontWeight: '900',
+  },
+
+  showPasswordButton: {
+    alignSelf: 'flex-start',
+    minHeight: 40,
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+
+  showPasswordText: {
+    color: colors.brown,
+    fontSize: 14,
+    fontWeight: '800',
+    textDecorationLine: 'underline',
+  },
+
   termsText: {
     color: colors.muted,
     fontSize: 12,
     lineHeight: 18,
     textAlign: 'center',
     paddingHorizontal: 8,
+  },
+
+  termsLink: {
+    alignSelf: 'center',
+    justifyContent: 'center',
+    minHeight: 32,
+  },
+
+  termsLinkText: {
+    color: colors.brown,
+    fontSize: 13,
+    fontWeight: '800',
+    textDecorationLine: 'underline',
   },
  
   textButton: {

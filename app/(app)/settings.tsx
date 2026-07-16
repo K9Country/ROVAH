@@ -1,0 +1,73 @@
+import { router } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { colors } from '../../constants/theme';
+import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../services/auth-context';
+
+type Preferences = {
+  booking_updates: boolean;
+  message_updates: boolean;
+  review_reminders: boolean;
+  product_updates: boolean;
+};
+
+const defaults: Preferences = { booking_updates: true, message_updates: true, review_reminders: true, product_updates: false };
+
+export default function SettingsScreen() {
+  const { session } = useAuth();
+  const [preferences, setPreferences] = useState<Preferences>(defaults);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    const load = async () => {
+      if (!session?.user.id) return;
+      const { data } = await supabase.from('member_notification_preferences').select('booking_updates, message_updates, review_reminders, product_updates').eq('user_id', session.user.id).maybeSingle();
+      if (data) setPreferences(data as Preferences);
+      setIsLoading(false);
+    };
+    void load();
+  }, [session?.user.id]);
+
+  const update = async (key: keyof Preferences) => {
+    if (!session?.user.id || isSaving) return;
+    const next = { ...preferences, [key]: !preferences[key] };
+    setPreferences(next);
+    try {
+      setIsSaving(true);
+      const { error } = await supabase.from('member_notification_preferences').upsert({ user_id: session.user.id, ...next, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
+      if (error) throw error;
+    } catch {
+      setPreferences(preferences);
+      Alert.alert('Unable to update preferences', 'Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return <SafeAreaView style={styles.safeArea}><ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+    <Pressable onPress={() => router.back()} style={styles.backButton}><Text style={styles.backText}>← Back</Text></Pressable>
+    <Text style={styles.title}>Settings & Privacy</Text>
+    <Text style={styles.description}>Choose the updates you want from K9 Country. Delivery channels are enabled as the service is configured.</Text>
+    {isLoading ? <View style={styles.loading}><ActivityIndicator color={colors.forest} /></View> : <View style={styles.section}>
+      <Text style={styles.sectionTitle}>Notifications</Text>
+      <SettingRow label="Reservation updates" detail="Confirmations, changes, and cancellations" value={preferences.booking_updates} onPress={() => void update('booking_updates')} />
+      <SettingRow label="Message updates" detail="New messages from hosts or guests" value={preferences.message_updates} onPress={() => void update('message_updates')} />
+      <SettingRow label="Review reminders" detail="A reminder after a completed visit" value={preferences.review_reminders} onPress={() => void update('review_reminders')} />
+      <SettingRow label="K9 Country updates" detail="Optional product and community updates" value={preferences.product_updates} onPress={() => void update('product_updates')} last />
+    </View>}
+    <View style={styles.section}><Text style={styles.sectionTitle}>Privacy & support</Text>
+      <Pressable onPress={() => router.push('/support' as never)} style={styles.linkRow}><Text style={styles.linkText}>Safety, support, and report an issue</Text><Text style={styles.chevron}>›</Text></Pressable>
+      <Pressable onPress={() => router.push('/legal' as never)} style={styles.linkRow}><Text style={styles.linkText}>Terms, privacy, and community rules</Text><Text style={styles.chevron}>›</Text></Pressable>
+    </View>
+  </ScrollView></SafeAreaView>;
+}
+
+function SettingRow({ label, detail, value, onPress, last = false }: { label: string; detail: string; value: boolean; onPress: () => void; last?: boolean }) {
+  return <Pressable accessibilityRole="switch" accessibilityState={{ checked: value }} onPress={onPress} style={[styles.row, last && styles.lastRow]}><View style={styles.copy}><Text style={styles.rowLabel}>{label}</Text><Text style={styles.rowDetail}>{detail}</Text></View><View style={[styles.switch, value && styles.switchOn]}><View style={[styles.knob, value && styles.knobOn]} /></View></Pressable>;
+}
+
+const styles = StyleSheet.create({ safeArea: { flex: 1, backgroundColor: colors.cream }, container: { padding: 20, paddingBottom: 40 }, backButton: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' }, backText: { color: colors.forest, fontSize: 16, fontWeight: '800' }, title: { color: colors.forest, fontSize: 30, fontWeight: '900', marginTop: 8 }, description: { color: colors.muted, fontSize: 16, lineHeight: 23, marginTop: 10 }, loading: { paddingVertical: 48 }, section: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 18, borderWidth: 1, marginTop: 20, paddingHorizontal: 16 }, sectionTitle: { color: colors.forest, fontSize: 18, fontWeight: '900', marginTop: 16, marginBottom: 6 }, row: { alignItems: 'center', borderBottomColor: colors.border, borderBottomWidth: 1, flexDirection: 'row', justifyContent: 'space-between', minHeight: 76, paddingVertical: 12 }, lastRow: { borderBottomWidth: 0 }, copy: { flex: 1, paddingRight: 12 }, rowLabel: { color: colors.forest, fontSize: 15, fontWeight: '900' }, rowDetail: { color: colors.muted, fontSize: 13, lineHeight: 18, marginTop: 4 }, switch: { backgroundColor: '#C9C4B7', borderRadius: 17, height: 34, justifyContent: 'center', paddingHorizontal: 3, width: 58 }, switchOn: { backgroundColor: colors.forest }, knob: { backgroundColor: colors.warmWhite, borderRadius: 14, height: 28, width: 28 }, knobOn: { alignSelf: 'flex-end' }, linkRow: { alignItems: 'center', borderTopColor: colors.border, borderTopWidth: 1, flexDirection: 'row', justifyContent: 'space-between', minHeight: 58 }, linkText: { color: colors.forest, fontSize: 15, fontWeight: '800' }, chevron: { color: colors.brown, fontSize: 28, fontWeight: '600' } });

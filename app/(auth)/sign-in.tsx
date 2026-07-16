@@ -1,11 +1,14 @@
-import { router } from 'expo-router';
-import { useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Image } from 'expo-image';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
     KeyboardAvoidingView,
     Platform,
     Pressable,
+    ScrollView,
     StyleSheet,
     Text,
     TextInput,
@@ -13,12 +16,68 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
  
+import { colors } from '../../constants/theme';
+import { getAuthEmailRedirectUrl } from '../../lib/auth-redirect';
 import { supabase } from '../../lib/supabase';
+
+const rememberedEmailKey = '@k9-country/remembered-email';
  
 export default function SignInScreen() {
+  const { intent } = useLocalSearchParams<{ intent?: string }>();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  const [rememberEmail, setRememberEmail] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+
+  const handleResendVerification = async (emailToVerify: string) => {
+    try {
+      setIsLoading(true);
+
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: emailToVerify,
+        options: {
+          emailRedirectTo: getAuthEmailRedirectUrl(intent),
+        },
+      });
+
+      if (error) {
+        const isRateLimited = error.message.toLowerCase().includes('rate limit');
+        Alert.alert(
+          'Unable to resend verification email',
+          isRateLimited
+            ? 'Email requests are temporarily limited. Please wait a few minutes before trying again.'
+            : error.message
+        );
+        return;
+      }
+
+      Alert.alert(
+        'Verification email sent',
+        'Check your inbox and spam folder, then open the verification link.'
+      );
+    } catch {
+      Alert.alert(
+        'Unable to resend verification email',
+        'Please try again later.'
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const loadRememberedEmail = async () => {
+      const savedEmail = await AsyncStorage.getItem(rememberedEmailKey);
+
+      if (savedEmail) {
+        setEmail(savedEmail);
+      }
+    };
+
+    void loadRememberedEmail();
+  }, []);
  
   const handleSignIn = async () => {
     const normalizedEmail = email.trim().toLowerCase();
@@ -37,11 +96,48 @@ export default function SignInScreen() {
       });
  
       if (error) {
+        if (error.message.toLowerCase().includes('email not confirmed')) {
+          Alert.alert(
+            'Email verification required',
+            'Confirm your email address before signing in.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Resend email',
+                onPress: () => void handleResendVerification(normalizedEmail),
+              },
+            ]
+          );
+          return;
+        }
+
+        if (
+          intent === 'host' &&
+          error.message.toLowerCase().includes('invalid login credentials')
+        ) {
+          router.replace(
+            `/sign-up?intent=host&email=${encodeURIComponent(normalizedEmail)}` as never
+          );
+          return;
+        }
+
         Alert.alert('Unable to sign in', error.message);
         return;
       }
- 
-      Alert.alert('Welcome back', 'You successfully signed in.');
+
+      if (rememberEmail) {
+        await AsyncStorage.setItem(rememberedEmailKey, normalizedEmail);
+      } else {
+        await AsyncStorage.removeItem(rememberedEmailKey);
+      }
+
+      if (intent === 'host') {
+        await AsyncStorage.setItem('@k9-country/host-mode', 'host');
+        router.replace('/host-dashboard');
+        return;
+      }
+
+      await AsyncStorage.setItem('@k9-country/host-mode', 'guest');
       router.replace('/dashboard');
     } catch {
       Alert.alert(
@@ -54,12 +150,16 @@ export default function SignInScreen() {
   };
  
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.safeArea}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardView}
       >
-        <View style={styles.container}>
+        <ScrollView
+          contentContainerStyle={styles.container}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
           <Pressable
             accessibilityRole="button"
             onPress={() => router.back()}
@@ -69,15 +169,29 @@ export default function SignInScreen() {
           </Pressable>
  
           <View style={styles.headingArea}>
-            <View style={styles.logoBadge}>
-              <Text style={styles.logoText}>K9</Text>
-            </View>
+            {intent === 'host' ? (
+              <View style={styles.logoBadge}>
+                <Text style={styles.logoText}>K9</Text>
+              </View>
+            ) : (
+              <View style={styles.memberHeroBleed}>
+                <Image
+                  accessibilityLabel="K9 Country member sign-in artwork"
+                  contentFit="cover"
+                  source={require('../../assets/images/k9-4.png')}
+                  style={styles.memberHero}
+                />
+              </View>
+            )}
  
-            <Text style={styles.title}>Welcome back</Text>
+            <Text style={styles.title}>
+              {intent === 'host' ? 'Host sign in' : 'Member sign in'}
+            </Text>
  
             <Text style={styles.description}>
-              Sign in to manage reservations, favorite properties, messages,
-              and host activity.
+              {intent === 'host'
+                ? 'Sign in to manage your private spaces, reservations, and guest messages.'
+                : 'Sign in to manage reservations, favorites, and messages.'}
             </Text>
           </View>
  
@@ -112,12 +226,50 @@ export default function SignInScreen() {
                 placeholder="Enter your password"
                 placeholderTextColor="#8A877D"
                 returnKeyType="done"
-                secureTextEntry
+                secureTextEntry={!isPasswordVisible}
                 style={styles.input}
                 value={password}
               />
+
+              <Pressable
+                accessibilityLabel={
+                  isPasswordVisible ? 'Hide password' : 'Show password'
+                }
+                accessibilityRole="button"
+                onPress={() => setIsPasswordVisible((current) => !current)}
+                style={styles.showPasswordButton}
+              >
+                <Text style={styles.showPasswordText}>
+                  {isPasswordVisible ? 'Hide Password' : 'Show Password'}
+                </Text>
+              </Pressable>
             </View>
- 
+
+            <Pressable
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: rememberEmail }}
+              onPress={() => setRememberEmail((current) => !current)}
+              style={styles.rememberRow}
+            >
+              <View
+                style={[
+                  styles.checkbox,
+                  rememberEmail && styles.checkboxChecked,
+                ]}
+              >
+                {rememberEmail ? (
+                  <Text style={styles.checkmark}>✓</Text>
+                ) : null}
+              </View>
+
+              <View style={styles.rememberTextArea}>
+                <Text style={styles.rememberLabel}>Remember my email</Text>
+                <Text style={styles.rememberDescription}>
+                  Your password is never stored by K9 Country.
+                </Text>
+              </View>
+            </Pressable>
+
             <Pressable
               accessibilityRole="button"
               disabled={isLoading}
@@ -137,7 +289,13 @@ export default function SignInScreen() {
  
             <Pressable
               accessibilityRole="button"
-              onPress={() => router.push('/sign-up')}
+              onPress={() =>
+                router.push(
+                  intent === 'host'
+                    ? ('/sign-up?intent=host' as never)
+                    : '/sign-up'
+                )
+              }
               style={styles.textButton}
             >
               <Text style={styles.textButtonText}>
@@ -145,20 +303,11 @@ export default function SignInScreen() {
               </Text>
             </Pressable>
           </View>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
- 
-const colors = {
-  forest: '#263A24',
-  cream: '#F4ECDD',
-  warmWhite: '#FFFDF8',
-  brown: '#8A4F17',
-  muted: '#6D6A60',
-  border: '#D7CBB8',
-};
  
 const styles = StyleSheet.create({
   safeArea: {
@@ -171,27 +320,32 @@ const styles = StyleSheet.create({
   },
  
   container: {
-    flex: 1,
+    flexGrow: 1,
     paddingHorizontal: 24,
-    paddingTop: 12,
+    paddingTop: 0,
+    paddingBottom: 24,
   },
  
   backButton: {
-    alignSelf: 'flex-start',
-    minHeight: 44,
+    alignItems: 'center',
+    left: 16,
+    minHeight: 36,
+    position: 'absolute',
+    top: 48,
     justifyContent: 'center',
+    zIndex: 1,
   },
  
   backButtonText: {
     color: colors.forest,
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '700',
   },
  
   headingArea: {
     alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 34,
+    marginTop: 0,
+    marginBottom: 12,
   },
  
   logoBadge: {
@@ -205,18 +359,24 @@ const styles = StyleSheet.create({
     borderColor: colors.brown,
     marginBottom: 20,
   },
- 
-  logoText: {
-    color: colors.cream,
-    fontSize: 32,
-    fontWeight: '900',
+
+  memberHero: {
+    aspectRatio: 2 / 3,
+    width: '100%',
   },
+
+  memberHeroBleed: {
+    alignSelf: 'stretch',
+    marginBottom: 12,
+    marginHorizontal: -24,
+  },
+  logoText: { color: colors.cream, fontSize: 32, fontWeight: '900' },
  
   title: {
     color: colors.forest,
     fontSize: 30,
     fontWeight: '900',
-    marginBottom: 10,
+    marginBottom: 12,
   },
  
   description: {
@@ -228,14 +388,14 @@ const styles = StyleSheet.create({
   },
  
   form: {
-    gap: 18,
+    gap: 12,
   },
  
   label: {
     color: colors.forest,
     fontSize: 15,
     fontWeight: '800',
-    marginBottom: 8,
+    marginBottom: 6,
   },
  
   input: {
@@ -271,7 +431,67 @@ const styles = StyleSheet.create({
   buttonDisabled: {
     opacity: 0.65,
   },
- 
+
+  showPasswordButton: {
+    alignSelf: 'flex-start',
+    minHeight: 40,
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+
+  showPasswordText: {
+    color: colors.brown,
+    fontSize: 14,
+    fontWeight: '800',
+    textDecorationLine: 'underline',
+  },
+
+  rememberRow: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    marginTop: -2,
+  },
+
+  checkbox: {
+    alignItems: 'center',
+    borderColor: colors.brown,
+    borderRadius: 6,
+    borderWidth: 2,
+    height: 24,
+    justifyContent: 'center',
+    marginRight: 12,
+    marginTop: 1,
+    width: 24,
+  },
+
+  checkboxChecked: {
+    backgroundColor: colors.forest,
+    borderColor: colors.forest,
+  },
+
+  checkmark: {
+    color: colors.warmWhite,
+    fontSize: 16,
+    fontWeight: '900',
+  },
+
+  rememberTextArea: {
+    flex: 1,
+  },
+
+  rememberLabel: {
+    color: colors.forest,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+
+  rememberDescription: {
+    color: colors.muted,
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 2,
+  },
+
   textButton: {
     minHeight: 48,
     alignItems: 'center',
