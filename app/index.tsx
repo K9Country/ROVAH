@@ -115,7 +115,7 @@ export default function WelcomeScreen() {
             <View style={styles.divider} />
           </View>
           <View style={styles.guestCard}>
-            <Text style={styles.guestTitle}>I’m a Member</Text>
+            <Text style={styles.guestTitle}>I’m a Dog Owner</Text>
             <Text style={styles.guestDescription}>
               Find, reserve, and review private dog spaces built around your dog’s needs.
             </Text>
