@@ -186,11 +186,13 @@ export default function AdministratorScreen() {
               <Text style={styles.detail}>{property.acreage ?? '—'} acres · ${property.price_per_hour}/hour · {property.is_fully_fenced ? 'Fully fenced' : 'Not listed as fully fenced'} · {property.instant_book ? 'Instant book' : 'Request to book'}</Text>
               <Text style={styles.description}>{property.short_description}</Text>
               <Text style={styles.noteLabel}>Administrator notes for the host</Text>
-              <TextInput multiline onChangeText={(value) => setNotesByProperty((current) => ({ ...current, [property.id]: value }))} placeholder="Optional notes or requested changes" placeholderTextColor="#8A877D" style={styles.notesInput} value={notesByProperty[property.id] ?? ''} />
-              <View style={styles.actionRow}>
-                <Pressable disabled={saving} onPress={() => void decideProperty(property, 'declined')} style={[styles.declineButton, saving && styles.disabled]}>{saving ? <ActivityIndicator color="#A7463B" /> : <Text style={styles.declineText}>Decline</Text>}</Pressable>
-                <Pressable disabled={saving} onPress={() => void decideProperty(property, 'approved')} style={[styles.approveButton, saving && styles.disabled]}>{saving ? <ActivityIndicator color={colors.warmWhite} /> : <Text style={styles.approveText}>Approve & publish</Text>}</Pressable>
-              </View>
+              <TextInput editable={property.approval_status === 'pending'} multiline onChangeText={(value) => setNotesByProperty((current) => ({ ...current, [property.id]: value }))} placeholder="Optional notes or requested changes" placeholderTextColor="#8A877D" style={[styles.notesInput, property.approval_status !== 'pending' && styles.readOnlyInput]} value={notesByProperty[property.id] ?? ''} />
+              {property.approval_status === 'pending' ? (
+                <View style={styles.actionRow}>
+                  <Pressable disabled={saving} onPress={() => void decideProperty(property, 'declined')} style={[styles.declineButton, saving && styles.disabled]}>{saving ? <ActivityIndicator color="#A7463B" /> : <Text style={styles.declineText}>Decline</Text>}</Pressable>
+                  <Pressable disabled={saving} onPress={() => void decideProperty(property, 'approved')} style={[styles.approveButton, saving && styles.disabled]}>{saving ? <ActivityIndicator color={colors.warmWhite} /> : <Text style={styles.approveText}>Approve & publish</Text>}</Pressable>
+                </View>
+              ) : <Text style={styles.finalDecisionText}>This site has already received its final review decision.</Text>}
             </View>
           );
         })}
@@ -227,6 +229,7 @@ const styles = StyleSheet.create({
   detail: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 5 },
   noteLabel: { color: colors.forest, fontSize: 13, fontWeight: '900', marginTop: 17 },
   notesInput: { borderColor: colors.border, borderRadius: 12, borderWidth: 1, color: colors.forest, fontSize: 14, lineHeight: 20, marginTop: 7, minHeight: 82, padding: 11, textAlignVertical: 'top' },
+  readOnlyInput: { backgroundColor: '#F5F2EA', color: colors.muted },
   actionRow: { flexDirection: 'row', gap: 10, marginTop: 13 },
   declineButton: { alignItems: 'center', borderColor: '#A7463B', borderRadius: 12, borderWidth: 1, flex: 1, justifyContent: 'center', minHeight: 48 },
   declineText: { color: '#A7463B', fontSize: 15, fontWeight: '900' },
@@ -236,6 +239,7 @@ const styles = StyleSheet.create({
   emptyTitle: { color: colors.forest, fontSize: 18, fontWeight: '900' },
   emptyText: { color: colors.muted, fontSize: 14, lineHeight: 20, marginTop: 6, textAlign: 'center' },
   errorText: { color: '#A7463B', fontSize: 14, marginTop: 16 },
+  finalDecisionText: { color: colors.muted, fontSize: 13, fontWeight: '700', marginTop: 14 },
   primaryButton: { backgroundColor: colors.forest, borderRadius: 13, marginTop: 20, minHeight: 50, paddingHorizontal: 18, justifyContent: 'center' },
   primaryButtonText: { color: colors.warmWhite, fontSize: 16, fontWeight: '900' },
   disabled: { opacity: 0.6 },
