@@ -138,7 +138,7 @@ export default function SignUpScreen() {
   };
  
   return (
-    <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.safeArea}>
+    <SafeAreaView edges={intent === 'host' ? ['top', 'left', 'right', 'bottom'] : ['left', 'right', 'bottom']} style={styles.safeArea}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardView}
@@ -161,23 +161,12 @@ export default function SignUpScreen() {
 
           <Pressable
             accessibilityRole="button"
-            onPress={() => router.back()}
-            style={styles.backButton}
+            onPress={() => intent === 'host' ? router.replace('/') : router.back()}
+            style={[styles.backButton, intent === 'host' && styles.hostBackButton]}
           >
-            <Text style={[styles.backButtonText, intent === 'host' && styles.hostBackButtonText]}>← Back</Text>
+            <Text style={styles.backButtonText}>{intent === 'host' ? '← Welcome Page' : '← Back'}</Text>
           </Pressable>
  
-          {intent === 'host' ? (
-            <View style={styles.hostHeroBleed}>
-              <Image
-                accessibilityLabel="K9 Country host account artwork"
-                contentFit="cover"
-                source={require('../../assets/images/k9-6.png')}
-                style={styles.hostHero}
-              />
-            </View>
-          ) : null}
-
           {intent === 'host' ? (
             <View style={styles.hostHeading}>
               <Text style={styles.title}>Create your host account</Text>
@@ -367,8 +356,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  hostBackButtonText: {
-    color: colors.warmWhite,
+  hostBackButton: {
+    top: 12,
   },
  
   logoBadge: {
@@ -385,19 +374,8 @@ const styles = StyleSheet.create({
 
   hostHeading: {
     alignItems: 'center',
-    marginTop: -48,
-    marginBottom: 12,
-  },
-
-  hostHeroBleed: {
-    alignSelf: 'stretch',
-    marginHorizontal: -24,
-  },
-
-  hostHero: {
-    aspectRatio: 9 / 16,
-    transform: [{ translateY: -60 }],
-    width: '100%',
+    marginTop: 64,
+    marginBottom: 22,
   },
 
   createHeroBleed: {
