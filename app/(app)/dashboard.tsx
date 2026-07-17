@@ -416,6 +416,11 @@ export default function DashboardScreen() {
             <Text style={styles.hostReturnLinkText}>Safety & Support</Text>
           </Pressable>
         </View>
+
+        <Pressable accessibilityRole="link" onPress={() => router.push('/trust-safety' as never)} style={styles.trustSafetyLink}>
+          <Text style={styles.trustSafetyLinkTitle}>Trust & Safety</Text>
+          <Text style={styles.trustSafetyLinkText}>How K9 Country helps keep every visit safe</Text>
+        </Pressable>
       </ScrollView>
     </SafeAreaView>
   );
@@ -513,6 +518,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textDecorationLine: 'underline',
   },
+  trustSafetyLink: { alignItems: 'center', marginTop: 30, paddingHorizontal: 20, paddingVertical: 12 },
+  trustSafetyLinkTitle: { color: colors.forest, fontSize: 15, fontWeight: '900', textDecorationLine: 'underline' },
+  trustSafetyLinkText: { color: colors.muted, fontSize: 12, marginTop: 4, textAlign: 'center' },
  
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
 

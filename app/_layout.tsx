@@ -19,6 +19,7 @@ function RootNavigator() {
       <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="host-info" />
+      <Stack.Screen name="trust-safety" />
       <Stack.Screen name="legal" />
       <Stack.Screen name="admin" />
       <Stack.Screen name="auth/callback" />

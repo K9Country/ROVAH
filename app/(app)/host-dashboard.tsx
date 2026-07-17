@@ -555,6 +555,15 @@ export default function HostDashboardScreen() {
           </Text>
         </Pressable>
 
+        <Pressable
+          accessibilityRole="link"
+          onPress={() => router.push('/trust-safety' as never)}
+          style={styles.trustSafetyLink}
+        >
+          <Text style={styles.trustSafetyLinkTitle}>Trust & Safety</Text>
+          <Text style={styles.trustSafetyLinkText}>How K9 Country helps keep every visit safe</Text>
+        </Pressable>
+
       </ScrollView>
     </SafeAreaView>
   );
@@ -657,6 +666,9 @@ const styles = StyleSheet.create({
   liveBadgeText: { color: colors.olive, fontSize: 12, fontWeight: '900' },
   mainEntryLink: { alignItems: 'center', justifyContent: 'center', marginTop: 28, minHeight: 46 },
   mainEntryLinkText: { color: colors.brown, fontSize: 14, fontWeight: '900', textDecorationLine: 'underline' },
+  trustSafetyLink: { alignItems: 'center', marginTop: 24, paddingHorizontal: 20, paddingVertical: 12 },
+  trustSafetyLinkTitle: { color: colors.forest, fontSize: 15, fontWeight: '900', textDecorationLine: 'underline' },
+  trustSafetyLinkText: { color: colors.muted, fontSize: 12, marginTop: 4, textAlign: 'center' },
   accountSection: { alignItems: 'center', marginTop: 30 },
   accountLabel: { color: colors.muted, fontSize: 11, fontWeight: '900', letterSpacing: 1.2 },
   accountEmail: { color: colors.forest, fontSize: 14, marginTop: 5, marginBottom: 12 },
