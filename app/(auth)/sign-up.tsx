@@ -47,7 +47,8 @@ export default function SignUpScreen() {
     intent?: string;
     email?: string;
   }>();
-  const [fullName, setFullName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -63,11 +64,14 @@ export default function SignUpScreen() {
   }, [initialEmail]);
 
   const handleSignUp = async () => {
-    const normalizedName = fullName.trim();
+    const normalizedFirstName = firstName.trim();
+    const normalizedLastName = lastName.trim();
+    const normalizedName = `${normalizedFirstName} ${normalizedLastName}`.trim();
     const normalizedEmail = email.trim().toLowerCase();
  
     if (
-      !normalizedName ||
+      !normalizedFirstName ||
+      !normalizedLastName ||
       !normalizedEmail ||
       !password ||
       !confirmPassword
@@ -104,6 +108,8 @@ export default function SignUpScreen() {
         options: {
           data: {
             full_name: normalizedName,
+            first_name: normalizedFirstName,
+            last_name: normalizedLastName,
           },
           emailRedirectTo: getAuthEmailRedirectUrl(intent),
         },
@@ -205,20 +211,36 @@ export default function SignUpScreen() {
           )}
 
           <View style={styles.form}>
-            <View>
-              <Text style={styles.label}>Full name</Text>
- 
-              <TextInput
-                accessibilityLabel="Full name"
-                autoCapitalize="words"
-                autoComplete="name"
-                onChangeText={setFullName}
-                placeholder="Your full name"
-                placeholderTextColor="#8A877D"
-                returnKeyType="next"
-                style={styles.input}
-                value={fullName}
-              />
+            <View style={styles.nameRow}>
+              <View style={styles.nameField}>
+                <Text style={styles.label}>First name</Text>
+                <TextInput
+                  accessibilityLabel="First name"
+                  autoCapitalize="words"
+                  autoComplete="name"
+                  onChangeText={setFirstName}
+                  placeholder="First name"
+                  placeholderTextColor="#8A877D"
+                  returnKeyType="next"
+                  style={styles.input}
+                  value={firstName}
+                />
+              </View>
+
+              <View style={styles.nameField}>
+                <Text style={styles.label}>Last name</Text>
+                <TextInput
+                  accessibilityLabel="Last name"
+                  autoCapitalize="words"
+                  autoComplete="name"
+                  onChangeText={setLastName}
+                  placeholder="Last name"
+                  placeholderTextColor="#8A877D"
+                  returnKeyType="next"
+                  style={styles.input}
+                  value={lastName}
+                />
+              </View>
             </View>
  
             <View>
@@ -459,6 +481,15 @@ const styles = StyleSheet.create({
  
   form: {
     gap: 12,
+  },
+
+  nameRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+
+  nameField: {
+    flex: 1,
   },
  
   label: {

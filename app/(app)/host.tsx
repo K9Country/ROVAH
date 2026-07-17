@@ -21,11 +21,15 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../services/auth-context';
 import type { HostProfile } from '../../types/host-profile';
 
+function splitFullName(fullName: string) {
+  const [firstName = '', ...lastNameParts] = fullName.trim().split(/\s+/);
+  return { firstName, lastName: lastNameParts.join(' ') };
+}
+
 export default function HostOnboardingScreen() {
   const { isHost, isLoading: isAuthLoading, session } = useAuth();
-  const [fullName, setFullName] = useState(
-    session?.user.user_metadata?.full_name ?? ''
-  );
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
@@ -57,14 +61,30 @@ export default function HostOnboardingScreen() {
       }
 
       const profile = data as HostProfile | null;
+      const metadataFirstName = typeof session.user.user_metadata?.first_name === 'string'
+        ? session.user.user_metadata.first_name
+        : '';
+      const metadataLastName = typeof session.user.user_metadata?.last_name === 'string'
+        ? session.user.user_metadata.last_name
+        : '';
+      const metadataNameParts = splitFullName(
+        typeof session.user.user_metadata?.full_name === 'string'
+          ? session.user.user_metadata.full_name
+          : ''
+      );
 
       if (profile) {
-        setFullName(profile.full_name);
+        const profileNameParts = splitFullName(profile.full_name);
+        setFirstName(profile.first_name || metadataFirstName || profileNameParts.firstName || metadataNameParts.firstName);
+        setLastName(profile.last_name || metadataLastName || profileNameParts.lastName || metadataNameParts.lastName);
         setPhone(formatUsPhoneNumber(profile.phone ?? ''));
         setCity(profile.city ?? '');
         setState(profile.state ?? '');
         setControlsProperty(profile.controls_property);
         setAcceptsHostTerms(Boolean(profile.accepted_host_terms_at));
+      } else {
+        setFirstName(metadataFirstName || metadataNameParts.firstName);
+        setLastName(metadataLastName || metadataNameParts.lastName);
       }
 
       setIsLoading(false);
@@ -82,7 +102,9 @@ export default function HostOnboardingScreen() {
   }, [isAuthLoading, isHost, session?.user.id]);
 
   const handleContinue = async () => {
-    const normalizedName = fullName.trim();
+    const normalizedFirstName = firstName.trim();
+    const normalizedLastName = lastName.trim();
+    const normalizedName = `${normalizedFirstName} ${normalizedLastName}`.trim();
     const normalizedPhone = phone.trim();
     const normalizedCity = city.trim();
     const normalizedState = state.trim();
@@ -92,10 +114,10 @@ export default function HostOnboardingScreen() {
       return;
     }
 
-    if (!normalizedName || !normalizedPhone || !normalizedCity || !normalizedState) {
+    if (!normalizedFirstName || !normalizedLastName || !normalizedPhone || !normalizedCity || !normalizedState) {
       Alert.alert(
         'Missing information',
-        'Complete your name, phone number, city, and state.'
+        'Complete your first name, last name, phone number, city, and state.'
       );
       return;
     }
@@ -122,6 +144,8 @@ export default function HostOnboardingScreen() {
         {
           user_id: session.user.id,
           full_name: normalizedName,
+          first_name: normalizedFirstName,
+          last_name: normalizedLastName,
           email: session.user.email?.trim().toLowerCase() ?? null,
           phone: normalizedPhone,
           city: normalizedCity,
@@ -135,6 +159,19 @@ export default function HostOnboardingScreen() {
 
       if (error) {
         Alert.alert('Unable to save host profile', error.message);
+        return;
+      }
+
+      const { error: authUpdateError } = await supabase.auth.updateUser({
+        data: {
+          full_name: normalizedName,
+          first_name: normalizedFirstName,
+          last_name: normalizedLastName,
+        },
+      });
+
+      if (authUpdateError) {
+        Alert.alert('Unable to update account name', authUpdateError.message);
         return;
       }
 
@@ -192,14 +229,28 @@ export default function HostOnboardingScreen() {
           </View>
 
           <View style={styles.form}>
-            <FormField
-              label="Full name"
-              value={fullName}
-              onChangeText={setFullName}
-              placeholder="Your full name"
-              autoComplete="name"
-              autoCapitalize="words"
-            />
+            <View style={styles.nameRow}>
+              <View style={styles.nameField}>
+                <FormField
+                  label="First name"
+                  value={firstName}
+                  onChangeText={setFirstName}
+                  placeholder="First name"
+                  autoComplete="name"
+                  autoCapitalize="words"
+                />
+              </View>
+              <View style={styles.nameField}>
+                <FormField
+                  label="Last name"
+                  value={lastName}
+                  onChangeText={setLastName}
+                  placeholder="Last name"
+                  autoComplete="name"
+                  autoCapitalize="words"
+                />
+              </View>
+            </View>
             <FormField
               label="Phone number"
               value={phone}
@@ -347,6 +398,8 @@ const styles = StyleSheet.create({
   title: { color: colors.forest, fontFamily: typography.display, fontSize: 29, fontWeight: '900', textAlign: 'center', marginBottom: 10 },
   description: { color: colors.muted, fontSize: 16, lineHeight: 23, textAlign: 'center', maxWidth: 370 },
   form: { gap: 18 },
+  nameRow: { flexDirection: 'row', gap: 12 },
+  nameField: { flex: 1 },
   label: { color: colors.forest, fontSize: 15, fontWeight: '800', marginBottom: 8 },
   input: { minHeight: 56, borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.warmWhite, color: colors.forest, fontSize: 16, paddingHorizontal: 16 },
   locationRow: { flexDirection: 'row', gap: 12 },

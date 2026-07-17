@@ -24,11 +24,12 @@ import type { GuestProfile } from '../../types/guest-profile';
 
 type ProfileForm = Omit<
   GuestProfile,
-  'user_id' | 'profile_completed_at' | 'created_at' | 'updated_at' | 'profile_image_path'
+  'user_id' | 'full_name' | 'profile_completed_at' | 'created_at' | 'updated_at' | 'profile_image_path'
 >;
 
 const emptyProfile: ProfileForm = {
-  full_name: '',
+  first_name: '',
+  last_name: '',
   email: '',
   phone: '',
   address_line1: '',
@@ -39,6 +40,11 @@ const emptyProfile: ProfileForm = {
   dog_count: 1,
   dog_details: '',
 };
+
+function splitFullName(fullName: string) {
+  const [firstName = '', ...lastNameParts] = fullName.trim().split(/\s+/);
+  return { firstName, lastName: lastNameParts.join(' ') };
+}
 
 export default function GuestProfileScreen() {
   const { returnTo, onboarding } = useLocalSearchParams<{ returnTo?: string; onboarding?: string }>();
@@ -77,8 +83,16 @@ export default function GuestProfileScreen() {
 
       if (data) {
         const savedProfile = data as GuestProfile;
+        const metadataFirstName = typeof session.user.user_metadata?.first_name === 'string'
+          ? session.user.user_metadata.first_name
+          : '';
+        const metadataLastName = typeof session.user.user_metadata?.last_name === 'string'
+          ? session.user.user_metadata.last_name
+          : '';
+        const savedNameParts = splitFullName(savedProfile.full_name);
         setProfile({
-          full_name: savedProfile.full_name,
+          first_name: savedProfile.first_name || metadataFirstName || savedNameParts.firstName,
+          last_name: savedProfile.last_name || metadataLastName || savedNameParts.lastName,
           email: savedProfile.email || session.user.email || '',
           phone: formatUsPhoneNumber(savedProfile.phone),
           address_line1: savedProfile.address_line1,
@@ -92,7 +106,21 @@ export default function GuestProfileScreen() {
         setIsComplete(Boolean(savedProfile.profile_completed_at));
         if (savedProfile.profile_image_path) setProfileImageUri(supabase.storage.from('guest-profile-images').getPublicUrl(savedProfile.profile_image_path).data.publicUrl);
       } else {
-        setProfile({ ...emptyProfile, email: session.user.email ?? '' });
+        const metadataNameParts = splitFullName(
+          typeof session.user.user_metadata?.full_name === 'string'
+            ? session.user.user_metadata.full_name
+            : ''
+        );
+        setProfile({
+          ...emptyProfile,
+          first_name: typeof session.user.user_metadata?.first_name === 'string'
+            ? session.user.user_metadata.first_name
+            : metadataNameParts.firstName,
+          last_name: typeof session.user.user_metadata?.last_name === 'string'
+            ? session.user.user_metadata.last_name
+            : metadataNameParts.lastName,
+          email: session.user.email ?? '',
+        });
         setIsComplete(false);
         setProfileImageUri(null);
       }
@@ -122,7 +150,8 @@ export default function GuestProfileScreen() {
     }
 
     const requiredValues = [
-      profile.full_name,
+      profile.first_name,
+      profile.last_name,
       profile.email,
       profile.phone,
       profile.address_line1,
@@ -156,7 +185,9 @@ export default function GuestProfileScreen() {
       const { error } = await supabase.from('guest_profiles').upsert(
         {
           user_id: session.user.id,
-          full_name: profile.full_name.trim(),
+          full_name: `${profile.first_name.trim()} ${profile.last_name.trim()}`.trim(),
+          first_name: profile.first_name.trim(),
+          last_name: profile.last_name.trim(),
           email: profile.email.trim().toLowerCase(),
           phone: profile.phone.trim(),
           address_line1: profile.address_line1.trim(),
@@ -174,6 +205,18 @@ export default function GuestProfileScreen() {
 
       if (error) {
         throw error;
+      }
+
+      const { error: authUpdateError } = await supabase.auth.updateUser({
+        data: {
+          full_name: `${profile.first_name.trim()} ${profile.last_name.trim()}`.trim(),
+          first_name: profile.first_name.trim(),
+          last_name: profile.last_name.trim(),
+        },
+      });
+
+      if (authUpdateError) {
+        throw authUpdateError;
       }
 
       setIsComplete(true);
@@ -301,7 +344,10 @@ export default function GuestProfileScreen() {
           </View>
 
           <ProfileSection title="Member information">
-            <Field label="Full legal name" required value={profile.full_name} onChangeText={(value) => updateProfile('full_name', value)} autoComplete="name" autoCapitalize="words" />
+            <View style={styles.row}>
+              <View style={styles.nameField}><Field label="First name" required value={profile.first_name} onChangeText={(value) => updateProfile('first_name', value)} autoComplete="name" autoCapitalize="words" /></View>
+              <View style={styles.nameField}><Field label="Last name" required value={profile.last_name} onChangeText={(value) => updateProfile('last_name', value)} autoComplete="name" autoCapitalize="words" /></View>
+            </View>
             <Field label="Email address" required value={profile.email} onChangeText={(value) => updateProfile('email', value)} autoComplete="email" autoCapitalize="none" keyboardType="email-address" />
             <Field label="Phone number" required value={profile.phone} onChangeText={(value) => updateProfile('phone', formatUsPhoneNumber(value))} autoComplete="tel" keyboardType="phone-pad" maxLength={12} placeholder="248-555-1234" />
           </ProfileSection>
@@ -415,6 +461,7 @@ const styles = StyleSheet.create({
   input: { minHeight: 52, borderWidth: 1, borderColor: colors.border, borderRadius: 13, backgroundColor: colors.cream, color: colors.forest, fontSize: 16, paddingHorizontal: 14 },
   multilineInput: { minHeight: 100, paddingTop: 13, paddingBottom: 13 },
   row: { flexDirection: 'row', gap: 12 },
+  nameField: { flex: 1 },
   cityField: { flex: 1 },
   stateField: { width: 84 },
   dogCountRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 17 },
