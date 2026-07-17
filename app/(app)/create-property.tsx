@@ -22,6 +22,10 @@ import { useAuth } from '../../services/auth-context';
 type HostAccess = {
   status: 'pending' | 'active' | 'suspended' | 'rejected';
   is_active: boolean;
+  primary_site_address: string | null;
+  primary_site_city: string | null;
+  primary_site_state: string | null;
+  primary_site_postal_code: string | null;
 };
 
 export default function CreatePropertyScreen() {
@@ -51,14 +55,22 @@ export default function CreatePropertyScreen() {
 
       const { data, error } = await supabase
         .from('host_profiles')
-        .select('status, is_active')
+        .select('status, is_active, primary_site_address, primary_site_city, primary_site_state, primary_site_postal_code')
         .eq('user_id', session.user.id)
         .maybeSingle();
 
       if (error) {
         Alert.alert('Unable to load host profile', error.message);
       } else {
-        setHostAccess(data as HostAccess | null);
+        const profile = data as HostAccess | null;
+        setHostAccess(profile);
+
+        if (profile) {
+          setSiteAddress(profile.primary_site_address ?? '');
+          setCity(profile.primary_site_city ?? '');
+          setState(profile.primary_site_state ?? '');
+          setPostalCode(profile.primary_site_postal_code ?? '');
+        }
       }
 
       setIsLoading(false);

@@ -31,8 +31,10 @@ export default function HostOnboardingScreen() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
+  const [siteAddress, setSiteAddress] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
+  const [postalCode, setPostalCode] = useState('');
   const [controlsProperty, setControlsProperty] = useState(false);
   const [acceptsHostTerms, setAcceptsHostTerms] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -78,8 +80,10 @@ export default function HostOnboardingScreen() {
         setFirstName(profile.first_name || metadataFirstName || profileNameParts.firstName || metadataNameParts.firstName);
         setLastName(profile.last_name || metadataLastName || profileNameParts.lastName || metadataNameParts.lastName);
         setPhone(formatUsPhoneNumber(profile.phone ?? ''));
-        setCity(profile.city ?? '');
-        setState(profile.state ?? '');
+        setSiteAddress(profile.primary_site_address ?? '');
+        setCity(profile.primary_site_city ?? profile.city ?? '');
+        setState(profile.primary_site_state ?? profile.state ?? '');
+        setPostalCode(profile.primary_site_postal_code ?? '');
         setControlsProperty(profile.controls_property);
         setAcceptsHostTerms(Boolean(profile.accepted_host_terms_at));
       } else {
@@ -106,18 +110,20 @@ export default function HostOnboardingScreen() {
     const normalizedLastName = lastName.trim();
     const normalizedName = `${normalizedFirstName} ${normalizedLastName}`.trim();
     const normalizedPhone = phone.trim();
+    const normalizedSiteAddress = siteAddress.trim();
     const normalizedCity = city.trim();
     const normalizedState = state.trim();
+    const normalizedPostalCode = postalCode.trim();
 
     if (!session?.user.id) {
       Alert.alert('Sign in required', 'Please sign in before becoming a host.');
       return;
     }
 
-    if (!normalizedFirstName || !normalizedLastName || !normalizedPhone || !normalizedCity || !normalizedState) {
+    if (!normalizedFirstName || !normalizedLastName || !normalizedPhone || !normalizedSiteAddress || !normalizedCity || !normalizedState || !normalizedPostalCode) {
       Alert.alert(
         'Missing information',
-        'Complete your first name, last name, phone number, city, and state.'
+        'Complete your first name, last name, phone number, and first site location.'
       );
       return;
     }
@@ -148,6 +154,10 @@ export default function HostOnboardingScreen() {
           last_name: normalizedLastName,
           email: session.user.email?.trim().toLowerCase() ?? null,
           phone: normalizedPhone,
+          primary_site_address: normalizedSiteAddress,
+          primary_site_city: normalizedCity,
+          primary_site_state: normalizedState.toUpperCase(),
+          primary_site_postal_code: normalizedPostalCode,
           city: normalizedCity,
           state: normalizedState.toUpperCase(),
           controls_property: true,
@@ -249,10 +259,24 @@ export default function HostOnboardingScreen() {
               keyboardType="phone-pad"
               maxLength={12}
             />
+            <View style={styles.siteLocationSection}>
+              <Text style={styles.siteLocationTitle}>First site location</Text>
+              <Text style={styles.siteLocationDescription}>
+                Enter the address of the first private space you plan to list. You can add more sites later.
+              </Text>
+            </View>
+            <FormField
+              label="Site street address"
+              value={siteAddress}
+              onChangeText={setSiteAddress}
+              placeholder="123 Country Lane"
+              autoComplete="street-address"
+              autoCapitalize="words"
+            />
             <View style={styles.locationRow}>
               <View style={styles.cityField}>
                 <FormField
-                  label="City"
+                  label="Site city"
                   value={city}
                   onChangeText={setCity}
                   placeholder="Your city"
@@ -261,7 +285,7 @@ export default function HostOnboardingScreen() {
               </View>
               <View style={styles.stateField}>
                 <FormField
-                  label="State"
+                  label="Site state"
                   value={state}
                   onChangeText={setState}
                   placeholder="State"
@@ -270,6 +294,14 @@ export default function HostOnboardingScreen() {
                 />
               </View>
             </View>
+            <FormField
+              label="ZIP or postal code"
+              value={postalCode}
+              onChangeText={setPostalCode}
+              placeholder="ZIP or postal code"
+              autoCapitalize="characters"
+              keyboardType="number-pad"
+            />
 
             <View style={styles.confirmationCard}>
               <ConfirmationRow
@@ -319,8 +351,8 @@ type FormFieldProps = {
   onChangeText: (value: string) => void;
   placeholder: string;
   autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
-  autoComplete?: 'name' | 'tel';
-  keyboardType?: 'default' | 'phone-pad';
+  autoComplete?: 'name' | 'tel' | 'street-address';
+  keyboardType?: 'default' | 'phone-pad' | 'number-pad';
   maxLength?: number;
 };
 
@@ -384,6 +416,9 @@ const styles = StyleSheet.create({
   form: { gap: 18 },
   nameRow: { flexDirection: 'row', gap: 12 },
   nameField: { flex: 1 },
+  siteLocationSection: { gap: 4, marginTop: 2 },
+  siteLocationTitle: { color: colors.forest, fontSize: 18, fontWeight: '900' },
+  siteLocationDescription: { color: colors.muted, fontSize: 14, lineHeight: 20 },
   label: { color: colors.forest, fontSize: 15, fontWeight: '800', marginBottom: 8 },
   input: { minHeight: 56, borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.warmWhite, color: colors.forest, fontSize: 16, paddingHorizontal: 16 },
   locationRow: { flexDirection: 'row', gap: 12 },

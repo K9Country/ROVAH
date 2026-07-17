@@ -10,6 +10,10 @@ export type HostProfile = {
   phone: string | null;
   city: string | null;
   state: string | null;
+  primary_site_address: string | null;
+  primary_site_city: string | null;
+  primary_site_state: string | null;
+  primary_site_postal_code: string | null;
   controls_property: boolean;
   accepted_host_terms_at: string | null;
   onboarding_completed_at: string | null;
