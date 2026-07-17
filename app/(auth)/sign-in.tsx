@@ -79,17 +79,10 @@ export default function SignInScreen() {
             return;
           }
 
-        if (
-          intent === 'host' &&
-          error.message.toLowerCase().includes('invalid login credentials')
-        ) {
-          router.replace(
-            `/sign-up?intent=host&email=${encodeURIComponent(normalizedEmail)}` as never
-          );
-          return;
-        }
-
-        Alert.alert('Unable to sign in', error.message);
+        Alert.alert(
+          'Unable to sign in',
+          'That email address or password is not correct. Please try again, or use Create Host Account only if you are new to K9 Country.'
+        );
         return;
       }
 
