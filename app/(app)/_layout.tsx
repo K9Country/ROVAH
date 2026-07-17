@@ -1,9 +1,8 @@
 import { Stack, router, usePathname } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { colors } from '../../constants/theme';
-import { hasCompletedMemberProfile } from '../../lib/member-profile';
 import { useAuth } from '../../services/auth-context';
 
 const hostOnlyRoutes = new Set([
@@ -20,12 +19,10 @@ const hostOnlyRoutes = new Set([
 ]);
 
 export default function AppLayout() {
-  const { isHost, isLoading, isMember, session } = useAuth();
+  const { isHost, isLoading, isMember } = useAuth();
   const pathname = usePathname();
   const routeRoot = `/${pathname.split('/').filter(Boolean)[0] ?? ''}`;
   const needsHostAccess = hostOnlyRoutes.has(routeRoot);
-  const needsMemberProfile = isMember && !isHost && !needsHostAccess && routeRoot !== '/profile';
-  const [isCheckingMemberProfile, setIsCheckingMemberProfile] = useState(false);
 
   useEffect(() => {
     if (isLoading) return;
@@ -40,32 +37,7 @@ export default function AppLayout() {
     }
   }, [isHost, isLoading, isMember, needsHostAccess]);
 
-  useEffect(() => {
-    let isMounted = true;
-
-    const checkMemberProfile = async () => {
-      if (!needsMemberProfile || !session?.user.id) {
-        if (isMounted) setIsCheckingMemberProfile(false);
-        return;
-      }
-
-      setIsCheckingMemberProfile(true);
-      const isComplete = await hasCompletedMemberProfile(session.user.id);
-      if (!isMounted) return;
-
-      setIsCheckingMemberProfile(false);
-      if (!isComplete) {
-        router.replace('/profile?onboarding=true');
-      }
-    };
-
-    void checkMemberProfile();
-    return () => {
-      isMounted = false;
-    };
-  }, [needsMemberProfile, session?.user.id]);
-
-  if (isLoading || !isMember || (needsHostAccess && !isHost) || isCheckingMemberProfile) {
+  if (isLoading || !isMember || (needsHostAccess && !isHost)) {
     return (
       <View style={styles.loadingScreen}>
         <ActivityIndicator color={colors.forest} size="large" />
