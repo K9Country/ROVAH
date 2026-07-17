@@ -29,6 +29,7 @@ export default function SignInScreen() {
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [rememberEmail, setRememberEmail] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [isResendingVerification, setIsResendingVerification] = useState(false);
 
   useEffect(() => {
     const loadRememberedEmail = async () => {
@@ -112,6 +113,35 @@ export default function SignInScreen() {
       );
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const resendVerificationEmail = async () => {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!normalizedEmail) {
+      Alert.alert('Enter your email', 'Enter the email address you used to create your K9 Country account first.');
+      return;
+    }
+
+    try {
+      setIsResendingVerification(true);
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: normalizedEmail,
+        options: { emailRedirectTo: getAuthEmailRedirectUrl(intent) },
+      });
+
+      if (error) {
+        Alert.alert('Unable to send verification email', error.message);
+        return;
+      }
+
+      Alert.alert('Verification email sent', 'Check your inbox and spam folder for the newest K9 Country confirmation email.');
+    } catch {
+      Alert.alert('Unable to send verification email', 'Please try again in a moment.');
+    } finally {
+      setIsResendingVerification(false);
     }
   };
  
@@ -236,10 +266,10 @@ export default function SignInScreen() {
               </View>
             </Pressable>
 
-            <Pressable
-              accessibilityRole="button"
-              disabled={isLoading}
-              onPress={handleSignIn}
+              <Pressable
+                accessibilityRole="button"
+                disabled={isLoading}
+                onPress={handleSignIn}
               style={({ pressed }) => [
                 styles.primaryButton,
                 pressed && styles.buttonPressed,
@@ -266,8 +296,21 @@ export default function SignInScreen() {
             >
               <Text style={styles.textButtonText}>
                 New to K9 Country? Create an account
-              </Text>
-            </Pressable>
+                </Text>
+              </Pressable>
+
+              <Pressable
+                accessibilityRole="button"
+                disabled={isResendingVerification}
+                onPress={() => void resendVerificationEmail()}
+                style={[styles.resendVerificationButton, isResendingVerification && styles.buttonDisabled]}
+              >
+                {isResendingVerification ? (
+                  <ActivityIndicator color={colors.forest} />
+                ) : (
+                  <Text style={styles.resendVerificationText}>Resend verification email</Text>
+                )}
+              </Pressable>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -456,6 +499,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 17,
     marginTop: 2,
+  },
+
+  resendVerificationButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
+    minHeight: 44,
+  },
+
+  resendVerificationText: {
+    color: colors.forest,
+    fontSize: 15,
+    fontWeight: '800',
+    textDecorationLine: 'underline',
   },
 
   textButton: {
