@@ -15,7 +15,10 @@ export default function EmailConfirmationCallbackScreen() {
   useEffect(() => {
     if (!isLoading && isMember && session?.user.id) {
       const finishSignIn = async () => {
-        const isHost = intent === 'host';
+        // This controls the first screen after confirmation only. Host access
+        // itself remains protected by the host profile and route guards.
+        const isHost =
+          intent === 'host' || session.user.user_metadata?.account_intent === 'host';
         await AsyncStorage.setItem('@k9-country/host-mode', isHost ? 'host' : 'guest');
 
         if (isHost) {

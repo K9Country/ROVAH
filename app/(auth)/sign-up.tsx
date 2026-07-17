@@ -110,6 +110,7 @@ export default function SignUpScreen() {
             full_name: normalizedName,
             first_name: normalizedFirstName,
             last_name: normalizedLastName,
+            account_intent: intent === 'host' ? 'host' : 'guest',
           },
           emailRedirectTo: getAuthEmailRedirectUrl(intent),
         },
