@@ -370,7 +370,7 @@ export default function PropertyDetailsScreen() {
       if (notificationError) {
         console.warn('Host reservation SMS was not sent:', notificationError.message);
       }
-      Alert.alert('Reservation confirmed', `${property.name} is reserved for ${formatSelectedDate(bookingDate)} from ${formatMilitaryTime(startTime)} to ${formatMilitaryTime(endTime)}.\n\nReservation total: $${Number(data.total_amount).toFixed(2)}\n\nPayments are still being set up, so no money has been collected for this test reservation.`, [{ text: 'View My Reservations', onPress: () => router.replace('/reservations') }]);
+      router.replace('/reservations');
     } catch (error) {
       Alert.alert('Unable to reserve this time', error instanceof Error ? error.message : 'Please try again.');
     } finally {
