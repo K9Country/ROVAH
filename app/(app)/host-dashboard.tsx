@@ -512,7 +512,7 @@ export default function HostDashboardScreen() {
           ]}
         >
           <Text style={styles.mainEntryLinkText}>
-            Switch to Member Area
+            Switch to Member Dashboard
           </Text>
         </Pressable>
 

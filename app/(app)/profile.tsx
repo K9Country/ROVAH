@@ -275,7 +275,7 @@ export default function GuestProfileScreen() {
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <Pressable onPress={() => router.replace(backDestination as never)} style={styles.backButton}>
             <Text style={styles.backButtonText}>
-              {returnTo ? '← Back to reservation' : '← Guest dashboard'}
+              {returnTo ? '← Back to reservation' : '← Member Dashboard'}
             </Text>
           </Pressable>
 

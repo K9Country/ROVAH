@@ -156,7 +156,7 @@ export default function FavoritesScreen() {
         ListHeaderComponent={
           <>
             <Pressable onPress={() => router.back()} style={styles.backButton}>
-              <Text style={styles.backButtonText}>← Dashboard</Text>
+              <Text style={styles.backButtonText}>← Member Dashboard</Text>
             </Pressable>
             <Text style={styles.title}>My Favorites</Text>
             <Text style={styles.description}>Keep the private spaces you love in one easy-to-find place.</Text>

@@ -167,7 +167,7 @@ export default function MessagesScreen() {
         }
       >
         <Pressable onPress={() => router.back()} style={styles.backButton}>
-          <Text style={styles.backButtonText}>{'<'} Dashboard</Text>
+          <Text style={styles.backButtonText}>{'<'} Member Dashboard</Text>
         </Pressable>
 
         <Text style={styles.title}>Messages</Text>

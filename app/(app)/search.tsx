@@ -592,7 +592,7 @@ export default function SearchScreen() {
               style={styles.backButton}
             >
               <Text style={styles.backButtonText}>
-                ← Dashboard
+                ← Member Dashboard
               </Text>
             </Pressable>
 

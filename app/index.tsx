@@ -129,7 +129,7 @@ export default function WelcomeScreen() {
             <View style={styles.returningCard}>
               <Text style={styles.returningTitle}>Welcome back{welcomeName ? `, ${welcomeName}` : ''}.</Text>
               <Pressable accessibilityRole="button" onPress={isHost ? continueAsHost : continueAsMember} style={styles.primaryButton}>
-                <Text style={styles.primaryButtonText}>{isHost ? 'Go to Host Area' : 'Go to Guest Area'}</Text>
+                <Text style={styles.primaryButtonText}>{isHost ? 'Go to Host Area' : 'Go to Member Dashboard'}</Text>
               </Pressable>
             </View>
           ) : (
@@ -148,7 +148,7 @@ export default function WelcomeScreen() {
               ]}
             >
               <Text style={styles.primaryButtonText}>
-                {isMember ? 'Go to Member Area' : 'Continue as a Member'}
+                {isMember ? 'Go to Member Dashboard' : 'Continue as a Member'}
               </Text>
             </Pressable>
 

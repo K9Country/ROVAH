@@ -320,7 +320,7 @@ export default function ReservationsScreen() {
           onPress={() => router.replace('/dashboard')}
           style={styles.backButton}
         >
-          <Text style={styles.backButtonText}>← Dashboard</Text>
+          <Text style={styles.backButtonText}>← Member Dashboard</Text>
         </Pressable>
 
         <Text style={styles.title}>My Reservations</Text>
