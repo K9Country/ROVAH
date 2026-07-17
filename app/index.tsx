@@ -211,6 +211,17 @@ export default function WelcomeScreen() {
         {!isMember ? <Text style={styles.footer}>
           Safe spaces for dogs to run, explore, sniff, and be themselves.
         </Text> : null}
+
+        <Pressable
+          accessibilityRole="link"
+          onPress={() => router.push('/trust-safety' as never)}
+          style={styles.trustSafetyLink}
+        >
+          <Text style={styles.trustSafetyLinkTitle}>Trust &amp; Safety</Text>
+          <Text style={styles.trustSafetyLinkText}>
+            How K9 Country helps keep every visit safe
+          </Text>
+        </Pressable>
       </ScrollView>
 
     </SafeAreaView>
@@ -601,6 +612,27 @@ const styles = StyleSheet.create({
     fontSize: 13,
     textAlign: 'center',
     marginTop: 24,
+  },
+
+  trustSafetyLink: {
+    alignItems: 'center',
+    marginTop: 28,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+
+  trustSafetyLinkTitle: {
+    color: colors.forest,
+    fontSize: 15,
+    fontWeight: '900',
+    textDecorationLine: 'underline',
+  },
+
+  trustSafetyLinkText: {
+    color: colors.muted,
+    fontSize: 12,
+    marginTop: 4,
+    textAlign: 'center',
   },
 
 });
