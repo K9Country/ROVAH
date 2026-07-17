@@ -39,7 +39,10 @@ export default function VerifyEmailScreen() {
         return;
       }
 
-      Alert.alert('New email sent', 'Open the newest K9 Country email and click Confirm email address.');
+      Alert.alert(
+        'New email sent',
+        'Open the newest K9 Country email and click Confirm email address. If it is not in your inbox, please check Spam or Junk.'
+      );
     } catch {
       Alert.alert('Unable to send email', 'Please try again in a moment.');
     } finally {
@@ -59,6 +62,13 @@ export default function VerifyEmailScreen() {
         <Text style={styles.hint}>
           Open the newest K9 Country email and click “Confirm email address.” You will return here automatically and be signed in.
         </Text>
+
+        <View style={styles.spamNotice}>
+          <Text style={styles.spamNoticeTitle}>Can’t find the email?</Text>
+          <Text style={styles.spamNoticeText}>
+            Check your Spam or Junk folder, then mark the K9 Country email as “Not spam” so future reservation updates arrive in your inbox.
+          </Text>
+        </View>
 
         <Pressable
           accessibilityRole="button"
@@ -86,6 +96,9 @@ const styles = StyleSheet.create({
   description: { color: colors.muted, fontSize: 16, lineHeight: 23, marginTop: 12, textAlign: 'center' },
   email: { color: colors.forest, fontSize: 16, fontWeight: '800', marginTop: 8, textAlign: 'center' },
   hint: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 18, textAlign: 'center' },
+  spamNotice: { backgroundColor: '#FFF5E8', borderColor: '#E7C79D', borderRadius: 14, borderWidth: 1, marginTop: 18, padding: 15, width: '100%' },
+  spamNoticeTitle: { color: colors.forest, fontSize: 15, fontWeight: '900', textAlign: 'center' },
+  spamNoticeText: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 5, textAlign: 'center' },
   resendButton: { alignItems: 'center', justifyContent: 'center', marginTop: 28, minHeight: 44 },
   resendButtonText: { color: colors.forest, fontSize: 16, fontWeight: '800', textDecorationLine: 'underline' },
   signInButton: { alignItems: 'center', justifyContent: 'center', marginTop: 8, minHeight: 44 },
