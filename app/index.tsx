@@ -319,13 +319,13 @@ const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
     paddingHorizontal: 24,
-    paddingTop: 16,
+    paddingTop: 4,
     paddingBottom: 30,
   },
  
   logoArea: {
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 8,
     marginHorizontal: -24,
   },
  
@@ -340,7 +340,7 @@ const styles = StyleSheet.create({
     padding: 24,
     borderWidth: 1,
     borderColor: colors.border,
-    marginBottom: 24,
+    marginBottom: 10,
   },
  
   heroTitle: {
@@ -596,7 +596,7 @@ const styles = StyleSheet.create({
   dividerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 26,
+    marginVertical: 10,
   },
  
   divider: {
