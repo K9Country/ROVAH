@@ -30,6 +30,10 @@ type HostDashboardData = {
   properties: Property[];
 };
 
+function isJwtIssuedInFutureError(error: { message?: string } | null) {
+  return error?.message?.toLowerCase().includes('jwt issued at future') ?? false;
+}
+
 export default function HostDashboardScreen() {
   const { session } = useAuth();
   const [dashboardData, setDashboardData] = useState<HostDashboardData>({
@@ -54,29 +58,44 @@ export default function HostDashboardScreen() {
     setErrorMessage(null);
     setIsLoading(true);
 
-    const [profileResult, propertiesResult, administratorResult] = await Promise.all([
-      supabase
-        .from('host_profiles')
-        .select('*')
-        .eq('user_id', session.user.id)
-        .maybeSingle(),
-      supabase
-        .from('properties')
-        .select('*')
-        .eq('host_id', session.user.id)
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('admin_users')
-        .select('user_id')
-        .eq('user_id', session.user.id)
-        .maybeSingle(),
-    ]);
+    const loadHostingRecords = () =>
+      Promise.all([
+        supabase
+          .from('host_profiles')
+          .select('*')
+          .eq('user_id', session.user.id)
+          .maybeSingle(),
+        supabase
+          .from('properties')
+          .select('*')
+          .eq('host_id', session.user.id)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('admin_users')
+          .select('user_id')
+          .eq('user_id', session.user.id)
+          .maybeSingle(),
+      ]);
+
+    let [profileResult, propertiesResult, administratorResult] =
+      await loadHostingRecords();
+
+    const initialError = profileResult.error ?? propertiesResult.error;
+    if (isJwtIssuedInFutureError(initialError)) {
+      const { error: refreshError } = await supabase.auth.refreshSession();
+
+      if (!refreshError) {
+        [profileResult, propertiesResult, administratorResult] =
+          await loadHostingRecords();
+      }
+    }
 
     if (profileResult.error || propertiesResult.error) {
+      const error = profileResult.error ?? propertiesResult.error;
       setErrorMessage(
-        profileResult.error?.message ??
-          propertiesResult.error?.message ??
-          'We could not load your hosting information. Please try again.'
+        isJwtIssuedInFutureError(error)
+          ? 'Your device clock may be out of sync. Turn on automatic date and time, then try again.'
+          : error?.message ?? 'We could not load your hosting information. Please try again.'
       );
       setIsLoading(false);
       return;
