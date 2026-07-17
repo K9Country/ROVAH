@@ -15,7 +15,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ModeLabel } from '../../components/mode-label';
 import { colors } from '../../constants/theme';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../services/auth-context';
@@ -182,7 +181,6 @@ export default function CreatePropertyScreen() {
   if (isLoading) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <ModeLabel mode="Host" page={3} />
         <View style={styles.centeredState}>
           <ActivityIndicator color="#263A24" size="large" />
           <Text style={styles.stateText}>Preparing your property setup...</Text>
@@ -194,7 +192,6 @@ export default function CreatePropertyScreen() {
   if (!hostAccess) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <ModeLabel mode="Host" page={3} />
         <View style={styles.centeredState}>
           <Text style={styles.stateTitle}>Start with your host profile</Text>
           <Text style={styles.stateText}>
@@ -210,7 +207,6 @@ export default function CreatePropertyScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ModeLabel mode="Host" page={3} />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardView}
@@ -220,12 +216,12 @@ export default function CreatePropertyScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <Pressable onPress={() => router.back()} style={styles.backButton}>
-            <Text style={styles.backButtonText}>{'<'} Host profile</Text>
+          <Pressable onPress={() => router.replace('/host-dashboard')} style={styles.backButton}>
+            <Text style={styles.backButtonText}>{'<'} Host Dashboard</Text>
           </Pressable>
 
-          <Text style={styles.eyebrow}>PROPERTY DRAFT</Text>
-          <Text style={styles.title}>Create your first property</Text>
+          <Text style={styles.eyebrow}>NEW PRIVATE SPACE</Text>
+          <Text style={styles.title}>Create a private space</Text>
           <Text style={styles.description}>
             Start with the essentials. You will add photos, arrival instructions, amenities, rules, and availability next.
           </Text>

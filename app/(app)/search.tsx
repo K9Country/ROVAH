@@ -613,7 +613,7 @@ export default function SearchScreen() {
                 onPress={() => router.push('/host-dashboard' as never)}
                 style={styles.hostReturnLink}
               >
-                <Text style={styles.hostReturnLinkText}>Return to host profile</Text>
+                <Text style={styles.hostReturnLinkText}>Return to Host Dashboard</Text>
               </Pressable>
             ) : null}
 
