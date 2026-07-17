@@ -74,7 +74,8 @@ export default function DashboardScreen() {
   const [memories, setMemories] = useState<MemoryPhoto[]>([]);
 
   const isHostAccount = Boolean(session?.user.id) && canAccessHostDashboard;
-  const [isLoadingMemories, setIsLoadingMemories] = useState(true);
+  const [hasLoadedMemories, setHasLoadedMemories] = useState(false);
+  const [isLoadingMemories, setIsLoadingMemories] = useState(false);
   const [isUploadingMemories, setIsUploadingMemories] = useState(false);
   const [memoryStatus, setMemoryStatus] = useState('');
 
@@ -99,44 +100,52 @@ export default function DashboardScreen() {
     if (!session?.user.id) {
       setMemories([]);
       setIsLoadingMemories(false);
+      setHasLoadedMemories(true);
       return;
     }
 
     setIsLoadingMemories(true);
-    const { data: files, error: listError } = await supabase.storage
-      .from('guest-memories')
-      .list(session.user.id, { limit: 30, sortBy: { column: 'created_at', order: 'desc' } });
+    setMemoryStatus('');
 
-    if (listError) {
-      setMemoryStatus('We could not load your memories.');
-      setIsLoadingMemories(false);
-      return;
-    }
+    try {
+      const { data: files, error: listError } = await supabase.storage
+        .from('guest-memories')
+        .list(session.user.id, { limit: 30, sortBy: { column: 'created_at', order: 'desc' } });
 
-    const paths = (files ?? [])
-      .filter((file) => file.name)
-      .map((file) => `${session.user.id}/${file.name}`);
+      if (listError) {
+        setMemoryStatus('We could not load your memories.');
+        return;
+      }
 
-    if (!paths.length) {
-      setMemories([]);
-      setIsLoadingMemories(false);
-      return;
-    }
+      const paths = (files ?? [])
+        .filter((file) => file.name)
+        .map((file) => `${session.user.id}/${file.name}`);
 
-    const { data: signedUrls, error: signedUrlError } = await supabase.storage
-      .from('guest-memories')
-      .createSignedUrls(paths, 60 * 60);
+      if (!paths.length) {
+        setMemories([]);
+        return;
+      }
 
-    if (signedUrlError) {
-      setMemoryStatus('We could not load your memories.');
-    } else {
+      const { data: signedUrls, error: signedUrlError } = await supabase.storage
+        .from('guest-memories')
+        .createSignedUrls(paths, 60 * 60);
+
+      if (signedUrlError) {
+        setMemoryStatus('We could not load your memories.');
+        return;
+      }
+
       setMemories(
         (signedUrls ?? [])
           .map((file, index) => ({ path: paths[index], url: file.signedUrl }))
           .filter((file): file is MemoryPhoto => Boolean(file.url))
       );
+    } catch {
+      setMemoryStatus('We could not load your memories.');
+    } finally {
+      setHasLoadedMemories(true);
+      setIsLoadingMemories(false);
     }
-    setIsLoadingMemories(false);
   }, [session?.user.id]);
 
   useEffect(() => {
@@ -170,10 +179,6 @@ export default function DashboardScreen() {
     );
     return () => clearInterval(refreshInterval);
   }, [loadUnreadMessages]);
-
-  useEffect(() => {
-    void loadMemories();
-  }, [loadMemories]);
 
   const handleNavigation = (route: string) => {
     router.push(route as never);
@@ -364,6 +369,14 @@ export default function DashboardScreen() {
 
           {isLoadingMemories ? (
             <View style={styles.memoriesEmpty}><ActivityIndicator color={colors.forest} /></View>
+          ) : !hasLoadedMemories ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => void loadMemories()}
+              style={styles.memoriesEmpty}
+            >
+              <Text style={styles.memoriesEmptyText}>View your saved memory photos</Text>
+            </Pressable>
           ) : memories.length ? (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.memoriesScroll}>
               {memories.map((memory) => <Image key={memory.path} source={{ uri: memory.url }} style={styles.memoryImage} />)}
