@@ -54,6 +54,23 @@ export default function WelcomeScreen() {
             style={styles.logo}
           />
         </View>
+
+        {!isMember ? <View style={styles.hostInvitationCard}>
+          <Text style={styles.hostInvitationTitle}>Turn your yard into extra income</Text>
+          <Text style={styles.hostInvitationDescription}>
+            Share a safe outdoor space with dog families, set your own availability, and earn money on reservations.
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={continueAsHost}
+            style={({ pressed }) => [
+              styles.hostInvitationButton,
+              pressed && styles.buttonPressed,
+            ]}
+          >
+            <Text style={styles.hostInvitationButtonText}>Become a Host</Text>
+          </Pressable>
+        </View> : null}
  
         {!isMember ? <View style={styles.heroCard}>
           <Text style={styles.heroTitle}>
@@ -119,50 +136,6 @@ export default function WelcomeScreen() {
           </>
           )}
 
-          {!isMember ? <>
-          <View style={styles.dividerRow}>
-            <View style={styles.divider} />
-            <Text style={styles.dividerText}>HOST</Text>
-            <View style={styles.divider} />
-          </View>
-
-          <View style={styles.hostCard}>
-            <Text style={styles.hostTitle}>
-              Thinking About Becoming a Host?
-            </Text>
-
-            <Text style={styles.hostDescription}>
-              Turn your land into extra income while helping dogs enjoy safe outdoor experiences. List your property, manage bookings, and get paid.
-            </Text>
-
-            <Pressable
-              accessibilityRole="button"
-              onPress={continueAsHost}
-              style={({ pressed }) => [
-                styles.hostButton,
-                pressed && styles.buttonPressed,
-              ]}
-            >
-              <Text style={styles.hostButtonText}>
-                {isHost ? 'Go to Host Area' : 'Continue as a Host'}
-              </Text>
-            </Pressable>
-
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => {
-                void AsyncStorage.setItem('@k9-country/host-mode', 'host');
-                router.push('/sign-in?intent=host' as never);
-              }}
-              style={({ pressed }) => [
-                styles.hostSignInButton,
-                pressed && styles.buttonPressed,
-              ]}
-            >
-              <Text style={styles.hostSignInButtonText}>Host Sign In</Text>
-            </Pressable>
-          </View>
-          </> : null}
         </View>
 
         {isMember ? <Pressable accessibilityRole="button" onPress={() => void signOutToSwitchProfile()} style={styles.returningSignOutButton}>
@@ -294,6 +267,45 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     marginBottom: 10,
+  },
+
+  hostInvitationCard: {
+    backgroundColor: colors.olive,
+    borderRadius: 22,
+    marginBottom: 14,
+    padding: 22,
+  },
+
+  hostInvitationTitle: {
+    color: colors.warmWhite,
+    fontSize: 24,
+    fontWeight: '900',
+    lineHeight: 30,
+    textAlign: 'center',
+  },
+
+  hostInvitationDescription: {
+    color: colors.cream,
+    fontSize: 15,
+    lineHeight: 22,
+    marginTop: 10,
+    textAlign: 'center',
+  },
+
+  hostInvitationButton: {
+    alignItems: 'center',
+    backgroundColor: colors.cream,
+    borderRadius: 14,
+    justifyContent: 'center',
+    marginTop: 18,
+    minHeight: 52,
+    paddingHorizontal: 18,
+  },
+
+  hostInvitationButtonText: {
+    color: colors.forest,
+    fontSize: 16,
+    fontWeight: '900',
   },
  
   heroTitle: {
@@ -566,56 +578,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 1.3,
     marginHorizontal: 12,
-  },
- 
-  hostCard: {
-    backgroundColor: colors.olive,
-    borderRadius: 22,
-    padding: 24,
-  },
- 
-  hostTitle: {
-    color: colors.warmWhite,
-    fontSize: 23,
-    lineHeight: 29,
-    fontWeight: '800',
-    marginBottom: 10,
-  },
- 
-  hostDescription: {
-    color: colors.cream,
-    fontSize: 15,
-    lineHeight: 23,
-    marginBottom: 20,
-  },
- 
-  hostButton: {
-    minHeight: 52,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.cream,
-    paddingHorizontal: 18,
-  },
- 
-  hostButtonText: {
-    color: colors.forest,
-    fontSize: 16,
-    fontWeight: '800',
-  },
-
-  hostSignInButton: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 8,
-    minHeight: 42,
-  },
-
-  hostSignInButtonText: {
-    color: colors.cream,
-    fontSize: 15,
-    fontWeight: '800',
-    textDecorationLine: 'underline',
   },
  
   footer: {
