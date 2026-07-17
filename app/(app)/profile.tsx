@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
 import {
@@ -47,6 +47,7 @@ const formatPhoneNumber = (value: string) => {
 };
 
 export default function GuestProfileScreen() {
+  const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
   const { isMember, session } = useAuth();
   const [profile, setProfile] = useState<ProfileForm>(emptyProfile);
   const [isLoading, setIsLoading] = useState(true);
@@ -173,6 +174,9 @@ export default function GuestProfileScreen() {
 
       setIsComplete(true);
       setStatusMessage('');
+      if (typeof returnTo === 'string' && returnTo.startsWith('/')) {
+        router.replace(returnTo as never);
+      }
     } catch (error) {
       setStatusMessage(
         error instanceof Error
