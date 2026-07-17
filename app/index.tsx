@@ -222,6 +222,17 @@ export default function WelcomeScreen() {
             How K9 Country helps keep every visit safe
           </Text>
         </Pressable>
+
+        <Pressable
+          accessibilityRole="link"
+          onPress={() => router.push('/pricing' as never)}
+          style={styles.trustSafetyLink}
+        >
+          <Text style={styles.trustSafetyLinkTitle}>Pricing</Text>
+          <Text style={styles.trustSafetyLinkText}>
+            Simple, fair, transparent pricing for members and hosts
+          </Text>
+        </Pressable>
       </ScrollView>
 
     </SafeAreaView>
