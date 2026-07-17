@@ -17,7 +17,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors } from '../../constants/theme';
-import { ensureMessagingSession } from '../../lib/anonymous-session';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../services/auth-context';
 import type { Property } from '../../types/property';
@@ -130,11 +129,6 @@ export default function SearchScreen() {
   const loadProperties = useCallback(async () => {
     setErrorMessage(null);
 
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    await ensureMessagingSession(session);
-
     const { data, error } = await supabase
       .from('properties')
       .select(
@@ -205,18 +199,12 @@ export default function SearchScreen() {
         : Promise.resolve({ data: [], error: null }),
     ]);
 
-    if (imageResult.error || amenityResult.error || favoriteResult.error) {
-      setErrorMessage(imageResult.error?.message ?? amenityResult.error?.message ?? favoriteResult.error?.message ?? 'Unable to load property details.');
-      setProperties([]);
-      return;
-    }
-
     setFavoritePropertyIds(
-      (favoriteResult.data ?? []).map((favorite) => favorite.property_id)
+      favoriteResult.error ? [] : (favoriteResult.data ?? []).map((favorite) => favorite.property_id)
     );
 
     const imagesWithUrls = await Promise.all(
-      ((imageResult.data ?? []) as DiscoverImage[]).map(async (image) => {
+      ((imageResult.error ? [] : imageResult.data ?? []) as DiscoverImage[]).map(async (image) => {
         const { data: signedImage } = await supabase.storage
           .from('property-images')
           .createSignedUrl(image.storage_path, 60 * 60);
@@ -225,7 +213,7 @@ export default function SearchScreen() {
       })
     );
 
-    const amenitiesByProperty = (amenityResult.data ?? []).reduce<Record<string, string[]>>(
+    const amenitiesByProperty = (amenityResult.error ? [] : amenityResult.data ?? []).reduce<Record<string, string[]>>(
       (groupedAmenities, amenity) => {
         groupedAmenities[amenity.property_id] = [
           ...(groupedAmenities[amenity.property_id] ?? []),
