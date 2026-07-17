@@ -9,6 +9,7 @@ import {
     Modal,
     Pressable,
     ScrollView,
+    Share,
     StyleSheet,
     Text,
     View,
@@ -166,6 +167,33 @@ export default function HostDashboardScreen() {
     } finally {
       setIsSigningOut(false);
     }
+  };
+
+  const shareThisSite = async (property: Property) => {
+    const siteUrl = `https://k9-country.expo.app/property/${property.id}`;
+    const shareTitle = `${property.name} | K9 Country`;
+    const shareMessage = `Visit ${property.name}, a private K9 Country dog space in ${property.city}, ${property.state}: ${siteUrl}`;
+
+    if (process.env.EXPO_OS === 'web') {
+      if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+        await navigator.share({ title: shareTitle, text: shareMessage, url: siteUrl });
+        return;
+      }
+
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareMessage);
+        Alert.alert('Share link copied', 'Paste it into Facebook, a text message, email, or any other social app.');
+        return;
+      }
+
+      Alert.alert('Copy this site link', siteUrl);
+      return;
+    }
+
+    await Share.share(
+      { message: shareMessage, title: shareTitle },
+      { dialogTitle: 'Share this site' }
+    );
   };
 
   const uploadProfilePhoto = async () => {
@@ -427,6 +455,17 @@ export default function HostDashboardScreen() {
                   onPress={() => router.push(`/host-reviews?propertyId=${property.id}&propertyName=${encodeURIComponent(property.name)}` as never)}
                 />
               </View>
+              {property.is_published ? (
+                <Pressable
+                  accessibilityLabel={`Share ${property.name}`}
+                  accessibilityRole="button"
+                  onPress={() => void shareThisSite(property)}
+                  style={({ pressed }) => [styles.sharePropertyButton, pressed && styles.buttonPressed]}
+                >
+                  <Text style={styles.sharePropertyIcon}>↗</Text>
+                  <Text style={styles.sharePropertyText}>Share this site</Text>
+                </Pressable>
+              ) : null}
             </View>
           ))
         )}
@@ -594,6 +633,9 @@ const styles = StyleSheet.create({
   propertyTool: { alignItems: 'center', flex: 1, justifyContent: 'center', minHeight: 78, paddingHorizontal: 3 },
   propertyToolIcon: { fontSize: 20 },
   propertyToolLabel: { color: colors.forest, fontSize: 11, fontWeight: '800', marginTop: 6, textAlign: 'center' },
+  sharePropertyButton: { alignItems: 'center', borderTopColor: colors.border, borderTopWidth: 1, flexDirection: 'row', justifyContent: 'center', minHeight: 48 },
+  sharePropertyIcon: { color: colors.brown, fontSize: 18, marginRight: 7 },
+  sharePropertyText: { color: colors.brown, fontSize: 14, fontWeight: '900' },
   earningsCard: { alignItems: 'center', backgroundColor: colors.lightGreen, borderColor: '#CBD1BD', borderRadius: 18, borderWidth: 1, flexDirection: 'row', justifyContent: 'space-between', padding: 18 },
   earningsLabel: { color: colors.brown, fontSize: 11, fontWeight: '900', letterSpacing: 1.1 },
   earningsValue: { color: colors.forest, fontSize: 28, fontWeight: '900', marginTop: 5 },
