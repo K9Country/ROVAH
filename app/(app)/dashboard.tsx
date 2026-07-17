@@ -70,10 +70,8 @@ export default function DashboardScreen() {
   const { session } = useAuth();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
-  const [canAccessHostDashboard, setCanAccessHostDashboard] = useState(false);
   const [memories, setMemories] = useState<MemoryPhoto[]>([]);
 
-  const isHostAccount = Boolean(session?.user.id) && canAccessHostDashboard;
   const [hasLoadedMemories, setHasLoadedMemories] = useState(false);
   const [isLoadingMemories, setIsLoadingMemories] = useState(false);
   const [isUploadingMemories, setIsUploadingMemories] = useState(false);
@@ -146,29 +144,6 @@ export default function DashboardScreen() {
       setHasLoadedMemories(true);
       setIsLoadingMemories(false);
     }
-  }, [session?.user.id]);
-
-  useEffect(() => {
-    const checkHostAccess = async () => {
-      if (!session?.user.id) {
-        setCanAccessHostDashboard(false);
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from('host_profiles')
-        .select('user_id')
-        .eq('user_id', session.user.id)
-        .maybeSingle();
-
-      if (!error) {
-        setCanAccessHostDashboard(Boolean(data));
-      } else {
-        setCanAccessHostDashboard(false);
-      }
-    };
-
-    void checkHostAccess();
   }, [session?.user.id]);
 
   useEffect(() => {
@@ -411,16 +386,6 @@ export default function DashboardScreen() {
               <Text style={styles.signOutButtonText}>Sign Out</Text>
             )}
           </Pressable>
-
-          {isHostAccount ? (
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => router.push('/host-dashboard' as never)}
-              style={styles.hostReturnLink}
-            >
-              <Text style={styles.hostReturnLinkText}>Return to Host Area</Text>
-            </Pressable>
-          ) : null}
 
           <Pressable accessibilityRole="button" onPress={() => router.push('/settings' as never)} style={styles.hostReturnLink}>
             <Text style={styles.hostReturnLinkText}>Settings & Privacy</Text>

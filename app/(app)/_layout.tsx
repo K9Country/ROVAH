@@ -17,11 +17,23 @@ const hostOnlyRoutes = new Set([
   '/property-draft',
 ]);
 
+const memberOnlyRoutes = new Set([
+  '/dashboard',
+  '/favorites',
+  '/messages',
+  '/profile',
+  '/property',
+  '/reservations',
+  '/review',
+  '/search',
+]);
+
 export default function AppLayout() {
   const { isHost, isLoading, isMember } = useAuth();
   const pathname = usePathname();
   const routeRoot = `/${pathname.split('/').filter(Boolean)[0] ?? ''}`;
   const needsHostAccess = hostOnlyRoutes.has(routeRoot);
+  const needsMemberAccess = memberOnlyRoutes.has(routeRoot);
 
   useEffect(() => {
     if (isLoading) return;
@@ -33,10 +45,20 @@ export default function AppLayout() {
 
     if (needsHostAccess && !isHost) {
       router.replace('/dashboard' as never);
+      return;
     }
-  }, [isHost, isLoading, isMember, needsHostAccess]);
 
-  if (isLoading || !isMember || (needsHostAccess && !isHost)) {
+    if (needsMemberAccess && isHost) {
+      router.replace('/host-dashboard' as never);
+    }
+  }, [isHost, isLoading, isMember, needsHostAccess, needsMemberAccess]);
+
+  if (
+    isLoading ||
+    !isMember ||
+    (needsHostAccess && !isHost) ||
+    (needsMemberAccess && isHost)
+  ) {
     return (
       <View style={styles.loadingScreen}>
         <ActivityIndicator color={colors.forest} size="large" />

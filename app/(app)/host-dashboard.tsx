@@ -527,19 +527,6 @@ export default function HostDashboardScreen() {
 
         <Pressable
           accessibilityRole="link"
-          onPress={() => router.push('/dashboard')}
-          style={({ pressed }) => [
-            styles.mainEntryLink,
-            pressed && styles.buttonPressed,
-          ]}
-        >
-          <Text style={styles.mainEntryLinkText}>
-            Switch to Member Dashboard
-          </Text>
-        </Pressable>
-
-        <Pressable
-          accessibilityRole="link"
           onPress={() => router.push('/trust-safety' as never)}
           style={styles.trustSafetyLink}
         >
