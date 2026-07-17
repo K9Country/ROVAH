@@ -67,6 +67,19 @@ export default function WelcomeScreen() {
           >
             <Text style={styles.hostInvitationButtonText}>Join for Free</Text>
           </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              void AsyncStorage.setItem('@k9-country/host-mode', 'host');
+              router.push('/sign-in?intent=host' as never);
+            }}
+            style={({ pressed }) => [
+              styles.hostSignInButton,
+              pressed && styles.buttonPressed,
+            ]}
+          >
+            <Text style={styles.hostSignInButtonText}>Host Sign In</Text>
+          </Pressable>
         </View> : null}
 
         {!isMember ? (
@@ -318,6 +331,21 @@ const styles = StyleSheet.create({
     color: colors.forest,
     fontSize: 16,
     fontWeight: '900',
+  },
+
+  hostSignInButton: {
+    alignSelf: 'center',
+    justifyContent: 'center',
+    marginTop: 6,
+    minHeight: 36,
+    paddingHorizontal: 12,
+  },
+
+  hostSignInButtonText: {
+    color: colors.warmWhite,
+    fontSize: 14,
+    fontWeight: '800',
+    textDecorationLine: 'underline',
   },
  
   heroTitle: {
