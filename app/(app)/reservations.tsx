@@ -60,6 +60,7 @@ export default function ReservationsScreen() {
   const [cancellingBookingId, setCancellingBookingId] = useState<string | null>(
     null
   );
+  const [bookingToCancelId, setBookingToCancelId] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(() => Date.now());
 
   const loadBookings = useCallback(async () => {
@@ -148,52 +149,41 @@ export default function ReservationsScreen() {
     booking.status === 'confirmed' &&
     new Date(booking.start_at).getTime() - currentTime >= cancellationWindowMs;
 
-  const cancelBooking = (booking: GuestBooking) => {
-    Alert.alert(
-      'Cancel this reservation?',
-      'You may cancel until one hour before the visit. K9 Country does not keep any funds when you cancel within that window.',
-      [
-        { text: 'Keep Reservation', style: 'cancel' },
-        {
-          text: 'Cancel Reservation',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setCancellingBookingId(booking.id);
-              const { data, error } = await supabase
-                .from('bookings')
-                .update({ status: 'cancelled' })
-                .eq('id', booking.id)
-                .eq('status', 'confirmed')
-                .select('id')
-                .maybeSingle();
+  const cancelBooking = async (booking: GuestBooking) => {
+    try {
+      setCancellingBookingId(booking.id);
+      const { data, error } = await supabase
+        .from('bookings')
+        .update({ status: 'cancelled' })
+        .eq('id', booking.id)
+        .eq('guest_id', session?.user.id ?? '')
+        .eq('status', 'confirmed')
+        .select('id')
+        .maybeSingle();
 
-              if (error) {
-                throw error;
-              }
+      if (error) {
+        throw error;
+      }
 
-              if (!data) {
-                Alert.alert(
-                  'Cancellation unavailable',
-                  'The one-hour cancellation window has closed or this reservation was already changed.'
-                );
-                await loadBookings();
-                return;
-              }
+      if (!data) {
+        Alert.alert(
+          'Cancellation unavailable',
+          'The one-hour cancellation window has closed or this reservation was already changed.'
+        );
+        await loadBookings();
+        return;
+      }
 
-              await loadBookings();
-            } catch (error) {
-              Alert.alert(
-                'Unable to cancel reservation',
-                error instanceof Error ? error.message : 'Please try again.'
-              );
-            } finally {
-              setCancellingBookingId(null);
-            }
-          },
-        },
-      ]
-    );
+      setBookingToCancelId(null);
+      await loadBookings();
+    } catch (error) {
+      Alert.alert(
+        'Unable to cancel reservation',
+        error instanceof Error ? error.message : 'Please try again.'
+      );
+    } finally {
+      setCancellingBookingId(null);
+    }
   };
 
   const renderBooking = (booking: GuestBooking, isUpcoming: boolean) => {
@@ -205,6 +195,7 @@ export default function ReservationsScreen() {
       : 'K9 Country listing';
     const cancellationAvailable = canCancel(booking);
     const isCancelling = cancellingBookingId === booking.id;
+    const isConfirmingCancellation = bookingToCancelId === booking.id;
 
     return (
       <View key={booking.id} style={styles.bookingCard}>
@@ -252,22 +243,44 @@ export default function ReservationsScreen() {
         {isUpcoming && booking.status === 'confirmed' ? (
           <>
             {cancellationAvailable ? (
-              <Pressable
-                accessibilityRole="button"
-                disabled={isCancelling}
-                onPress={() => cancelBooking(booking)}
-                style={({ pressed }) => [
-                  styles.cancelButton,
-                  pressed && styles.buttonPressed,
-                  isCancelling && styles.buttonDisabled,
-                ]}
-              >
-                {isCancelling ? (
-                  <ActivityIndicator color="#95423A" size="small" />
-                ) : (
+              isConfirmingCancellation ? (
+                <View style={styles.cancelConfirmation}>
+                  <Text style={styles.cancelConfirmationText}>
+                    Cancel this reservation? You may cancel until one hour before the visit.
+                  </Text>
+                  <View style={styles.cancelConfirmationActions}>
+                    <Pressable
+                      accessibilityRole="button"
+                      disabled={isCancelling}
+                      onPress={() => setBookingToCancelId(null)}
+                      style={({ pressed }) => [styles.keepButton, pressed && styles.buttonPressed, isCancelling && styles.buttonDisabled]}
+                    >
+                      <Text style={styles.keepButtonText}>Keep it</Text>
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      disabled={isCancelling}
+                      onPress={() => void cancelBooking(booking)}
+                      style={({ pressed }) => [styles.confirmCancelButton, pressed && styles.buttonPressed, isCancelling && styles.buttonDisabled]}
+                    >
+                      {isCancelling ? <ActivityIndicator color={colors.cream} size="small" /> : <Text style={styles.confirmCancelButtonText}>Yes, cancel</Text>}
+                    </Pressable>
+                  </View>
+                </View>
+              ) : (
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={isCancelling}
+                  onPress={() => setBookingToCancelId(booking.id)}
+                  style={({ pressed }) => [
+                    styles.cancelButton,
+                    pressed && styles.buttonPressed,
+                    isCancelling && styles.buttonDisabled,
+                  ]}
+                >
                   <Text style={styles.cancelButtonText}>Cancel Reservation</Text>
-                )}
-              </Pressable>
+                </Pressable>
+              )
             ) : (
               <Text style={styles.windowClosedText}>
                 The cancellation window closed one hour before this visit.
@@ -391,6 +404,13 @@ const styles = StyleSheet.create({
   paymentStatusText: { color: colors.muted, fontSize: 12, fontStyle: 'italic', lineHeight: 18, marginTop: 5 },
   cancelButton: { alignItems: 'center', backgroundColor: '#FFF1EE', borderColor: '#D88A80', borderRadius: 12, borderWidth: 1, justifyContent: 'center', marginTop: 18, minHeight: 48 },
   cancelButtonText: { color: '#95423A', fontSize: 15, fontWeight: '900' },
+  cancelConfirmation: { backgroundColor: '#FFF1EE', borderColor: '#D88A80', borderRadius: 12, borderWidth: 1, marginTop: 18, padding: 14 },
+  cancelConfirmationText: { color: colors.forest, fontSize: 14, fontWeight: '700', lineHeight: 20 },
+  cancelConfirmationActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
+  keepButton: { alignItems: 'center', backgroundColor: colors.cream, borderColor: '#D88A80', borderRadius: 10, borderWidth: 1, flex: 1, justifyContent: 'center', minHeight: 42 },
+  keepButtonText: { color: '#95423A', fontSize: 14, fontWeight: '900' },
+  confirmCancelButton: { alignItems: 'center', backgroundColor: '#95423A', borderRadius: 10, flex: 1, justifyContent: 'center', minHeight: 42 },
+  confirmCancelButtonText: { color: colors.cream, fontSize: 14, fontWeight: '900' },
   messageHostButton: { alignItems: 'center', backgroundColor: colors.lightGreen, borderColor: '#CBD1BD', borderRadius: 12, borderWidth: 1, flexDirection: 'row', justifyContent: 'center', marginTop: 10, minHeight: 48 },
   messageHostButtonText: { color: colors.forest, fontSize: 15, fontWeight: '900' },
   messageHostIcon: { fontSize: 17, marginLeft: 8 },
