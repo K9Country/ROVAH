@@ -884,7 +884,7 @@ const styles = StyleSheet.create({
   listContent: {
     flexGrow: 1,
     paddingHorizontal: 20,
-    paddingTop: 12,
+    paddingTop: 4,
     paddingBottom: 36,
   },
 
@@ -892,7 +892,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     minHeight: 44,
     justifyContent: 'center',
-    marginBottom: 12,
+    marginBottom: 6,
   },
 
   backButtonText: {
