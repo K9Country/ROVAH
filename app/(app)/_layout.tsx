@@ -6,7 +6,6 @@ import { colors } from '../../constants/theme';
 import { useAuth } from '../../services/auth-context';
 
 const hostOnlyRoutes = new Set([
-  '/host',
   '/create-property',
   '/host-calendar',
   '/host-dashboard',
