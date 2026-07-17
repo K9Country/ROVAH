@@ -19,7 +19,7 @@ export default function EmailConfirmationCallbackScreen() {
         await AsyncStorage.setItem('@k9-country/host-mode', isHost ? 'host' : 'guest');
 
         if (isHost) {
-          router.replace('/host-dashboard');
+          router.replace('/host');
           return;
         }
 

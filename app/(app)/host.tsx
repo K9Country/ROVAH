@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
@@ -27,7 +28,7 @@ function splitFullName(fullName: string) {
 }
 
 export default function HostOnboardingScreen() {
-  const { isHost, isLoading: isAuthLoading, session } = useAuth();
+  const { isLoading: isAuthLoading, session } = useAuth();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
@@ -94,12 +95,12 @@ export default function HostOnboardingScreen() {
   }, [session?.user.id]);
 
   useEffect(() => {
-    if (isAuthLoading || isHost) {
+    if (isAuthLoading || session?.user.id) {
       return;
     }
 
-    router.replace(session?.user.id ? '/dashboard' : '/sign-in?intent=host');
-  }, [isAuthLoading, isHost, session?.user.id]);
+    router.replace('/sign-in?intent=host');
+  }, [isAuthLoading, session?.user.id]);
 
   const handleContinue = async () => {
     const normalizedFirstName = firstName.trim();
@@ -175,6 +176,7 @@ export default function HostOnboardingScreen() {
         return;
       }
 
+      await AsyncStorage.setItem('@k9-country/host-mode', 'host');
       router.replace('/host-dashboard');
     } catch {
       Alert.alert(
@@ -186,7 +188,7 @@ export default function HostOnboardingScreen() {
     }
   };
 
-  if (isAuthLoading || !isHost || isLoading) {
+  if (isAuthLoading || !session?.user.id || isLoading) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <ModeLabel mode="Host" page={1} />
