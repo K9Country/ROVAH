@@ -158,18 +158,14 @@ export default function SignInScreen() {
         >
           <Pressable
             accessibilityRole="button"
-            onPress={() => router.back()}
+            onPress={() => intent === 'host' ? router.replace('/') : router.back()}
             style={styles.backButton}
           >
-            <Text style={styles.backButtonText}>← Back</Text>
+            <Text style={styles.backButtonText}>← {intent === 'host' ? 'Welcome page' : 'Back'}</Text>
           </Pressable>
  
-          <View style={styles.headingArea}>
-            {intent === 'host' ? (
-              <View style={styles.logoBadge}>
-                <Text style={styles.logoText}>K9</Text>
-              </View>
-            ) : (
+          <View style={[styles.headingArea, intent === 'host' && styles.hostHeadingArea]}>
+            {intent !== 'host' ? (
               <View style={styles.memberHeroBleed}>
                 <Image
                   accessibilityLabel="K9 Country member sign-in artwork"
@@ -178,7 +174,7 @@ export default function SignInScreen() {
                   style={styles.memberHero}
                 />
               </View>
-            )}
+            ) : null}
  
             <Text style={styles.title}>
               {intent === 'host' ? 'Host sign in' : 'Member sign in'}
@@ -356,17 +352,8 @@ const styles = StyleSheet.create({
     marginTop: 0,
     marginBottom: 12,
   },
- 
-  logoBadge: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.forest,
-    borderWidth: 4,
-    borderColor: colors.brown,
-    marginBottom: 20,
+  hostHeadingArea: {
+    marginTop: 48,
   },
 
   memberHero: {
@@ -379,7 +366,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     marginHorizontal: -24,
   },
-  logoText: { color: colors.cream, fontSize: 32, fontWeight: '900' },
  
   title: {
     color: colors.forest,
