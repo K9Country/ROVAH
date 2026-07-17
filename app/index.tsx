@@ -56,7 +56,7 @@ export default function WelcomeScreen() {
         </View>
 
         {!isMember ? <View style={styles.hostInvitationCard}>
-          <Text adjustsFontSizeToFit minimumFontScale={0.65} numberOfLines={1} style={styles.hostInvitationTitle}>TURN YOUR YARD INTO EXTRA INCOME</Text>
+          <Text adjustsFontSizeToFit minimumFontScale={0.65} numberOfLines={1} style={styles.hostInvitationTitle}>TURN YOUR LAND INTO EXTRA INCOME</Text>
           <Pressable
             accessibilityRole="button"
             onPress={continueAsHost}
