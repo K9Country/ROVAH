@@ -210,9 +210,9 @@ export default function HostOnboardingScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.headingArea}>
-            <Text style={styles.title}>Share your private space</Text>
+            <Text style={styles.title}>Hosting Profile</Text>
             <Text style={styles.description}>
-              Start with a few details. You’ll add your property information,
+              Start with a few details about yourself. You’ll add property information,
               photos, access instructions, and availability next.
             </Text>
           </View>
