@@ -269,14 +269,14 @@ const styles = StyleSheet.create({
   hostInvitationCard: {
     backgroundColor: colors.olive,
     borderRadius: 22,
-    marginBottom: 10,
+    marginBottom: 12,
     paddingHorizontal: 22,
     paddingVertical: 13,
   },
 
   hostInvitationTitle: {
     color: colors.gold,
-    fontSize: 18,
+    fontSize: 13.5,
     fontWeight: '700',
     letterSpacing: 0.2,
     textAlign: 'center',
