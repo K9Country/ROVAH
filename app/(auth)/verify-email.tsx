@@ -53,7 +53,7 @@ export default function VerifyEmailScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        <View style={styles.logoBadge}><Text style={styles.logoText}>K9</Text></View>
+        {!isHost ? <View style={styles.logoBadge}><Text style={styles.logoText}>K9</Text></View> : null}
         <Text style={styles.title}>Check your email</Text>
         <Text style={styles.description}>
           {resent === 'true' ? 'We sent a fresh confirmation email to:' : 'We sent a confirmation email to:'}
