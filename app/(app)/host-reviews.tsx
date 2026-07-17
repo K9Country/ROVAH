@@ -11,7 +11,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ModeLabel } from '../../components/mode-label';
 import { colors } from '../../constants/theme';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../services/auth-context';
@@ -177,7 +176,6 @@ export default function HostReviewsScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ModeLabel mode="Host" page={9} />
       <ScrollView
         contentContainerStyle={styles.container}
         refreshControl={
@@ -197,7 +195,6 @@ export default function HostReviewsScreen() {
           <Text style={styles.backButtonText}>{'<'} Host Mode</Text>
         </Pressable>
 
-        <Text style={styles.eyebrow}>SITE FEEDBACK</Text>
         <Text style={styles.title}>
           {selectedPropertyLabel ? `${selectedPropertyLabel} reviews` : 'Site reviews'}
         </Text>
@@ -339,8 +336,7 @@ const styles = StyleSheet.create({
   container: { padding: 20, paddingBottom: 40 },
   backButton: { alignSelf: 'flex-start', justifyContent: 'center', minHeight: 44 },
   backButtonText: { color: colors.forest, fontSize: 16, fontWeight: '800' },
-  eyebrow: { color: colors.brown, fontSize: 12, fontWeight: '900', letterSpacing: 1.3, marginTop: 10 },
-  title: { color: colors.forest, fontSize: 30, fontWeight: '900', marginTop: 8 },
+  title: { color: colors.forest, fontSize: 30, fontWeight: '900' },
   description: { color: colors.muted, fontSize: 16, lineHeight: 23, marginTop: 10 },
   trackPicker: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 14, borderWidth: 1, flexDirection: 'row', marginTop: 20, padding: 4 },
   trackButton: { alignItems: 'center', borderRadius: 10, flex: 1, justifyContent: 'center', minHeight: 42, paddingHorizontal: 8 },
