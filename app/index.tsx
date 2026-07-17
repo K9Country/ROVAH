@@ -56,7 +56,7 @@ export default function WelcomeScreen() {
         </View>
 
         {!isMember ? <View style={styles.hostInvitationCard}>
-          <Text adjustsFontSizeToFit minimumFontScale={0.65} numberOfLines={1} style={styles.hostInvitationTitle}>Turn your yard into extra income</Text>
+          <Text adjustsFontSizeToFit minimumFontScale={0.65} numberOfLines={1} style={styles.hostInvitationTitle}>TURN YOUR YARD INTO EXTRA INCOME</Text>
           <Pressable
             accessibilityRole="button"
             onPress={continueAsHost}
@@ -248,7 +248,7 @@ const styles = StyleSheet.create({
  
   logoArea: {
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 0,
     marginHorizontal: -24,
   },
  
@@ -269,14 +269,16 @@ const styles = StyleSheet.create({
   hostInvitationCard: {
     backgroundColor: colors.olive,
     borderRadius: 22,
-    marginBottom: 14,
-    padding: 22,
+    marginBottom: 10,
+    paddingHorizontal: 22,
+    paddingVertical: 13,
   },
 
   hostInvitationTitle: {
-    color: colors.warmWhite,
-    fontSize: 22,
-    fontWeight: '400',
+    color: colors.gold,
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: 0.2,
     textAlign: 'center',
   },
 
@@ -285,8 +287,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.cream,
     borderRadius: 14,
     justifyContent: 'center',
-    marginTop: 16,
-    minHeight: 52,
+    marginTop: 10,
+    minHeight: 44,
     paddingHorizontal: 18,
   },
 
