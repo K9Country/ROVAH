@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { colors, typography } from '../constants/theme';
+import { colors } from '../constants/theme';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../services/auth-context';
 
@@ -65,7 +65,7 @@ export default function WelcomeScreen() {
               pressed && styles.buttonPressed,
             ]}
           >
-            <Text style={styles.hostInvitationButtonText}>Learn How</Text>
+            <Text style={styles.hostInvitationButtonText}>Start Now</Text>
           </Pressable>
         </View> : null}
  
@@ -196,7 +196,7 @@ export default function WelcomeScreen() {
         <Pressable
           accessibilityRole="link"
           onPress={() => router.push('/pricing' as never)}
-          style={styles.trustSafetyLink}
+          style={[styles.trustSafetyLink, styles.pricingLink]}
         >
           <Text style={styles.trustSafetyLinkTitle}>Pricing</Text>
           <Text style={styles.trustSafetyLinkText}>
@@ -275,11 +275,8 @@ const styles = StyleSheet.create({
 
   hostInvitationTitle: {
     color: colors.warmWhite,
-    fontFamily: typography.display,
-    fontSize: 27,
-    fontStyle: 'italic',
-    fontWeight: '900',
-    letterSpacing: -0.7,
+    fontSize: 22,
+    fontWeight: '400',
     textAlign: 'center',
   },
 
@@ -583,6 +580,10 @@ const styles = StyleSheet.create({
     marginTop: 28,
     paddingHorizontal: 20,
     paddingVertical: 12,
+  },
+
+  pricingLink: {
+    marginTop: 6,
   },
 
   trustSafetyLinkTitle: {
