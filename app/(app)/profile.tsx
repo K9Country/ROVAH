@@ -288,7 +288,6 @@ export default function GuestProfileScreen() {
               <View style={styles.profilePhotoButton}>
                 <Image source={profileImageUri ? { uri: profileImageUri } : require('../../assets/images/k9-11.png')} style={styles.profilePhoto} />
               </View>
-              <Text style={styles.profilePhotoText}>Add photo</Text>
             </Pressable>
           </View>
 
@@ -401,7 +400,6 @@ const styles = StyleSheet.create({
   profilePhotoControl: { alignItems: 'center', width: 88 },
   profilePhotoButton: { alignItems: 'center', backgroundColor: colors.lightGreen, borderColor: colors.brown, borderRadius: 44, borderWidth: 1, height: 88, justifyContent: 'center', overflow: 'hidden', width: 88 },
   profilePhoto: { height: '100%', width: '100%' },
-  profilePhotoText: { color: colors.brown, fontSize: 12, fontWeight: '900', marginTop: 6, textAlign: 'center' },
   completionCard: { backgroundColor: '#FFF5E8', borderWidth: 1, borderColor: '#E7C79D', borderRadius: 18, padding: 17, marginBottom: 18 },
   completionCardComplete: { backgroundColor: colors.lightGreen, borderColor: '#C4D2B6' },
   completionTitle: { color: colors.forest, fontSize: 17, fontWeight: '900', marginBottom: 6 },
