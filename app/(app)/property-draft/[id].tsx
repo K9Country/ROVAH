@@ -614,11 +614,12 @@ export default function PropertyDraftScreen() {
         if (dateAvailabilityInsertError) throw dateAvailabilityInsertError;
       }
 
-      const { error: publishError } = await supabase
-        .from('properties')
-        .update({
-          is_published: true,
-          hero_image_url: primaryPhoto.storage_path,
+        const { error: publishError } = await supabase
+          .from('properties')
+          .update({
+            is_published: false,
+            approval_status: 'pending',
+            hero_image_url: primaryPhoto.storage_path,
           is_temporarily_closed: property.is_temporarily_closed,
           site_address: property.site_address.trim(),
         })
@@ -626,11 +627,11 @@ export default function PropertyDraftScreen() {
         .eq('host_id', session.user.id);
       if (publishError) throw publishError;
 
-      setProperty((current) =>
-        current
-          ? { ...current, is_published: true, hero_image_url: primaryPhoto.storage_path, site_address: current.site_address.trim() }
-          : current
-      );
+        setProperty((current) =>
+          current
+            ? { ...current, is_published: false, approval_status: 'pending', hero_image_url: primaryPhoto.storage_path, site_address: current.site_address.trim() }
+            : current
+        );
       setHasUnsavedChanges(false);
 
       if (!wasPublished) {
@@ -973,12 +974,12 @@ export default function PropertyDraftScreen() {
 
           <View style={styles.bottomNotice}>
             <Text style={styles.bottomNoticeTitle}>
-              {property.is_published ? 'Listing is live' : 'Save your listing'}
+               {property.is_published ? 'Listing is live' : property.approval_status === 'declined' ? 'Changes requested' : 'Ready for review'}
             </Text>
             <Text style={styles.bottomNoticeText}>
-              {property.is_published
-                ? 'Guests can find this property in search. Update any detail here whenever needed.'
-                : 'Saving stores your property information and makes your private space visible in K9 Country search.'}
+               {property.is_published
+                  ? 'Guests can find this property in search. Update any detail here whenever needed.'
+                  : 'Save your finished listing to submit it for K9 Country administrator review. It will appear in guest search only after approval.'}
             </Text>
             <Pressable
               accessibilityRole="button"
@@ -989,7 +990,7 @@ export default function PropertyDraftScreen() {
               {isPublishing ? (
                 <ActivityIndicator color="#FFFDF8" />
               ) : (
-                <Text style={styles.publishButtonText}>Save Listing</Text>
+                 <Text style={styles.publishButtonText}>{property.is_published ? 'Save Changes for Review' : 'Submit for Review'}</Text>
               )}
             </Pressable>
           </View>

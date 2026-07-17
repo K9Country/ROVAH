@@ -17,6 +17,8 @@ export type Property = {
   hero_image_url: string | null;
   hero_image_signed_url?: string;
   is_published: boolean;
+  approval_status?: 'pending' | 'approved' | 'declined';
+  review_notes?: string | null;
   is_temporarily_closed: boolean;
   view_count: number;
   booking_count?: number;
