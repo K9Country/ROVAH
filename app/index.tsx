@@ -90,12 +90,12 @@ export default function WelcomeScreen() {
  
         {!isMember ? <View style={styles.heroCard}>
           <Text style={styles.heroTitle}>
-            Private outdoor space for you and your dog
+            Welcome to K9 Country
           </Text>
  
           <Text style={styles.heroDescription}>
-            Find and reserve secure private properties by the hour—without
-            crowds, distractions, or unfamiliar dogs.
+            Where dogs and their families can enjoy private outdoor adventures without the crowds.{"\n\n"}
+            We’re adding new private properties across the country, welcoming new hosts, and helping more dogs discover safe places to run, explore, sniff, and simply be themselves.
           </Text>
         </View> : null}
  
@@ -161,12 +161,11 @@ export default function WelcomeScreen() {
 
           <View style={styles.hostCard}>
             <Text style={styles.hostTitle}>
-              Share your land. Help dogs.
+              Thinking About Becoming a Host?
             </Text>
 
             <Text style={styles.hostDescription}>
-              Set your own availability, create your property rules, and earn
-              income by offering dogs a private place to play.
+              Turn your land into extra income while helping dogs enjoy safe outdoor experiences. List your property, manage bookings, and get paid.
             </Text>
 
             <Pressable
@@ -205,54 +204,45 @@ export default function WelcomeScreen() {
 
         {!isMember ? <View style={styles.dogNeedsSection}>
           <Text style={styles.dogNeedsTitle}>
-            Perfect for Dogs Who Need Their Own Space
+            New to K9 Country?
           </Text>
           <Text style={styles.dogNeedsIntro}>
-            Not every dog thrives in crowded parks. K9 Country is ideal for
-            dogs who:
+            Whether your dog is energetic, reactive, anxious, in training, or simply enjoys having space to roam, K9 Country helps you find the perfect private destination.
           </Text>
 
           <View style={styles.dogNeedsList}>
             <DogNeed
-              title="Prefer to Be Alone"
-              description="Peaceful, private time with no other dogs."
+              title="Browse private properties near you"
+              description="Discover fully fenced yards, open fields, wooded trails, and other unique spaces."
             />
             <DogNeed
-              title="Are Reactive or Anxious"
-              description="A calm, controlled environment with zero surprises."
+              title="Book by the hour"
+              description="Enjoy private outdoor time without memberships or subscriptions."
             />
             <DogNeed
-              title="Need to Decompress"
-              description="Perfect after boarding, travel, adoption, or stressful situations."
+              title="Meet local hosts"
+              description="Connect with people offering safe, welcoming spaces for dogs."
             />
             <DogNeed
-              title="Are High Energy"
-              description="Run, play, and explore without limits."
-            />
-            <DogNeed
-              title="Are Learning & Training"
-              description="Practice recall, obedience, and agility in a secure space."
-            />
-            <DogNeed
-              title="Are Recovering or Senior"
-              description="Gentle, safe exercise at their own pace."
+              title="Leave helpful reviews"
+              description="Help other dog families discover great locations."
             />
           </View>
         </View> : null}
 
         {!isMember ? <View style={styles.updatesCard}>
-          <Text style={styles.updatesEyebrow}>K9 COUNTRY UPDATES</Text>
-          <Text style={styles.updatesTitle}>What’s happening</Text>
+          <Text style={styles.updatesEyebrow}>GROWING EVERY DAY</Text>
+          <Text style={styles.updatesTitle}>Private Land. Happy Dogs.</Text>
           <Text style={styles.updatesDescription}>
-            This is the shared home base for members and hosts. Check here for the latest improvements and community information.
+            We’re working to build the largest network of private dog recreation spaces in North America.
           </Text>
-          <UpdateItem title="Clearer site feedback" description="Guest reviews are now connected to the specific site that was visited." />
-          <UpdateItem title="Better visit records" description="Hosts can review a guest’s track record across past site visits." />
-          <UpdateItem title="One-tap directions" description="Every site can now provide an exact Google Maps destination." />
+          <UpdateItem title="New properties" description="Private spaces are being added regularly." />
+          <UpdateItem title="New communities" description="More local hosts and dog families are joining K9 Country." />
+          <UpdateItem title="New adventures" description="Check back often to see what’s new in your area." />
         </View> : null}
  
         {!isMember ? <Text style={styles.footer}>
-          Safe spaces. Simple booking. Happier dogs.
+          Safe spaces for dogs to run, explore, sniff, and be themselves.
         </Text> : null}
       </ScrollView>
 
