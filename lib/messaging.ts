@@ -125,6 +125,36 @@ export async function getUnreadConversationIds(
   return unreadConversationIds;
 }
 
+/** Identifies the incoming messages that arrived after this viewer last opened a conversation. */
+export function getUnreadMessageIds(
+  messages: PropertyMessage[],
+  conversation: PropertyConversation,
+  userId: string
+) {
+  const lastReadAt =
+    conversation.guest_id === userId
+      ? conversation.guest_last_read_at
+      : conversation.host_last_read_at;
+  const lastReadTime = new Date(lastReadAt).getTime();
+
+  return new Set(
+    messages
+      .filter((message) => {
+        if (message.sender_id === userId) return false;
+        if (
+          conversation.guest_id === userId &&
+          conversation.guest_history_cleared_at &&
+          new Date(message.created_at).getTime() <=
+            new Date(conversation.guest_history_cleared_at).getTime()
+        ) {
+          return false;
+        }
+        return new Date(message.created_at).getTime() > lastReadTime;
+      })
+      .map((message) => message.id)
+  );
+}
+
 export async function markConversationRead(conversationId: string) {
   await supabase.rpc('mark_property_conversation_read', {
     target_conversation_id: conversationId,

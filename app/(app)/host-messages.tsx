@@ -185,7 +185,7 @@ export default function HostMessagesScreen() {
             const hasUnread = unreadConversationIds.has(conversation.id);
             const isDeleting = deletingConversationId === conversation.id;
 
-            return <View key={conversation.id} style={styles.conversationCard}>
+            return <View key={conversation.id} style={[styles.conversationCard, hasUnread && styles.conversationCardUnread]}>
               <Pressable
                 accessibilityLabel={`View ${conversation.personName}'s guest profile`}
                 accessibilityRole="button"
@@ -197,6 +197,7 @@ export default function HostMessagesScreen() {
               <Pressable onPress={() => router.push(`/messages/${conversation.property_id}?conversationId=${conversation.id}` as never)} style={styles.conversationOpenButton}>
                 <View style={styles.conversationContent}>
                   <Text style={styles.conversationTitle}>{conversation.personName}</Text>
+                  {hasUnread ? <Text style={styles.newMessageLabel}>NEW MESSAGE</Text> : null}
                   {conversation.lastMessageAt ? <Text style={styles.lastMessageTime}>{formatMessageTimestamp(conversation.lastMessageAt)}</Text> : null}
                 </View>
               </Pressable>
@@ -224,10 +225,12 @@ const styles = StyleSheet.create({
   emptyTitle: { color: colors.forest, fontSize: 18, fontWeight: '900' },
   emptyText: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 7 },
   conversationCard: { alignItems: 'center', backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 16, borderWidth: 1, flexDirection: 'row', marginTop: 14, paddingLeft: 16, ...shadows.card },
+  conversationCardUnread: { backgroundColor: '#FFF9EF', borderColor: '#141414', borderWidth: 3 },
   profileButton: { alignItems: 'center', justifyContent: 'center', minHeight: 74, paddingVertical: 11 },
   conversationOpenButton: { alignItems: 'center', flex: 1, flexDirection: 'row', minHeight: 74, paddingVertical: 16 },
   conversationContent: { flex: 1, marginLeft: 12 },
   conversationTitle: { color: colors.forest, fontSize: 17, fontWeight: '900' },
+  newMessageLabel: { alignSelf: 'flex-start', backgroundColor: '#141414', borderRadius: 8, color: colors.warmWhite, fontSize: 10, fontWeight: '900', letterSpacing: 0.6, marginTop: 6, overflow: 'hidden', paddingHorizontal: 8, paddingVertical: 4 },
   lastMessageTime: { color: colors.muted, fontSize: 12, fontVariant: ['tabular-nums'], marginTop: 4 },
   deleteConversationButton: { alignItems: 'center', justifyContent: 'center', minHeight: 54, width: 46 },
   deleteConversationText: { color: colors.brown, fontSize: 28, fontWeight: '400', lineHeight: 30 },
