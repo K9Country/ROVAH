@@ -15,7 +15,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ModeLabel } from '../../components/mode-label';
 import { colors, typography } from '../../constants/theme';
 import { formatUsPhoneNumber, hasValidUsPhoneNumber, phoneNumberHelpText } from '../../lib/phone-number';
 import { supabase } from '../../lib/supabase';
@@ -191,7 +190,6 @@ export default function HostOnboardingScreen() {
   if (isAuthLoading || !session?.user.id || isLoading) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <ModeLabel mode="Host" page={1} />
         <View style={styles.centeredState}>
           <ActivityIndicator size="large" color="#263A24" />
           <Text style={styles.stateText}>Loading host setup...</Text>
@@ -202,7 +200,6 @@ export default function HostOnboardingScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ModeLabel mode="Host" page={1} />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardView}
@@ -212,17 +209,7 @@ export default function HostOnboardingScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.replace('/host-dashboard')}
-            style={styles.backButton}
-          >
-            <Text style={styles.backButtonText}>← Host area</Text>
-          </Pressable>
-
           <View style={styles.headingArea}>
-            <View style={styles.logoBadge}><Text style={styles.logoText}>K9</Text></View>
-            <Text style={styles.eyebrow}>HOST WITH K9 COUNTRY</Text>
             <Text style={styles.title}>Share your private space</Text>
             <Text style={styles.description}>
               Start with a few details. You’ll add your property information,
@@ -388,15 +375,10 @@ function ConfirmationRow({
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.cream },
   keyboardView: { flex: 1 },
-  container: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 36 },
+  container: { paddingHorizontal: 24, paddingTop: 24, paddingBottom: 36 },
   centeredState: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   stateText: { color: colors.muted, fontSize: 15, marginTop: 14 },
-  backButton: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' },
-  backButtonText: { color: colors.forest, fontSize: 16, fontWeight: '700' },
-  headingArea: { alignItems: 'center', marginTop: 14, marginBottom: 28 },
-  logoBadge: { width: 72, height: 72, alignItems: 'center', justifyContent: 'center', borderRadius: 36, backgroundColor: colors.forest, borderColor: colors.brown, borderWidth: 4, marginBottom: 18 },
-  logoText: { color: colors.cream, fontSize: 32, fontWeight: '900' },
-  eyebrow: { color: colors.brown, fontSize: 12, fontWeight: '900', letterSpacing: 1.25, marginBottom: 8 },
+  headingArea: { alignItems: 'center', marginBottom: 26 },
   title: { color: colors.forest, fontFamily: typography.display, fontSize: 29, fontWeight: '900', textAlign: 'center', marginBottom: 10 },
   description: { color: colors.muted, fontSize: 16, lineHeight: 23, textAlign: 'center', maxWidth: 370 },
   form: { gap: 18 },
