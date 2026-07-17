@@ -490,7 +490,7 @@ export default function HostDashboardScreen() {
         {dashboardData.properties.length === 0 ? (
           <View style={styles.analyticsEmptyCard}>
             <Text style={styles.analyticsEmptyText}>
-              Add a private space to begin tracking views and bookings.
+              Add a private space to begin tracking clicks and bookings.
             </Text>
           </View>
         ) : (
@@ -498,8 +498,8 @@ export default function HostDashboardScreen() {
             const viewCount = property.view_count ?? 0;
             const bookingCount = property.booking_count ?? 0;
             const conversionText = viewCount > 0
-              ? `${Math.round((bookingCount / viewCount) * 100)}% of views became bookings`
-              : 'Views will appear here once guests open your listing';
+              ? `${Math.round((bookingCount / viewCount) * 100)}% of clicks became bookings`
+              : 'Clicks will appear here once guests open your listing';
 
             return (
               <View key={`analytics-${property.id}`} style={styles.propertyAnalyticsCard}>
@@ -507,7 +507,7 @@ export default function HostDashboardScreen() {
                 <View style={styles.propertyAnalyticsRow}>
                   <View style={styles.analyticsMetricBlock}>
                     <Text style={styles.analyticsMetricValue}>{viewCount}</Text>
-                    <Text style={styles.analyticsMetricLabel}>Views</Text>
+                    <Text style={styles.analyticsMetricLabel}>Clicks</Text>
                   </View>
                   <View style={styles.analyticsMetricBlock}>
                     <Text style={styles.analyticsMetricValue}>{bookingCount}</Text>
