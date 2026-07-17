@@ -49,6 +49,10 @@ const formatPhoneNumber = (value: string) => {
 export default function GuestProfileScreen() {
   const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
   const { isMember, session } = useAuth();
+  const backDestination =
+    typeof returnTo === 'string' && returnTo.startsWith('/')
+      ? returnTo
+      : '/dashboard';
   const [profile, setProfile] = useState<ProfileForm>(emptyProfile);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -269,8 +273,10 @@ export default function GuestProfileScreen() {
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.keyboardView}>
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-          <Pressable onPress={() => router.back()} style={styles.backButton}>
-            <Text style={styles.backButtonText}>← Dashboard</Text>
+          <Pressable onPress={() => router.replace(backDestination as never)} style={styles.backButton}>
+            <Text style={styles.backButtonText}>
+              {returnTo ? '← Back to reservation' : '← Guest dashboard'}
+            </Text>
           </Pressable>
 
           <View style={styles.profileHeader}>

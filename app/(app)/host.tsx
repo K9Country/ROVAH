@@ -21,7 +21,7 @@ import { useAuth } from '../../services/auth-context';
 import type { HostProfile } from '../../types/host-profile';
 
 export default function HostOnboardingScreen() {
-  const { session } = useAuth();
+  const { isHost, isLoading: isAuthLoading, session } = useAuth();
   const [fullName, setFullName] = useState(
     session?.user.user_metadata?.full_name ?? ''
   );
@@ -71,6 +71,14 @@ export default function HostOnboardingScreen() {
 
     void loadHostProfile();
   }, [session?.user.id]);
+
+  useEffect(() => {
+    if (isAuthLoading || isHost) {
+      return;
+    }
+
+    router.replace(session?.user.id ? '/dashboard' : '/sign-in?intent=host');
+  }, [isAuthLoading, isHost, session?.user.id]);
 
   const handleContinue = async () => {
     const normalizedName = fullName.trim();
@@ -135,7 +143,7 @@ export default function HostOnboardingScreen() {
     }
   };
 
-  if (isLoading) {
+  if (isAuthLoading || !isHost || isLoading) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <ModeLabel mode="Host" page={1} />
@@ -161,10 +169,10 @@ export default function HostOnboardingScreen() {
         >
           <Pressable
             accessibilityRole="button"
-            onPress={() => router.back()}
+            onPress={() => router.replace('/host-dashboard')}
             style={styles.backButton}
           >
-            <Text style={styles.backButtonText}>← Dashboard</Text>
+            <Text style={styles.backButtonText}>← Host area</Text>
           </Pressable>
 
           <View style={styles.headingArea}>
