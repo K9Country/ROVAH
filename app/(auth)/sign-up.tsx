@@ -56,6 +56,7 @@ export default function SignUpScreen() {
   const [isLoading, setIsLoading] = useState(false);
 
   const signInRoute = intent === 'host' ? '/sign-in?intent=host' : '/sign-in';
+  const verificationRoute = `/verify-email?email=${encodeURIComponent(email.trim().toLowerCase())}&intent=${intent === 'host' ? 'host' : 'guest'}`;
 
   useEffect(() => {
     if (initialEmail) {
@@ -127,13 +128,22 @@ export default function SignUpScreen() {
       }
 
       if (data.user?.identities?.length === 0) {
+        const { error: resendError } = await supabase.auth.resend({
+          type: 'signup',
+          email: normalizedEmail,
+          options: { emailRedirectTo: getAuthEmailRedirectUrl(intent) },
+        });
+
+        if (!resendError) {
+          router.replace(`${verificationRoute}&resent=true` as never);
+          return;
+        }
+
         showExistingAccountMessage(intent);
         return;
       }
 
-      router.replace(
-        `/verify-email?email=${encodeURIComponent(normalizedEmail)}&intent=${intent === 'host' ? 'host' : 'guest'}` as never
-      );
+      router.replace(verificationRoute as never);
     } catch {
       Alert.alert(
         'Something went wrong',
