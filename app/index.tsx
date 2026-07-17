@@ -151,53 +151,53 @@ export default function WelcomeScreen() {
           </View>
           </>
           )}
-        </View>
 
-        {!isMember ? <>
-        <View style={styles.dividerRow}>
-          <View style={styles.divider} />
-          <Text style={styles.dividerText}>HOST</Text>
-          <View style={styles.divider} />
-        </View>
+          {!isMember ? <>
+          <View style={styles.dividerRow}>
+            <View style={styles.divider} />
+            <Text style={styles.dividerText}>HOST</Text>
+            <View style={styles.divider} />
+          </View>
 
-        <View style={styles.hostCard}>
-          <Text style={styles.hostTitle}>
-            Share your land. Help dogs.
-          </Text>
-
-          <Text style={styles.hostDescription}>
-            Set your own availability, create your property rules, and earn
-            income by offering dogs a private place to play.
-          </Text>
-
-          <Pressable
-            accessibilityRole="button"
-            onPress={continueAsHost}
-            style={({ pressed }) => [
-              styles.hostButton,
-              pressed && styles.buttonPressed,
-            ]}
-          >
-            <Text style={styles.hostButtonText}>
-              {isHost ? 'Go to Host Area' : 'Continue as a Host'}
+          <View style={styles.hostCard}>
+            <Text style={styles.hostTitle}>
+              Share your land. Help dogs.
             </Text>
-          </Pressable>
 
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => {
-              void AsyncStorage.setItem('@k9-country/host-mode', 'host');
-              router.push('/sign-in?intent=host' as never);
-            }}
-            style={({ pressed }) => [
-              styles.hostSignInButton,
-              pressed && styles.buttonPressed,
-            ]}
-          >
-            <Text style={styles.hostSignInButtonText}>Host Sign In</Text>
-          </Pressable>
+            <Text style={styles.hostDescription}>
+              Set your own availability, create your property rules, and earn
+              income by offering dogs a private place to play.
+            </Text>
+
+            <Pressable
+              accessibilityRole="button"
+              onPress={continueAsHost}
+              style={({ pressed }) => [
+                styles.hostButton,
+                pressed && styles.buttonPressed,
+              ]}
+            >
+              <Text style={styles.hostButtonText}>
+                {isHost ? 'Go to Host Area' : 'Continue as a Host'}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                void AsyncStorage.setItem('@k9-country/host-mode', 'host');
+                router.push('/sign-in?intent=host' as never);
+              }}
+              style={({ pressed }) => [
+                styles.hostSignInButton,
+                pressed && styles.buttonPressed,
+              ]}
+            >
+              <Text style={styles.hostSignInButtonText}>Host Sign In</Text>
+            </Pressable>
+          </View>
+          </> : null}
         </View>
-        </> : null}
 
         {isMember ? <Pressable accessibilityRole="button" onPress={() => void signOutToSwitchProfile()} style={styles.returningSignOutButton}>
           <Text style={styles.returningSignOutText}>Sign Out</Text>
