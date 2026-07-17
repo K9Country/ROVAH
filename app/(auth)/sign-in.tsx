@@ -150,7 +150,7 @@ export default function SignInScreen() {
   };
  
   return (
-    <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.safeArea}>
+    <SafeAreaView edges={intent === 'host' ? ['top', 'left', 'right', 'bottom'] : ['left', 'right', 'bottom']} style={styles.safeArea}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardView}
@@ -340,7 +340,7 @@ const styles = StyleSheet.create({
     left: 16,
     minHeight: 36,
     position: 'absolute',
-    top: 48,
+    top: 8,
     justifyContent: 'center',
     zIndex: 1,
   },
@@ -357,7 +357,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   hostHeadingArea: {
-    marginTop: 48,
+    marginTop: 88,
   },
 
   memberHero: {
