@@ -68,7 +68,18 @@ export default function WelcomeScreen() {
             <Text style={styles.hostInvitationButtonText}>Join for Free</Text>
           </Pressable>
         </View> : null}
- 
+
+        {!isMember ? (
+          <View style={styles.hostInvitationArtwork}>
+            <Image
+              accessibilityLabel="K9 Country fence"
+              contentFit="contain"
+              source={require('../assets/images/k9-13.png')}
+              style={styles.hostInvitationArtworkImage}
+            />
+          </View>
+        ) : null}
+
         {!isMember ? <View style={styles.heroCard}>
           <Text style={styles.heroTitle}>
             Welcome to K9 Country
@@ -269,9 +280,20 @@ const styles = StyleSheet.create({
   hostInvitationCard: {
     backgroundColor: colors.olive,
     borderRadius: 22,
-    marginBottom: 40,
+    marginBottom: 0,
     paddingHorizontal: 22,
     paddingVertical: 13,
+  },
+
+  hostInvitationArtwork: {
+    alignSelf: 'stretch',
+    marginBottom: 16,
+    marginHorizontal: -24,
+  },
+
+  hostInvitationArtworkImage: {
+    aspectRatio: 8,
+    width: '100%',
   },
 
   hostInvitationTitle: {
