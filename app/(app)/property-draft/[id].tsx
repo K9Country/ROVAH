@@ -504,7 +504,7 @@ export default function PropertyDraftScreen() {
     setHasUnsavedChanges(true);
   };
 
-  const saveListing = async () => {
+  const saveListing = async (submitForReview: boolean) => {
     if (!id || !property || !session?.user.id) return;
     const wasPublished = property.is_published;
     const openDays = schedule.filter((day) => day.enabled);
@@ -614,12 +614,12 @@ export default function PropertyDraftScreen() {
         if (dateAvailabilityInsertError) throw dateAvailabilityInsertError;
       }
 
-        const { error: publishError } = await supabase
-          .from('properties')
-          .update({
-            is_published: false,
-            approval_status: 'pending',
-            hero_image_url: primaryPhoto.storage_path,
+      const { error: publishError } = await supabase
+        .from('properties')
+        .update({
+          is_published: submitForReview ? false : property.is_published,
+          approval_status: submitForReview ? 'pending' : property.approval_status,
+          hero_image_url: primaryPhoto.storage_path,
           is_temporarily_closed: property.is_temporarily_closed,
           site_address: property.site_address.trim(),
         })
@@ -627,14 +627,20 @@ export default function PropertyDraftScreen() {
         .eq('host_id', session.user.id);
       if (publishError) throw publishError;
 
-        setProperty((current) =>
-          current
-            ? { ...current, is_published: false, approval_status: 'pending', hero_image_url: primaryPhoto.storage_path, site_address: current.site_address.trim() }
-            : current
-        );
+      setProperty((current) =>
+        current
+          ? {
+              ...current,
+              is_published: submitForReview ? false : current.is_published,
+              approval_status: submitForReview ? 'pending' : current.approval_status,
+              hero_image_url: primaryPhoto.storage_path,
+              site_address: current.site_address.trim(),
+            }
+          : current
+      );
       setHasUnsavedChanges(false);
 
-      if (!wasPublished) {
+      if (submitForReview && !wasPublished) {
         router.replace('/host-dashboard');
       }
     } catch (error) {
@@ -974,25 +980,55 @@ export default function PropertyDraftScreen() {
 
           <View style={styles.bottomNotice}>
             <Text style={styles.bottomNoticeTitle}>
-               {property.is_published ? 'Listing is live' : property.approval_status === 'declined' ? 'Changes requested' : 'Ready for review'}
+              {property.approval_status === 'approved'
+                ? 'Listing approved'
+                : property.approval_status === 'pending'
+                  ? 'Submitted for review'
+                  : property.approval_status === 'declined'
+                    ? 'Changes requested'
+                    : 'Ready for review'}
             </Text>
             <Text style={styles.bottomNoticeText}>
-               {property.is_published
-                  ? 'Guests can find this property in search. Update any detail here whenever needed.'
+              {property.approval_status === 'approved'
+                ? 'Your site is live. You can save changes to its write-up and details without sending it through review again.'
+                : property.approval_status === 'pending'
+                  ? 'Your site is waiting for K9 Country administrator review. The review submission is locked until an administrator responds.'
                   : 'Save your finished listing to submit it for K9 Country administrator review. It will appear in guest search only after approval.'}
             </Text>
-            <Pressable
-              accessibilityRole="button"
-              disabled={isPublishing}
-              onPress={saveListing}
-              style={[styles.publishButton, isPublishing && styles.disabled]}
-            >
-              {isPublishing ? (
-                <ActivityIndicator color="#FFFDF8" />
-              ) : (
-                 <Text style={styles.publishButtonText}>{property.is_published ? 'Save Changes for Review' : 'Submit for Review'}</Text>
-              )}
-            </Pressable>
+            {property.approval_status === 'approved' ? (
+              <>
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={isPublishing || !hasUnsavedChanges}
+                  onPress={() => void saveListing(false)}
+                  style={[styles.publishButton, (isPublishing || !hasUnsavedChanges) && styles.disabled]}
+                >
+                  {isPublishing ? <ActivityIndicator color="#FFFDF8" /> : <Text style={styles.publishButtonText}>Save Changes</Text>}
+                </Pressable>
+                <Pressable accessibilityRole="button" accessibilityState={{ disabled: true }} disabled style={styles.reviewCompleteButton}>
+                  <Text style={styles.reviewCompleteButtonText}>Approved</Text>
+                </Pressable>
+              </>
+            ) : (
+              <Pressable
+                accessibilityRole="button"
+                disabled={isPublishing || property.approval_status === 'pending'}
+                onPress={() => void saveListing(true)}
+                style={[styles.publishButton, (isPublishing || property.approval_status === 'pending') && styles.disabled]}
+              >
+                {isPublishing ? (
+                  <ActivityIndicator color="#FFFDF8" />
+                ) : (
+                  <Text style={styles.publishButtonText}>
+                    {property.approval_status === 'pending'
+                      ? 'Submitted for Review'
+                      : property.approval_status === 'declined'
+                        ? 'Resubmit for Review'
+                        : 'Submit for Review'}
+                  </Text>
+                )}
+              </Pressable>
+            )}
           </View>
 
           <View style={styles.deleteNotice}>
@@ -1195,6 +1231,8 @@ const styles = StyleSheet.create({
   bottomNoticeText: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 5 },
   publishButton: { alignItems: 'center', backgroundColor: colors.forest, borderRadius: 13, justifyContent: 'center', marginTop: 16, minHeight: 52 },
   publishButtonText: { color: colors.warmWhite, fontSize: 15, fontWeight: '900' },
+  reviewCompleteButton: { alignItems: 'center', backgroundColor: '#D7D3CA', borderRadius: 13, justifyContent: 'center', marginTop: 10, minHeight: 48 },
+  reviewCompleteButtonText: { color: '#6D6A63', fontSize: 15, fontWeight: '900' },
   temporaryClosureNotice: { alignItems: 'center', backgroundColor: '#FFF4E7', borderColor: '#E2B37A', borderRadius: 16, borderWidth: 1, flexDirection: 'row', marginTop: 16, padding: 16 },
   temporaryClosureText: { flex: 1, paddingRight: 14 },
   temporaryClosureTitle: { color: '#8A4F17', fontSize: 16, fontWeight: '900' },
