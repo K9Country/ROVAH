@@ -564,6 +564,15 @@ export default function HostDashboardScreen() {
           <Text style={styles.trustSafetyLinkText}>How K9 Country helps keep every visit safe</Text>
         </Pressable>
 
+        <Pressable
+          accessibilityRole="link"
+          onPress={() => router.push('/support' as never)}
+          style={styles.trustSafetyLink}
+        >
+          <Text style={styles.trustSafetyLinkTitle}>Safety & Support</Text>
+          <Text style={styles.trustSafetyLinkText}>Submit a private report or get help with an issue</Text>
+        </Pressable>
+
       </ScrollView>
     </SafeAreaView>
   );
