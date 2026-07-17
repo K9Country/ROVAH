@@ -389,6 +389,14 @@ export default function PropertyDetailsScreen() {
     const query = [property.site_address, property.city, property.state, property.postal_code].filter(Boolean).join(', ');
     const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 
+    if (process.env.EXPO_OS === 'web') {
+      const mapsWindow = window.open(mapsUrl, '_blank', 'noopener,noreferrer');
+      if (!mapsWindow) {
+        Alert.alert('Unable to open Google Maps', 'Please allow pop-ups for K9 Country, then try again.');
+      }
+      return;
+    }
+
     void Linking.openURL(mapsUrl).catch(() => {
       Alert.alert('Unable to open Google Maps', 'Please try again in a moment.');
     });
