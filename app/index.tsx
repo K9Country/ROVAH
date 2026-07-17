@@ -65,7 +65,7 @@ export default function WelcomeScreen() {
               pressed && styles.buttonPressed,
             ]}
           >
-            <Text style={styles.hostInvitationButtonText}>Start Now</Text>
+            <Text style={styles.hostInvitationButtonText}>Join for Free</Text>
           </Pressable>
         </View> : null}
  
