@@ -17,3 +17,13 @@ export type PropertyMessage = {
   image_path: string | null;
   created_at: string;
 };
+
+export type MessageReactionKind = 'like' | 'dislike' | 'love';
+
+export type MessageReaction = {
+  id: string;
+  message_id: string;
+  user_id: string;
+  reaction: MessageReactionKind;
+  created_at: string;
+};

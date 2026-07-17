@@ -22,10 +22,15 @@ import { supabase } from '../../../lib/supabase';
 import { ensureMessagingSession } from '../../../lib/anonymous-session';
 import { formatMessageTimestamp, getUnreadMessageIds, markConversationRead } from '../../../lib/messaging';
 import { useAuth } from '../../../services/auth-context';
-import type { PropertyConversation, PropertyMessage } from '../../../types/messaging';
+import type { MessageReaction, MessageReactionKind, PropertyConversation, PropertyMessage } from '../../../types/messaging';
 
 type ThreadProperty = { id: string; name: string; host_id: string; is_published: boolean };
 type MessageWithImage = PropertyMessage & { imageUrl?: string };
+const reactionOptions: { kind: MessageReactionKind; symbol: string; label: string }[] = [
+  { kind: 'like', symbol: '👍', label: 'Thumbs up' },
+  { kind: 'dislike', symbol: '👎', label: 'Thumbs down' },
+  { kind: 'love', symbol: '♥', label: 'Love' },
+];
 
 export default function PropertyMessageThreadScreen() {
   const { propertyId, conversationId } = useLocalSearchParams<{
@@ -36,6 +41,7 @@ export default function PropertyMessageThreadScreen() {
   const [property, setProperty] = useState<ThreadProperty | null>(null);
   const [conversation, setConversation] = useState<PropertyConversation | null>(null);
   const [messages, setMessages] = useState<MessageWithImage[]>([]);
+  const [reactionsByMessage, setReactionsByMessage] = useState<Record<string, MessageReaction[]>>({});
   const [participantNames, setParticipantNames] = useState<Record<string, string>>({});
   const [participantImageUrls, setParticipantImageUrls] = useState<Record<string, string>>({});
   const [draft, setDraft] = useState('');
@@ -73,7 +79,24 @@ export default function PropertyMessageThreadScreen() {
       )
     );
 
+    const { data: reactionRows, error: reactionError } = messageRows.length
+      ? await supabase
+        .from('message_reactions')
+        .select('*')
+        .in('message_id', messageRows.map((message) => message.id))
+      : { data: [], error: null };
+
+    if (reactionError) {
+      Alert.alert('Unable to load reactions', reactionError.message);
+    }
+
     setMessages(messageRows.map((message) => ({ ...message, imageUrl: message.image_path ? urlsByPath.get(message.image_path) : undefined })));
+    setReactionsByMessage(
+      ((reactionRows ?? []) as MessageReaction[]).reduce<Record<string, MessageReaction[]>>((grouped, reaction) => {
+        grouped[reaction.message_id] = [...(grouped[reaction.message_id] ?? []), reaction];
+        return grouped;
+      }, {})
+    );
     await markConversationRead(activeConversationId);
   }, []);
 
@@ -320,6 +343,51 @@ export default function PropertyMessageThreadScreen() {
     if (!result.canceled) await uploadMessageImage(result.assets[0]);
   };
 
+  const toggleReaction = async (messageId: string, reaction: MessageReactionKind) => {
+    if (!activeUserId) return;
+
+    const currentReaction = (reactionsByMessage[messageId] ?? []).find(
+      (item) => item.user_id === activeUserId
+    );
+
+    try {
+      if (currentReaction?.reaction === reaction) {
+        const { error } = await supabase
+          .from('message_reactions')
+          .delete()
+          .eq('message_id', messageId)
+          .eq('user_id', activeUserId);
+        if (error) throw error;
+        setReactionsByMessage((current) => ({
+          ...current,
+          [messageId]: (current[messageId] ?? []).filter((item) => item.user_id !== activeUserId),
+        }));
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('message_reactions')
+        .upsert(
+          { message_id: messageId, reaction, user_id: activeUserId },
+          { onConflict: 'message_id,user_id' }
+        )
+        .select('*')
+        .single();
+      if (error) throw error;
+
+      const savedReaction = data as MessageReaction;
+      setReactionsByMessage((current) => ({
+        ...current,
+        [messageId]: [
+          ...(current[messageId] ?? []).filter((item) => item.user_id !== activeUserId),
+          savedReaction,
+        ],
+      }));
+    } catch (error) {
+      Alert.alert('Unable to add reaction', error instanceof Error ? error.message : 'Please try again.');
+    }
+  };
+
   if (isLoading) {
     return <SafeAreaView style={styles.safeArea}><View style={styles.centered}><ActivityIndicator color={colors.forest} size="large" /><Text style={styles.centeredText}>Opening conversation...</Text></View></SafeAreaView>;
   }
@@ -376,6 +444,8 @@ export default function PropertyMessageThreadScreen() {
           {messages.map((message) => {
             const sentByMe = message.sender_id === activeUserId;
             const isNewIncomingMessage = unreadMessageIds.has(message.id);
+            const messageReactions = reactionsByMessage[message.id] ?? [];
+            const myReaction = messageReactions.find((reaction) => reaction.user_id === activeUserId)?.reaction;
             return (
               <View key={message.id} style={[styles.messageBubble, sentByMe ? styles.myMessage : styles.theirMessage, isNewIncomingMessage && styles.newIncomingMessage]}>
                 <Text style={[styles.messageSender, sentByMe && styles.myMessageText]}>{participantNames[message.sender_id] ?? 'K9 Country member'}</Text>
@@ -383,6 +453,24 @@ export default function PropertyMessageThreadScreen() {
                 {message.imageUrl ? <Image accessibilityLabel="Shared message photo" contentFit="cover" source={{ uri: message.imageUrl }} style={styles.messageImage} /> : null}
                 {message.message_text ? <Text style={[styles.messageText, sentByMe && styles.myMessageText]}>{message.message_text}</Text> : null}
                 <Text style={[styles.messageTimestamp, sentByMe && styles.myMessageTimestamp]}>{formatMessageTimestamp(message.created_at)}</Text>
+                <View style={styles.reactionBar}>
+                  {reactionOptions.map((option) => {
+                    const count = messageReactions.filter((reaction) => reaction.reaction === option.kind).length;
+                    const selected = myReaction === option.kind;
+                    return (
+                      <Pressable
+                        accessibilityLabel={`${option.label}${selected ? ', selected' : ''}`}
+                        accessibilityRole="button"
+                        key={option.kind}
+                        onPress={() => void toggleReaction(message.id, option.kind)}
+                        style={[styles.reactionButton, selected && styles.reactionButtonSelected]}
+                      >
+                        <Text style={[styles.reactionSymbol, option.kind === 'love' && styles.loveReaction]}>{option.symbol}</Text>
+                        {count > 0 ? <Text style={[styles.reactionCount, selected && styles.reactionCountSelected]}>{count}</Text> : null}
+                      </Pressable>
+                    );
+                  })}
+                </View>
               </View>
             );
           })}
@@ -423,6 +511,6 @@ const styles = StyleSheet.create({
   centered: { alignItems: 'center', flex: 1, justifyContent: 'center', padding: 28 }, centeredText: { color: colors.muted, fontSize: 16, textAlign: 'center' },
   header: { alignItems: 'center', backgroundColor: colors.warmWhite, borderBottomColor: colors.border, borderBottomWidth: 1, flexDirection: 'row', padding: 16 }, backButton: { alignItems: 'center', justifyContent: 'center', marginRight: 12, minHeight: 40, width: 32 }, backButtonText: { color: colors.forest, fontSize: 28, fontWeight: '800' }, participantHeader: { alignItems: 'center', flex: 1, flexDirection: 'row', minHeight: 52 }, headerText: { flex: 1, marginLeft: 10 }, title: { color: colors.forest, fontFamily: typography.display, fontSize: 18, fontWeight: '900' }, profileHint: { color: colors.brown, fontSize: 12, fontWeight: '800', marginTop: 2 },
   messageList: { flexGrow: 1, gap: 10, padding: 16 }, emptyCard: { backgroundColor: colors.lightGreen, borderColor: colors.border, borderRadius: 16, borderWidth: 1, padding: 16, ...shadows.card }, emptyTitle: { color: colors.forest, fontSize: 17, fontWeight: '900' }, emptyText: { color: colors.muted, fontSize: 14, lineHeight: 20, marginTop: 5 },
-  messageBubble: { borderRadius: 16, maxWidth: '82%', padding: 12 }, myMessage: { alignSelf: 'flex-end', backgroundColor: colors.forest }, theirMessage: { alignSelf: 'flex-start', backgroundColor: colors.warmWhite, borderColor: colors.border, borderWidth: 1 }, newIncomingMessage: { borderColor: '#141414', borderWidth: 3 }, messageSender: { color: colors.brown, fontSize: 11, fontWeight: '900', marginBottom: 4 }, newMessageLabel: { alignSelf: 'flex-start', backgroundColor: '#141414', borderRadius: 8, color: colors.warmWhite, fontSize: 10, fontWeight: '900', letterSpacing: 0.6, marginBottom: 8, overflow: 'hidden', paddingHorizontal: 8, paddingVertical: 4 }, messageText: { color: colors.forest, fontSize: 15, lineHeight: 21 }, myMessageText: { color: colors.warmWhite }, messageImage: { borderRadius: 10, height: 220, marginBottom: 8, width: 220 }, messageTimestamp: { color: colors.muted, fontSize: 11, fontVariant: ['tabular-nums'], marginTop: 8 }, myMessageTimestamp: { color: '#E4EDE0' },
+  messageBubble: { borderRadius: 16, maxWidth: '82%', padding: 12 }, myMessage: { alignSelf: 'flex-end', backgroundColor: colors.forest }, theirMessage: { alignSelf: 'flex-start', backgroundColor: colors.warmWhite, borderColor: colors.border, borderWidth: 1 }, newIncomingMessage: { borderColor: '#141414', borderWidth: 3 }, messageSender: { color: colors.brown, fontSize: 11, fontWeight: '900', marginBottom: 4 }, newMessageLabel: { alignSelf: 'flex-start', backgroundColor: '#141414', borderRadius: 8, color: colors.warmWhite, fontSize: 10, fontWeight: '900', letterSpacing: 0.6, marginBottom: 8, overflow: 'hidden', paddingHorizontal: 8, paddingVertical: 4 }, messageText: { color: colors.forest, fontSize: 15, lineHeight: 21 }, myMessageText: { color: colors.warmWhite }, messageImage: { borderRadius: 10, height: 220, marginBottom: 8, width: 220 }, messageTimestamp: { color: colors.muted, fontSize: 11, fontVariant: ['tabular-nums'], marginTop: 8 }, myMessageTimestamp: { color: '#E4EDE0' }, reactionBar: { flexDirection: 'row', gap: 6, marginTop: 10 }, reactionButton: { alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.92)', borderColor: colors.border, borderRadius: 999, borderWidth: 1, flexDirection: 'row', justifyContent: 'center', minHeight: 30, minWidth: 34, paddingHorizontal: 8 }, reactionButtonSelected: { backgroundColor: colors.lightGreen, borderColor: colors.forest }, reactionSymbol: { fontSize: 14 }, loveReaction: { color: '#B52E35', fontSize: 17 }, reactionCount: { color: colors.forest, fontSize: 12, fontWeight: '900', marginLeft: 4 }, reactionCountSelected: { color: colors.forest },
   composer: { backgroundColor: colors.warmWhite, borderTopColor: colors.border, borderTopWidth: 1, gap: 8, padding: 12 }, attachmentActions: { flexDirection: 'row', gap: 8 }, attachmentButton: { alignItems: 'center', borderColor: colors.brown, borderRadius: 10, borderWidth: 1, justifyContent: 'center', minHeight: 32, paddingHorizontal: 12 }, attachmentButtonText: { color: colors.brown, fontSize: 12, fontWeight: '900' }, composerRow: { alignItems: 'flex-end', flexDirection: 'row', gap: 10 }, composerInput: { backgroundColor: colors.cream, borderColor: colors.border, borderRadius: 14, borderWidth: 1, color: colors.forest, flex: 1, fontSize: 15, maxHeight: 112, minHeight: 48, paddingHorizontal: 12, paddingTop: 12, textAlignVertical: 'top' }, sendButton: { alignItems: 'center', backgroundColor: colors.brown, borderRadius: 12, justifyContent: 'center', minHeight: 48, paddingHorizontal: 16 }, sendButtonText: { color: colors.warmWhite, fontSize: 14, fontWeight: '900' }, disabled: { opacity: 0.55 },
 });
