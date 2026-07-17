@@ -280,14 +280,14 @@ const styles = StyleSheet.create({
   hostInvitationCard: {
     backgroundColor: colors.olive,
     borderRadius: 22,
-    marginBottom: 0,
+    marginBottom: 20,
     paddingHorizontal: 22,
     paddingVertical: 13,
   },
 
   hostInvitationArtwork: {
     alignSelf: 'stretch',
-    marginBottom: 16,
+    marginBottom: 20,
     marginHorizontal: -24,
   },
 
