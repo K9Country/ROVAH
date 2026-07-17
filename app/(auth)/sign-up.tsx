@@ -164,9 +164,20 @@ export default function SignUpScreen() {
             onPress={() => intent === 'host' ? router.replace('/') : router.back()}
             style={[styles.backButton, intent === 'host' && styles.hostBackButton]}
           >
-            <Text style={styles.backButtonText}>{intent === 'host' ? '← Welcome Page' : '← Back'}</Text>
+            <Text style={[styles.backButtonText, intent === 'host' && styles.hostBackButtonText]}>{intent === 'host' ? '← Welcome Page' : '← Back'}</Text>
           </Pressable>
  
+          {intent === 'host' ? (
+            <View style={styles.hostHeroBleed}>
+              <Image
+                accessibilityLabel="K9 Country host benefits"
+                contentFit="cover"
+                source={require('../../assets/images/k9-12.png')}
+                style={styles.hostHero}
+              />
+            </View>
+          ) : null}
+
           {intent === 'host' ? (
             <View style={styles.hostHeading}>
               <Text style={styles.title}>Create your host account</Text>
@@ -359,6 +370,12 @@ const styles = StyleSheet.create({
   hostBackButton: {
     top: 12,
   },
+
+  hostBackButtonText: {
+    color: colors.warmWhite,
+    textShadowColor: 'rgba(0, 0, 0, 0.45)',
+    textShadowRadius: 4,
+  },
  
   logoBadge: {
     width: 72,
@@ -374,8 +391,18 @@ const styles = StyleSheet.create({
 
   hostHeading: {
     alignItems: 'center',
-    marginTop: 64,
+    marginTop: 20,
     marginBottom: 22,
+  },
+
+  hostHeroBleed: {
+    alignSelf: 'stretch',
+    marginHorizontal: -24,
+  },
+
+  hostHero: {
+    aspectRatio: 2 / 3,
+    width: '100%',
   },
 
   createHeroBleed: {
