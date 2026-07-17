@@ -111,9 +111,7 @@ export default function ReviewScreen() {
         photo_urls: photoUrls,
       });
       if (error) throw error;
-      Alert.alert('Review shared', 'Thank you for helping make K9 Country more trustworthy.', [
-        { text: 'Done', onPress: () => router.back() },
-      ]);
+      router.replace(isHostReview ? '/host-dashboard' : '/dashboard');
     } catch (error) {
       if (error && typeof error === 'object' && 'code' in error && error.code === '23505') {
         Alert.alert('Review already submitted', 'You can submit one review for each completed visit.');
