@@ -10,7 +10,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ModeLabel } from '../../components/mode-label';
 import { colors, shadows, typography } from '../../constants/theme';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../services/auth-context';
@@ -43,10 +42,9 @@ export default function HostCalendarScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ModeLabel mode="Host" page={6} />
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         <Pressable onPress={() => router.replace('/host-dashboard')} style={styles.backButton}>
-          <Text style={styles.backButtonText}>{'<'} Host Mode</Text>
+          <Text style={styles.backButtonText}>{'<'} Host Dashboard</Text>
         </Pressable>
         <Text style={styles.title}>Calendar & Schedule</Text>
         <Text style={styles.description}>
@@ -89,7 +87,7 @@ const styles = StyleSheet.create({
   backButton: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' },
   backButtonText: { color: colors.forest, fontSize: 16, fontWeight: '800' },
   eyebrow: { color: colors.brown, fontSize: 12, fontWeight: '900', letterSpacing: 1.3, marginTop: 10 },
-  title: { color: colors.forest, fontFamily: typography.display, fontSize: 30, fontWeight: '900', marginTop: 8 },
+  title: { color: colors.forest, fontFamily: typography.display, fontSize: 30, fontWeight: '900' },
   description: { color: colors.muted, fontSize: 16, lineHeight: 23, marginBottom: 22, marginTop: 10 },
   loadingState: { alignItems: 'center', paddingTop: 50 },
   emptyCard: { backgroundColor: colors.lightGreen, borderColor: colors.border, borderRadius: 18, borderWidth: 1, padding: 18, ...shadows.card },
