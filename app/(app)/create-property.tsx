@@ -28,11 +28,23 @@ type HostAccess = {
   primary_site_postal_code: string | null;
 };
 
+type PropertyFieldName =
+  | 'name'
+  | 'shortDescription'
+  | 'siteAddress'
+  | 'city'
+  | 'state'
+  | 'postalCode'
+  | 'pricePerHour'
+  | 'acreage'
+  | 'fenceHeightFeet';
+
 export default function CreatePropertyScreen() {
   const { session } = useAuth();
   const [hostAccess, setHostAccess] = useState<HostAccess | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<PropertyFieldName, string>>>({});
 
   const [name, setName] = useState('');
   const [shortDescription, setShortDescription] = useState('');
@@ -45,6 +57,15 @@ export default function CreatePropertyScreen() {
   const [isFullyFenced, setIsFullyFenced] = useState(false);
   const [fenceHeightFeet, setFenceHeightFeet] = useState('');
   const [instantBook, setInstantBook] = useState(false);
+
+  const clearFieldError = (field: PropertyFieldName) => {
+    setFieldErrors((current) => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  };
 
   useEffect(() => {
     const loadHostAccess = async () => {
@@ -85,36 +106,27 @@ export default function CreatePropertyScreen() {
     const parsedFenceHeight = fenceHeightFeet.trim()
       ? Number(fenceHeightFeet)
       : null;
+    const validationErrors: Partial<Record<PropertyFieldName, string>> = {};
 
     if (name.trim().length < 3) {
-      Alert.alert('Property name required', 'Enter a name with at least 3 characters.');
-      return false;
+      validationErrors.name = 'Enter a property name with at least 3 characters.';
     }
 
     if (shortDescription.trim().length < 20) {
-      Alert.alert(
-        'Add a little more detail',
-        'Use at least 20 characters to describe the space for guests.'
-      );
-      return false;
+      validationErrors.shortDescription = 'Use at least 20 characters to describe the space for guests.';
     }
 
-    if (!siteAddress.trim() || !city.trim() || state.trim().length !== 2 || !postalCode.trim()) {
-      Alert.alert(
-        'Location required',
-        'Enter the site street address, city, two-letter state, and ZIP or postal code.'
-      );
-      return false;
-    }
+    if (!siteAddress.trim()) validationErrors.siteAddress = 'Enter the street address for this private space.';
+    if (!city.trim()) validationErrors.city = 'Enter the city where this private space is located.';
+    if (state.trim().length !== 2) validationErrors.state = 'Use the two-letter state abbreviation, such as MI.';
+    if (!postalCode.trim()) validationErrors.postalCode = 'Enter the ZIP or postal code.';
 
     if (!Number.isFinite(price) || price <= 0) {
-      Alert.alert('Valid price required', 'Enter a price per hour greater than $0.');
-      return false;
+      validationErrors.pricePerHour = 'Enter an hourly price greater than $0.';
     }
 
     if (parsedAcreage !== null && (!Number.isFinite(parsedAcreage) || parsedAcreage < 0)) {
-      Alert.alert('Invalid acreage', 'Acreage must be a positive number or left blank.');
-      return false;
+      validationErrors.acreage = 'Acreage must be a positive number or left blank.';
     }
 
     if (
@@ -123,14 +135,11 @@ export default function CreatePropertyScreen() {
         !Number.isFinite(parsedFenceHeight) ||
         parsedFenceHeight <= 0)
     ) {
-      Alert.alert(
-        'Fence height required',
-        'Enter the fence height in feet for a fully fenced property.'
-      );
-      return false;
+      validationErrors.fenceHeightFeet = 'Enter a fence height greater than 0 feet.';
     }
 
-    return true;
+    setFieldErrors(validationErrors);
+    return Object.keys(validationErrors).length === 0;
   };
 
   const handleSaveDraft = async () => {
@@ -183,8 +192,11 @@ export default function CreatePropertyScreen() {
       }
 
       router.replace(`/property-draft/${data.id}` as never);
-    } catch {
-      Alert.alert('Something went wrong', 'We could not save your property. Please try again.');
+    } catch (error) {
+      Alert.alert(
+        'Unable to save property',
+        error instanceof Error ? error.message : 'We could not save your property. Please try again.'
+      );
     } finally {
       setIsSaving(false);
     }
@@ -225,7 +237,7 @@ export default function CreatePropertyScreen() {
       >
         <ScrollView
           contentContainerStyle={styles.container}
-          keyboardShouldPersistTaps="handled"
+          keyboardShouldPersistTaps="always"
           showsVerticalScrollIndicator={false}
         >
           <Pressable onPress={() => router.replace('/host-dashboard')} style={styles.backButton}>
@@ -237,6 +249,15 @@ export default function CreatePropertyScreen() {
             Start with the essentials. You will add photos, arrival instructions, amenities, rules, and availability next.
           </Text>
 
+          {Object.keys(fieldErrors).length > 0 ? (
+            <View style={styles.validationBanner}>
+              <Text style={styles.validationBannerTitle}>A few details still need attention</Text>
+              <Text style={styles.validationBannerText}>
+                Review the fields outlined in red below. Each one explains exactly what is needed.
+              </Text>
+            </View>
+          ) : null}
+
           {hostAccess.status === 'pending' ? (
             <View style={styles.pendingNotice}>
               <Text style={styles.pendingTitle}>Host review in progress</Text>
@@ -247,30 +268,33 @@ export default function CreatePropertyScreen() {
           ) : null}
 
           <View style={styles.formCard}>
-            <Field label="Property name" value={name} onChangeText={setName} placeholder="Example: Maple Ridge Private Dog Field" />
+            <Field label="Property name" value={name} error={fieldErrors.name} onChangeText={(value) => { setName(value); clearFieldError('name'); }} placeholder="Example: Maple Ridge Private Dog Field" />
             <Field
               label="Short description"
               value={shortDescription}
-              onChangeText={setShortDescription}
+              error={fieldErrors.shortDescription}
+              onChangeText={(value) => { setShortDescription(value); clearFieldError('shortDescription'); }}
               placeholder="Describe the space, privacy, and what makes it welcoming."
               multiline
             />
             <Field
               label="Site street address"
               value={siteAddress}
-              onChangeText={setSiteAddress}
+              error={fieldErrors.siteAddress}
+              onChangeText={(value) => { setSiteAddress(value); clearFieldError('siteAddress'); }}
               placeholder="123 Country Lane"
               autoComplete="street-address"
             />
             <View style={styles.row}>
               <View style={styles.cityField}>
-                <Field label="City" value={city} onChangeText={setCity} placeholder="City" />
+                <Field label="City" value={city} error={fieldErrors.city} onChangeText={(value) => { setCity(value); clearFieldError('city'); }} placeholder="City" />
               </View>
               <View style={styles.stateField}>
                 <Field
                   label="State"
                   value={state}
-                  onChangeText={setState}
+                  error={fieldErrors.state}
+                  onChangeText={(value) => { setState(value); clearFieldError('state'); }}
                   placeholder="MI"
                   autoCapitalize="characters"
                   maxLength={2}
@@ -280,7 +304,8 @@ export default function CreatePropertyScreen() {
             <Field
               label="ZIP or postal code"
               value={postalCode}
-              onChangeText={setPostalCode}
+              error={fieldErrors.postalCode}
+              onChangeText={(value) => { setPostalCode(value); clearFieldError('postalCode'); }}
               placeholder="ZIP or postal code"
               keyboardType="number-pad"
             />
@@ -289,7 +314,8 @@ export default function CreatePropertyScreen() {
                 <Field
                   label="Price per hour"
                   value={pricePerHour}
-                  onChangeText={setPricePerHour}
+                  error={fieldErrors.pricePerHour}
+                  onChangeText={(value) => { setPricePerHour(value); clearFieldError('pricePerHour'); }}
                   placeholder="15"
                   keyboardType="decimal-pad"
                   prefix="$"
@@ -299,7 +325,8 @@ export default function CreatePropertyScreen() {
                 <Field
                   label="Acreage (optional)"
                   value={acreage}
-                  onChangeText={setAcreage}
+                  error={fieldErrors.acreage}
+                  onChangeText={(value) => { setAcreage(value); clearFieldError('acreage'); }}
                   placeholder="2.5"
                   keyboardType="decimal-pad"
                 />
@@ -319,7 +346,8 @@ export default function CreatePropertyScreen() {
                 <Field
                   label="Fence height (feet)"
                   value={fenceHeightFeet}
-                  onChangeText={setFenceHeightFeet}
+                  error={fieldErrors.fenceHeightFeet}
+                  onChangeText={(value) => { setFenceHeightFeet(value); clearFieldError('fenceHeightFeet'); }}
                   placeholder="6"
                   keyboardType="decimal-pad"
                 />
@@ -347,7 +375,7 @@ export default function CreatePropertyScreen() {
             {isSaving ? (
               <ActivityIndicator color="#FFFDF8" />
             ) : (
-              <Text style={styles.primaryButtonText}>Save Property Draft</Text>
+              <Text style={styles.primaryButtonText}>Save Property</Text>
             )}
           </Pressable>
         </ScrollView>
@@ -367,6 +395,7 @@ type FieldProps = {
   autoComplete?: 'street-address';
   maxLength?: number;
   prefix?: string;
+  error?: string;
 };
 
 function Field({
@@ -380,11 +409,12 @@ function Field({
   autoComplete,
   maxLength,
   prefix,
+  error,
 }: FieldProps) {
   return (
     <View style={styles.fieldGroup}>
       <Text style={styles.label}>{label}</Text>
-      <View style={[styles.inputWrapper, multiline && styles.multilineWrapper]}>
+      <View style={[styles.inputWrapper, multiline && styles.multilineWrapper, error && styles.inputError]}>
         {prefix ? <Text style={styles.prefix}>{prefix}</Text> : null}
         <TextInput
           autoCapitalize={autoCapitalize}
@@ -401,6 +431,7 @@ function Field({
           value={value}
         />
       </View>
+      {error ? <Text style={styles.fieldErrorText}>{error}</Text> : null}
     </View>
   );
 }
@@ -448,14 +479,19 @@ const styles = StyleSheet.create({
   pendingNotice: { backgroundColor: colors.lightGreen, borderColor: '#CBD1BD', borderRadius: 16, borderWidth: 1, marginBottom: 18, padding: 16 },
   pendingTitle: { color: colors.forest, fontSize: 16, fontWeight: '900', marginBottom: 5 },
   pendingText: { color: colors.muted, fontSize: 14, lineHeight: 20 },
+  validationBanner: { backgroundColor: '#FDF0EE', borderColor: '#F0B8B0', borderRadius: 16, borderWidth: 1, marginBottom: 18, padding: 16 },
+  validationBannerTitle: { color: '#8A241C', fontSize: 16, fontWeight: '900', marginBottom: 5 },
+  validationBannerText: { color: '#6B3A34', fontSize: 14, lineHeight: 20 },
   formCard: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 20, borderWidth: 1, padding: 18 },
   fieldGroup: { marginBottom: 17 },
   label: { color: colors.forest, fontSize: 14, fontWeight: '800', marginBottom: 8 },
   inputWrapper: { alignItems: 'center', backgroundColor: colors.cream, borderColor: colors.border, borderRadius: 13, borderWidth: 1, flexDirection: 'row', minHeight: 54 },
+  inputError: { borderColor: '#B42318', borderWidth: 2 },
   multilineWrapper: { alignItems: 'flex-start', minHeight: 108 },
   input: { color: colors.forest, flex: 1, fontSize: 16, minHeight: 52, paddingHorizontal: 15 },
   multilineInput: { minHeight: 106, paddingTop: 14 },
   prefix: { color: colors.forest, fontSize: 16, fontWeight: '800', paddingLeft: 15 },
+  fieldErrorText: { color: '#B42318', fontSize: 13, fontWeight: '700', lineHeight: 18, marginTop: 6 },
   row: { flexDirection: 'row', gap: 12 },
   cityField: { flex: 1 },
   stateField: { width: 80 },
