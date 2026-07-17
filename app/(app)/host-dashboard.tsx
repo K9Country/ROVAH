@@ -6,7 +6,6 @@ import {
     ActivityIndicator,
     Alert,
     Image,
-    Modal,
     Pressable,
     ScrollView,
     Share,
@@ -43,7 +42,6 @@ export default function HostDashboardScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isUploadingProfilePhoto, setIsUploadingProfilePhoto] = useState(false);
-  const [isPhotoViewerOpen, setIsPhotoViewerOpen] = useState(false);
   const [hasUnreadGuestMessages, setHasUnreadGuestMessages] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isAdministrator, setIsAdministrator] = useState(false);
@@ -340,11 +338,7 @@ export default function HostDashboardScreen() {
             <Pressable
               accessibilityLabel={profileImageUrl ? 'View host photo' : 'Upload host photo'}
               accessibilityRole="button"
-              onPress={() =>
-                profileImageUrl
-                  ? setIsPhotoViewerOpen(true)
-                  : void uploadProfilePhoto()
-              }
+              onPress={() => void uploadProfilePhoto()}
               style={styles.profilePhotoFrame}
             >
               <Image
@@ -352,48 +346,18 @@ export default function HostDashboardScreen() {
                 source={profileImageUrl ? { uri: profileImageUrl } : require('../../assets/images/k9-11.png')}
                 style={styles.profilePhoto}
               />
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              disabled={isUploadingProfilePhoto}
-              onPress={() => void uploadProfilePhoto()}
-              style={[styles.photoButton, isUploadingProfilePhoto && styles.buttonDisabled]}
-            >
-              {isUploadingProfilePhoto ? (
-                <ActivityIndicator color={colors.brown} size="small" />
-              ) : (
-                <Text style={styles.photoButtonText}>
-                  {profileImageUrl ? 'Change Photo' : 'Upload Photo'}
-                </Text>
-              )}
+              <View pointerEvents="none" style={styles.profilePhotoActionOverlay}>
+                {isUploadingProfilePhoto ? (
+                  <ActivityIndicator color={colors.warmWhite} size="small" />
+                ) : (
+                  <Text style={styles.profilePhotoActionText}>
+                    {profileImageUrl ? 'Change\nPhoto' : 'Upload\nPhoto'}
+                  </Text>
+                )}
+              </View>
             </Pressable>
           </View>
         </View>
-
-        <Modal
-          animationType="fade"
-          onRequestClose={() => setIsPhotoViewerOpen(false)}
-          transparent
-          visible={isPhotoViewerOpen}
-        >
-          <View style={styles.photoViewerBackdrop}>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => setIsPhotoViewerOpen(false)}
-              style={styles.photoViewerClose}
-            >
-              <Text style={styles.photoViewerCloseText}>Close</Text>
-            </Pressable>
-
-            {profileImageUrl ? (
-              <Image
-                accessibilityLabel={`${firstName}'s host photo`}
-                source={{ uri: profileImageUrl }}
-                style={styles.photoViewerImage}
-              />
-            ) : null}
-          </View>
-        </Modal>
 
         <Pressable
           accessibilityRole="button"
@@ -636,12 +600,8 @@ const styles = StyleSheet.create({
   photoColumn: { alignItems: 'center', width: 118 },
   profilePhotoFrame: { alignItems: 'center', backgroundColor: colors.lightGreen, borderColor: colors.brown, borderRadius: 48, borderWidth: 2, height: 96, justifyContent: 'center', overflow: 'hidden', width: 96 },
   profilePhoto: { height: '100%', width: '100%' },
-  photoButton: { alignItems: 'center', justifyContent: 'center', marginTop: 7, minHeight: 28 },
-  photoButtonText: { color: colors.brown, fontSize: 11, fontWeight: '900', textAlign: 'center' },
-  photoViewerBackdrop: { alignItems: 'center', backgroundColor: 'rgba(20, 28, 18, 0.94)', flex: 1, justifyContent: 'center', padding: 24 },
-  photoViewerImage: { borderRadius: 20, height: '76%', maxWidth: 520, resizeMode: 'contain', width: '100%' },
-  photoViewerClose: { alignSelf: 'flex-end', marginBottom: 18, minHeight: 44, paddingHorizontal: 10, justifyContent: 'center' },
-  photoViewerCloseText: { color: colors.warmWhite, fontSize: 16, fontWeight: '900' },
+  profilePhotoActionOverlay: { alignItems: 'center', backgroundColor: 'rgba(20, 42, 27, 0.62)', bottom: 0, justifyContent: 'center', left: 0, position: 'absolute', right: 0, top: 0 },
+  profilePhotoActionText: { color: colors.warmWhite, fontSize: 13, fontWeight: '900', lineHeight: 17, textAlign: 'center' },
   stateTitle: { color: colors.forest, fontSize: 25, fontWeight: '900', textAlign: 'center' },
   stateText: { color: colors.muted, fontSize: 15, lineHeight: 22, marginTop: 12, textAlign: 'center' },
   primaryButton: { alignItems: 'center', backgroundColor: colors.brown, borderRadius: 14, justifyContent: 'center', marginTop: 4, minHeight: 56, paddingHorizontal: 20 },
