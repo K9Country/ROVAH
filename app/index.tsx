@@ -21,33 +21,8 @@ const hostInviteDismissalKey = '@k9-country/host-invite-dismissed-at';
 const hostInviteCooldownMs = 7 * 24 * 60 * 60 * 1000;
  
 export default function WelcomeScreen() {
-  const { isHost, isMember, session } = useAuth();
+  const { isHost, isMember } = useAuth();
   const [showHostInvite, setShowHostInvite] = useState(false);
-  const [welcomeName, setWelcomeName] = useState('');
-
-  useEffect(() => {
-    if (!isMember || !session?.user.id) {
-      setWelcomeName('');
-      return;
-    }
-
-    let cancelled = false;
-
-    void supabase
-      .from(isHost ? 'host_profiles' : 'guest_profiles')
-      .select('full_name')
-      .eq('user_id', session.user.id)
-      .maybeSingle()
-      .then(({ data, error }) => {
-        if (!cancelled && !error) {
-          setWelcomeName((data?.full_name ?? '').trim());
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isHost, isMember, session?.user.id]);
 
   useEffect(() => {
     if (isHost || isMember) return;
@@ -127,9 +102,9 @@ export default function WelcomeScreen() {
         <View style={styles.actionArea}>
           {isMember ? (
             <View style={styles.returningCard}>
-              <Text style={styles.returningTitle}>Welcome back{welcomeName ? `, ${welcomeName}` : ''}.</Text>
-              <Pressable accessibilityRole="button" onPress={isHost ? continueAsHost : continueAsMember} style={styles.primaryButton}>
-                <Text style={styles.primaryButtonText}>{isHost ? 'Go to Host Area' : 'Go to Member Dashboard'}</Text>
+              <Text style={styles.returningTitle}>Welcome back</Text>
+              <Pressable accessibilityRole="button" onPress={isHost ? continueAsHost : continueAsMember} style={styles.returningDashboardLink}>
+                <Text style={styles.returningDashboardLinkText}>{isHost ? 'Go to Host Dashboard' : 'Go to Member Dashboard'}</Text>
               </Pressable>
             </View>
           ) : (
@@ -380,17 +355,29 @@ const styles = StyleSheet.create({
   },
 
   returningCard: {
-    backgroundColor: colors.lightGreen,
-    borderColor: '#CBD1BD',
-    borderRadius: 22,
-    borderWidth: 1,
-    padding: 20,
+    alignItems: 'center',
+    paddingVertical: 24,
   },
 
   returningTitle: {
     color: colors.forest,
-    fontSize: 24,
+    fontSize: 32,
     fontWeight: '900',
+    textAlign: 'center',
+  },
+
+  returningDashboardLink: {
+    justifyContent: 'center',
+    marginTop: 8,
+    minHeight: 40,
+    paddingHorizontal: 10,
+  },
+
+  returningDashboardLinkText: {
+    color: colors.brown,
+    fontSize: 14,
+    fontWeight: '800',
+    textDecorationLine: 'underline',
   },
 
   returningSignOutButton: {
