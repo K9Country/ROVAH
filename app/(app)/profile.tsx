@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -57,6 +56,7 @@ export default function GuestProfileScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isDeleteConfirmationVisible, setIsDeleteConfirmationVisible] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
   const [profileImageUri, setProfileImageUri] = useState<string | null>(null);
@@ -277,21 +277,6 @@ export default function GuestProfileScreen() {
     }
   };
 
-  const confirmProfileDeletion = () => {
-    Alert.alert(
-      'Delete your profile?',
-      'This permanently removes your private guest profile from K9 Country. This cannot be undone. You will be signed out and must complete a new profile before making another reservation.',
-      [
-        { text: 'Keep My Profile', style: 'cancel' },
-        {
-          text: 'Delete My Profile',
-          style: 'destructive',
-          onPress: () => void deleteProfile(),
-        },
-      ]
-    );
-  };
-
   if (!isMember) {
     return (
       <SafeAreaView style={styles.safeArea}>
@@ -403,9 +388,40 @@ export default function GuestProfileScreen() {
             <Text style={styles.deleteText}>
               Permanently remove the private profile stored for this guest. This cannot be undone.
             </Text>
-            <Pressable disabled={isDeleting} onPress={confirmProfileDeletion} style={[styles.deleteButton, isDeleting && styles.primaryButtonDisabled]}>
-              {isDeleting ? <ActivityIndicator color={colors.red} /> : <Text style={styles.deleteButtonText}>Delete My Profile</Text>}
-            </Pressable>
+            {!isDeleteConfirmationVisible ? (
+              <Pressable
+                accessibilityRole="button"
+                disabled={isDeleting}
+                onPress={() => setIsDeleteConfirmationVisible(true)}
+                style={[styles.deleteButton, isDeleting && styles.primaryButtonDisabled]}
+              >
+                <Text style={styles.deleteButtonText}>Delete My Profile</Text>
+              </Pressable>
+            ) : (
+              <View style={styles.deleteConfirmation}>
+                <Text style={styles.deleteConfirmationText}>
+                  This is permanent. Delete your profile now?
+                </Text>
+                <View style={styles.deleteConfirmationActions}>
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={isDeleting}
+                    onPress={() => setIsDeleteConfirmationVisible(false)}
+                    style={styles.keepProfileButton}
+                  >
+                    <Text style={styles.keepProfileButtonText}>Keep Profile</Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={isDeleting}
+                    onPress={() => void deleteProfile()}
+                    style={[styles.confirmDeleteButton, isDeleting && styles.primaryButtonDisabled]}
+                  >
+                    {isDeleting ? <ActivityIndicator color={colors.warmWhite} /> : <Text style={styles.confirmDeleteButtonText}>Yes, Delete</Text>}
+                  </Pressable>
+                </View>
+              </View>
+            )}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -491,4 +507,11 @@ const styles = StyleSheet.create({
   deleteText: { color: colors.muted, fontSize: 14, lineHeight: 20, marginBottom: 15 },
   deleteButton: { alignItems: 'center', borderColor: colors.red, borderRadius: 13, borderWidth: 1, justifyContent: 'center', minHeight: 52 },
   deleteButtonText: { color: colors.red, fontSize: 15, fontWeight: '900' },
+  deleteConfirmation: { borderTopColor: '#E9B7B0', borderTopWidth: 1, marginTop: 15, paddingTop: 15 },
+  deleteConfirmationText: { color: colors.red, fontSize: 14, fontWeight: '800', marginBottom: 12 },
+  deleteConfirmationActions: { flexDirection: 'row', gap: 10 },
+  keepProfileButton: { alignItems: 'center', borderColor: colors.border, borderRadius: 12, borderWidth: 1, flex: 1, justifyContent: 'center', minHeight: 48 },
+  keepProfileButtonText: { color: colors.forest, fontSize: 14, fontWeight: '800' },
+  confirmDeleteButton: { alignItems: 'center', backgroundColor: colors.red, borderRadius: 12, flex: 1, justifyContent: 'center', minHeight: 48 },
+  confirmDeleteButtonText: { color: colors.warmWhite, fontSize: 14, fontWeight: '900' },
 });
