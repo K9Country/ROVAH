@@ -257,6 +257,13 @@ export default function GuestProfileScreen() {
         throw new Error('Your profile could not be found, so nothing was deleted. Please try again.');
       }
 
+      // Storage objects must be deleted through the Storage API, not a
+      // database trigger. A missing image is harmless, so it never blocks
+      // deletion of the private profile.
+      await supabase.storage
+        .from('guest-profile-images')
+        .remove([`${session.user.id}/profile.jpg`]);
+
       await supabase.auth.signOut();
       router.replace('/');
     } catch (error) {
