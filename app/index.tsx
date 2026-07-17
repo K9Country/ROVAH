@@ -108,6 +108,12 @@ export default function WelcomeScreen() {
               </Pressable>
             </View>
           ) : (
+          <>
+          <View style={styles.dividerRow}>
+            <View style={styles.divider} />
+            <Text style={styles.dividerText}>MEMBER</Text>
+            <View style={styles.divider} />
+          </View>
           <View style={styles.guestCard}>
             <Text style={styles.guestTitle}>I’m a Member</Text>
             <Text style={styles.guestDescription}>
@@ -143,8 +149,55 @@ export default function WelcomeScreen() {
               </Text>
             </Pressable>
           </View>
+          </>
           )}
         </View>
+
+        {!isMember ? <>
+        <View style={styles.dividerRow}>
+          <View style={styles.divider} />
+          <Text style={styles.dividerText}>HOST</Text>
+          <View style={styles.divider} />
+        </View>
+
+        <View style={styles.hostCard}>
+          <Text style={styles.hostTitle}>
+            Share your land. Help dogs.
+          </Text>
+
+          <Text style={styles.hostDescription}>
+            Set your own availability, create your property rules, and earn
+            income by offering dogs a private place to play.
+          </Text>
+
+          <Pressable
+            accessibilityRole="button"
+            onPress={continueAsHost}
+            style={({ pressed }) => [
+              styles.hostButton,
+              pressed && styles.buttonPressed,
+            ]}
+          >
+            <Text style={styles.hostButtonText}>
+              {isHost ? 'Go to Host Area' : 'Continue as a Host'}
+            </Text>
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              void AsyncStorage.setItem('@k9-country/host-mode', 'host');
+              router.push('/sign-in?intent=host' as never);
+            }}
+            style={({ pressed }) => [
+              styles.hostSignInButton,
+              pressed && styles.buttonPressed,
+            ]}
+          >
+            <Text style={styles.hostSignInButtonText}>Host Sign In</Text>
+          </Pressable>
+        </View>
+        </> : null}
 
         {isMember ? <Pressable accessibilityRole="button" onPress={() => void signOutToSwitchProfile()} style={styles.returningSignOutButton}>
           <Text style={styles.returningSignOutText}>Sign Out</Text>
@@ -197,52 +250,6 @@ export default function WelcomeScreen() {
           <UpdateItem title="Better visit records" description="Hosts can review a guest’s track record across past site visits." />
           <UpdateItem title="One-tap directions" description="Every site can now provide an exact Google Maps destination." />
         </View> : null}
- 
-        {!isMember ? <>
-        <View style={styles.dividerRow}>
-          <View style={styles.divider} />
-          <Text style={styles.dividerText}>HOSTS</Text>
-          <View style={styles.divider} />
-        </View>
- 
-        <View style={styles.hostCard}>
-          <Text style={styles.hostTitle}>
-            Share your land. Help dogs.
-          </Text>
- 
-          <Text style={styles.hostDescription}>
-            Set your own availability, create your property rules, and earn
-            income by offering dogs a private place to play.
-          </Text>
- 
-          <Pressable
-            accessibilityRole="button"
-            onPress={continueAsHost}
-            style={({ pressed }) => [
-              styles.hostButton,
-              pressed && styles.buttonPressed,
-            ]}
-          >
-            <Text style={styles.hostButtonText}>
-              {isHost ? 'Go to Host Area' : 'Continue as a Host'}
-            </Text>
-          </Pressable>
-
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => {
-              void AsyncStorage.setItem('@k9-country/host-mode', 'host');
-              router.push('/sign-in?intent=host' as never);
-            }}
-            style={({ pressed }) => [
-              styles.hostSignInButton,
-              pressed && styles.buttonPressed,
-            ]}
-          >
-            <Text style={styles.hostSignInButtonText}>Host Sign In</Text>
-          </Pressable>
-        </View>
-        </> : null}
  
         {!isMember ? <Text style={styles.footer}>
           Safe spaces. Simple booking. Happier dogs.
