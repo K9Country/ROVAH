@@ -260,7 +260,7 @@ const styles = StyleSheet.create({
   heroCard: {
     backgroundColor: colors.warmWhite,
     borderRadius: 22,
-    padding: 24,
+    padding: 20,
     borderWidth: 1,
     borderColor: colors.border,
     marginBottom: 10,
@@ -269,7 +269,7 @@ const styles = StyleSheet.create({
   hostInvitationCard: {
     backgroundColor: colors.olive,
     borderRadius: 22,
-    marginBottom: 12,
+    marginBottom: 40,
     paddingHorizontal: 22,
     paddingVertical: 13,
   },
@@ -300,8 +300,8 @@ const styles = StyleSheet.create({
  
   heroTitle: {
     color: colors.forest,
-    fontSize: 26,
-    lineHeight: 32,
+    fontSize: 23,
+    lineHeight: 28,
     fontWeight: '800',
     marginBottom: 12,
     textAlign: 'center',
@@ -309,8 +309,8 @@ const styles = StyleSheet.create({
  
   heroDescription: {
     color: colors.muted,
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: 14,
+    lineHeight: 21,
     textAlign: 'center',
   },
  
