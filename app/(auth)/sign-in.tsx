@@ -18,6 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
  
 import { colors } from '../../constants/theme';
 import { getAuthEmailRedirectUrl } from '../../lib/auth-redirect';
+import { hasCompletedMemberProfile } from '../../lib/member-profile';
 import { supabase } from '../../lib/supabase';
 
 const rememberedEmailKey = '@k9-country/remembered-email';
@@ -54,7 +55,7 @@ export default function SignInScreen() {
     try {
       setIsLoading(true);
  
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: normalizedEmail,
         password,
       });
@@ -105,7 +106,10 @@ export default function SignInScreen() {
       }
 
       await AsyncStorage.setItem('@k9-country/host-mode', 'guest');
-      router.replace('/dashboard');
+      const isProfileComplete = data.user
+        ? await hasCompletedMemberProfile(data.user.id)
+        : false;
+      router.replace(isProfileComplete ? '/dashboard' : '/profile?onboarding=true');
     } catch {
       Alert.alert(
         'Something went wrong',

@@ -5,18 +5,31 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors, typography } from '../../constants/theme';
+import { hasCompletedMemberProfile } from '../../lib/member-profile';
 import { useAuth } from '../../services/auth-context';
 
 export default function EmailConfirmationCallbackScreen() {
   const { intent } = useLocalSearchParams<{ intent?: string }>();
-  const { isLoading, isMember } = useAuth();
+  const { isLoading, isMember, session } = useAuth();
 
   useEffect(() => {
-    if (!isLoading && isMember) {
-      void AsyncStorage.setItem('@k9-country/host-mode', intent === 'host' ? 'host' : 'guest');
-      router.replace(intent === 'host' ? '/host-dashboard' : '/dashboard');
+    if (!isLoading && isMember && session?.user.id) {
+      const finishSignIn = async () => {
+        const isHost = intent === 'host';
+        await AsyncStorage.setItem('@k9-country/host-mode', isHost ? 'host' : 'guest');
+
+        if (isHost) {
+          router.replace('/host-dashboard');
+          return;
+        }
+
+        const isComplete = await hasCompletedMemberProfile(session.user.id);
+        router.replace(isComplete ? '/dashboard' : '/profile?onboarding=true');
+      };
+
+      void finishSignIn();
     }
-  }, [intent, isLoading, isMember]);
+  }, [intent, isLoading, isMember, session?.user.id]);
 
   return (
     <SafeAreaView style={styles.safeArea}>

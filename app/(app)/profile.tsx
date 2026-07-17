@@ -47,7 +47,7 @@ const formatPhoneNumber = (value: string) => {
 };
 
 export default function GuestProfileScreen() {
-  const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
+  const { returnTo, onboarding } = useLocalSearchParams<{ returnTo?: string; onboarding?: string }>();
   const { isMember, session } = useAuth();
   const backDestination =
     typeof returnTo === 'string' && returnTo.startsWith('/')
@@ -60,6 +60,7 @@ export default function GuestProfileScreen() {
   const [isComplete, setIsComplete] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
   const [profileImageUri, setProfileImageUri] = useState<string | null>(null);
+  const isOnboarding = onboarding === 'true' && !isComplete;
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -273,16 +274,18 @@ export default function GuestProfileScreen() {
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.keyboardView}>
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-          <Pressable onPress={() => router.replace(backDestination as never)} style={styles.backButton}>
-            <Text style={styles.backButtonText}>
-              {returnTo ? '← Back to reservation' : '← Member Dashboard'}
-            </Text>
-          </Pressable>
+          {!isOnboarding ? (
+            <Pressable onPress={() => router.replace(backDestination as never)} style={styles.backButton}>
+              <Text style={styles.backButtonText}>
+                {returnTo ? '← Back to reservation' : '← Member Dashboard'}
+              </Text>
+            </Pressable>
+          ) : null}
 
           <View style={styles.profileHeader}>
             <View style={styles.profileHeaderCopy}>
               <Text style={styles.title}>My Profile</Text>
-              <Text style={styles.description}>Complete this once before your first reservation. It helps K9 Country keep reservations accurate and safe.</Text>
+              <Text style={styles.description}>{isOnboarding ? 'Complete your profile to continue to private spaces.' : 'Keep your reservation details accurate and safe.'}</Text>
             </View>
             <Pressable accessibilityLabel="Choose profile photo" accessibilityRole="button" onPress={() => void pickProfileImage()} style={styles.profilePhotoControl}>
               <View style={styles.profilePhotoButton}>
@@ -339,7 +342,7 @@ export default function GuestProfileScreen() {
 
           {isComplete ? (
             <Pressable accessibilityRole="button" onPress={() => router.push('/search' as never)} style={styles.beginSearchButton}>
-              <Text style={styles.beginSearchButtonText}>Begin Your Search</Text>
+              <Text style={styles.beginSearchButtonText}>Search Private Spaces</Text>
             </Pressable>
           ) : null}
 
