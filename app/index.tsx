@@ -1,10 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
 import {
     Alert,
-    Modal,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -17,33 +15,8 @@ import { colors } from '../constants/theme';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../services/auth-context';
 
-const hostInviteDismissalKey = '@k9-country/host-invite-dismissed-at';
-const hostInviteCooldownMs = 7 * 24 * 60 * 60 * 1000;
- 
 export default function WelcomeScreen() {
   const { isHost, isMember } = useAuth();
-  const [showHostInvite, setShowHostInvite] = useState(false);
-
-  useEffect(() => {
-    if (isHost || isMember) return;
-
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-
-    void AsyncStorage.getItem(hostInviteDismissalKey).then((value) => {
-      const dismissedAt = Number(value);
-      const shouldShow = !Number.isFinite(dismissedAt) || Date.now() - dismissedAt >= hostInviteCooldownMs;
-
-      if (!cancelled && shouldShow) {
-        timer = setTimeout(() => setShowHostInvite(true), 1200);
-      }
-    });
-
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-    };
-  }, [isHost, isMember]);
 
   const continueAsMember = () => {
     void AsyncStorage.setItem('@k9-country/host-mode', 'guest');
@@ -51,14 +24,8 @@ export default function WelcomeScreen() {
   };
 
   const continueAsHost = () => {
-    setShowHostInvite(false);
     void AsyncStorage.setItem('@k9-country/host-mode', 'host');
     router.push((isHost ? '/host-dashboard' : '/sign-up?intent=host') as never);
-  };
-
-  const dismissHostInvite = () => {
-    setShowHostInvite(false);
-    void AsyncStorage.setItem(hostInviteDismissalKey, String(Date.now()));
   };
 
   const signOutToSwitchProfile = async () => {
@@ -246,32 +213,6 @@ export default function WelcomeScreen() {
         </Text> : null}
       </ScrollView>
 
-      <Modal
-        animationType="fade"
-        onRequestClose={dismissHostInvite}
-        transparent
-        visible={showHostInvite}
-      >
-        <View style={styles.hostInviteBackdrop}>
-          <View style={styles.hostInviteCard}>
-            <Text style={styles.hostInviteTitle}>Earn monthly income by sharing your land</Text>
-            <Text style={styles.hostInviteText}>
-              List your yard, field, or acreage for bookable dog visits. Each reservation can help create monthly income on your terms—you choose your price, availability, and site rules.
-            </Text>
-            <View style={styles.hostInviteBenefits}>
-              <Text style={styles.hostInviteBenefit}>• Earn from bookings month after month</Text>
-              <Text style={styles.hostInviteBenefit}>• Help dog families find safe private space</Text>
-              <Text style={styles.hostInviteBenefit}>• Stay in control of every visit</Text>
-            </View>
-            <Pressable accessibilityRole="button" onPress={() => { setShowHostInvite(false); router.push('/host-info' as never); }} style={styles.hostInvitePrimaryButton}>
-              <Text style={styles.hostInvitePrimaryText}>Learn about hosting</Text>
-            </Pressable>
-            <Pressable accessibilityRole="button" onPress={dismissHostInvite} style={styles.hostInviteDismissButton}>
-              <Text style={styles.hostInviteDismissText}>Not right now</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -660,85 +601,4 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
 
-  hostInviteBackdrop: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(18, 31, 17, 0.6)',
-    flex: 1,
-    justifyContent: 'center',
-    padding: 24,
-  },
-
-  hostInviteCard: {
-    backgroundColor: colors.warmWhite,
-    borderRadius: 24,
-    maxWidth: 460,
-    padding: 24,
-    width: '100%',
-  },
-
-  hostInviteEyebrow: {
-    color: colors.brown,
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 1.1,
-    lineHeight: 16,
-  },
-
-  hostInviteTitle: {
-    color: colors.forest,
-    fontSize: 27,
-    fontWeight: '900',
-    lineHeight: 33,
-    marginTop: 8,
-  },
-
-  hostInviteText: {
-    color: colors.muted,
-    fontSize: 15,
-    lineHeight: 22,
-    marginTop: 10,
-  },
-
-  hostInviteBenefits: {
-    backgroundColor: colors.lightGreen,
-    borderRadius: 14,
-    marginTop: 18,
-    padding: 14,
-  },
-
-  hostInviteBenefit: {
-    color: colors.forest,
-    fontSize: 14,
-    fontWeight: '700',
-    lineHeight: 22,
-  },
-
-  hostInvitePrimaryButton: {
-    alignItems: 'center',
-    backgroundColor: colors.brown,
-    borderRadius: 14,
-    justifyContent: 'center',
-    marginTop: 20,
-    minHeight: 54,
-  },
-
-  hostInvitePrimaryText: {
-    color: colors.warmWhite,
-    fontSize: 16,
-    fontWeight: '900',
-  },
-
-  hostInviteDismissButton: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 8,
-    minHeight: 44,
-  },
-
-  hostInviteDismissText: {
-    color: colors.forest,
-    fontSize: 14,
-    fontWeight: '800',
-    textDecorationLine: 'underline',
-  },
 });
