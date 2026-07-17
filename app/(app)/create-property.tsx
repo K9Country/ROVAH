@@ -220,7 +220,6 @@ export default function CreatePropertyScreen() {
             <Text style={styles.backButtonText}>{'<'} Host Dashboard</Text>
           </Pressable>
 
-          <Text style={styles.eyebrow}>NEW PRIVATE SPACE</Text>
           <Text style={styles.title}>Create a private space</Text>
           <Text style={styles.description}>
             Start with the essentials. You will add photos, arrival instructions, amenities, rules, and availability next.
