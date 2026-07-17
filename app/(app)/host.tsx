@@ -19,7 +19,7 @@ import { colors, typography } from '../../constants/theme';
 import { formatUsPhoneNumber, hasValidUsPhoneNumber, phoneNumberHelpText } from '../../lib/phone-number';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../services/auth-context';
-import type { HostProfile } from '../../types/host-profile';
+import type { HostProfile, IdentityVerificationStatus } from '../../types/host-profile';
 
 function splitFullName(fullName: string) {
   const [firstName = '', ...lastNameParts] = fullName.trim().split(/\s+/);
@@ -35,6 +35,8 @@ export default function HostOnboardingScreen() {
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
   const [postalCode, setPostalCode] = useState('');
+  const [identityVerificationStatus, setIdentityVerificationStatus] =
+    useState<IdentityVerificationStatus>('not_started');
   const [controlsProperty, setControlsProperty] = useState(false);
   const [acceptsHostTerms, setAcceptsHostTerms] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -84,6 +86,7 @@ export default function HostOnboardingScreen() {
         setCity(profile.primary_site_city ?? profile.city ?? '');
         setState(profile.primary_site_state ?? profile.state ?? '');
         setPostalCode(profile.primary_site_postal_code ?? '');
+        setIdentityVerificationStatus(profile.identity_verification_status ?? 'not_started');
         setControlsProperty(profile.controls_property);
         setAcceptsHostTerms(Boolean(profile.accepted_host_terms_at));
       } else {
@@ -302,6 +305,22 @@ export default function HostOnboardingScreen() {
               autoCapitalize="characters"
               keyboardType="number-pad"
             />
+            <View style={styles.identityCard}>
+              <View style={styles.identityHeader}>
+                <Text style={styles.identityTitle}>Stripe Identity verification</Text>
+                <View style={styles.identityRequiredBadge}>
+                  <Text style={styles.identityRequiredText}>REQUIRED</Text>
+                </View>
+              </View>
+              <Text style={styles.identityDescription}>
+                Before your first site can be approved and published, you will need to verify your identity through Stripe’s secure verification process.
+              </Text>
+              <Text style={styles.identityStatusText}>
+                {identityVerificationStatus === 'verified'
+                  ? 'Identity verified'
+                  : 'Verification will be available after Stripe Identity is connected.'}
+              </Text>
+            </View>
 
             <View style={styles.confirmationCard}>
               <ConfirmationRow
@@ -419,6 +438,13 @@ const styles = StyleSheet.create({
   siteLocationSection: { gap: 4, marginTop: 2 },
   siteLocationTitle: { color: colors.forest, fontSize: 18, fontWeight: '900' },
   siteLocationDescription: { color: colors.muted, fontSize: 14, lineHeight: 20 },
+  identityCard: { backgroundColor: '#EEF3E7', borderColor: '#C7D4B8', borderRadius: 16, borderWidth: 1, gap: 8, padding: 16 },
+  identityHeader: { alignItems: 'center', flexDirection: 'row', gap: 10, justifyContent: 'space-between' },
+  identityTitle: { color: colors.forest, flex: 1, fontSize: 16, fontWeight: '900' },
+  identityRequiredBadge: { backgroundColor: colors.forest, borderRadius: 99, paddingHorizontal: 9, paddingVertical: 5 },
+  identityRequiredText: { color: colors.warmWhite, fontSize: 10, fontWeight: '900', letterSpacing: 0.6 },
+  identityDescription: { color: colors.muted, fontSize: 14, lineHeight: 20 },
+  identityStatusText: { color: colors.olive, fontSize: 13, fontWeight: '800' },
   label: { color: colors.forest, fontSize: 15, fontWeight: '800', marginBottom: 8 },
   input: { minHeight: 56, borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.warmWhite, color: colors.forest, fontSize: 16, paddingHorizontal: 16 },
   locationRow: { flexDirection: 'row', gap: 12 },

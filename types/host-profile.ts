@@ -1,4 +1,10 @@
 export type HostStatus = 'pending' | 'active' | 'suspended' | 'rejected';
+export type IdentityVerificationStatus =
+  | 'not_started'
+  | 'requires_input'
+  | 'processing'
+  | 'verified'
+  | 'canceled';
 
 export type HostProfile = {
   id: string;
@@ -20,6 +26,8 @@ export type HostProfile = {
   status: HostStatus;
   is_verified: boolean;
   is_active: boolean;
+  identity_verification_status: IdentityVerificationStatus;
+  identity_verified_at: string | null;
   profile_image_path: string | null;
   created_at: string;
   updated_at: string;
