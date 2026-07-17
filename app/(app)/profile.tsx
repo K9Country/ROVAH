@@ -17,6 +17,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors } from '../../constants/theme';
+import { formatUsPhoneNumber, hasValidUsPhoneNumber, phoneNumberHelpText } from '../../lib/phone-number';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../services/auth-context';
 import type { GuestProfile } from '../../types/guest-profile';
@@ -37,13 +38,6 @@ const emptyProfile: ProfileForm = {
   postal_code: '',
   dog_count: 1,
   dog_details: '',
-};
-
-const formatPhoneNumber = (value: string) => {
-  const digits = value.replace(/\D/g, '').slice(0, 10);
-  if (digits.length <= 3) return digits;
-  if (digits.length <= 6) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
-  return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
 };
 
 export default function GuestProfileScreen() {
@@ -86,7 +80,7 @@ export default function GuestProfileScreen() {
         setProfile({
           full_name: savedProfile.full_name,
           email: savedProfile.email || session.user.email || '',
-          phone: formatPhoneNumber(savedProfile.phone),
+          phone: formatUsPhoneNumber(savedProfile.phone),
           address_line1: savedProfile.address_line1,
           address_line2: savedProfile.address_line2,
           city: savedProfile.city,
@@ -139,6 +133,11 @@ export default function GuestProfileScreen() {
 
     if (requiredValues.some((value) => !value.trim()) || profile.dog_count < 1) {
       setStatusMessage('Complete every required field before saving your reservation profile.');
+      return;
+    }
+
+    if (!hasValidUsPhoneNumber(profile.phone)) {
+      setStatusMessage(phoneNumberHelpText);
       return;
     }
 
@@ -304,7 +303,7 @@ export default function GuestProfileScreen() {
           <ProfileSection title="Member information">
             <Field label="Full legal name" required value={profile.full_name} onChangeText={(value) => updateProfile('full_name', value)} autoComplete="name" autoCapitalize="words" />
             <Field label="Email address" required value={profile.email} onChangeText={(value) => updateProfile('email', value)} autoComplete="email" autoCapitalize="none" keyboardType="email-address" />
-            <Field label="Phone number" required value={profile.phone} onChangeText={(value) => updateProfile('phone', formatPhoneNumber(value))} autoComplete="tel" keyboardType="phone-pad" maxLength={12} />
+            <Field label="Phone number" required value={profile.phone} onChangeText={(value) => updateProfile('phone', formatUsPhoneNumber(value))} autoComplete="tel" keyboardType="phone-pad" maxLength={12} placeholder="248-555-1234" />
           </ProfileSection>
 
           <ProfileSection title="Private home address">

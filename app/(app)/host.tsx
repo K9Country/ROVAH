@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ModeLabel } from '../../components/mode-label';
 import { colors, typography } from '../../constants/theme';
+import { formatUsPhoneNumber, hasValidUsPhoneNumber, phoneNumberHelpText } from '../../lib/phone-number';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../services/auth-context';
 import type { HostProfile } from '../../types/host-profile';
@@ -59,7 +60,7 @@ export default function HostOnboardingScreen() {
 
       if (profile) {
         setFullName(profile.full_name);
-        setPhone(profile.phone ?? '');
+        setPhone(formatUsPhoneNumber(profile.phone ?? ''));
         setCity(profile.city ?? '');
         setState(profile.state ?? '');
         setControlsProperty(profile.controls_property);
@@ -96,6 +97,11 @@ export default function HostOnboardingScreen() {
         'Missing information',
         'Complete your name, phone number, city, and state.'
       );
+      return;
+    }
+
+    if (!hasValidUsPhoneNumber(normalizedPhone)) {
+      Alert.alert('Phone number needed', phoneNumberHelpText);
       return;
     }
 
@@ -197,10 +203,11 @@ export default function HostOnboardingScreen() {
             <FormField
               label="Phone number"
               value={phone}
-              onChangeText={setPhone}
-              placeholder="(555) 555-5555"
+              onChangeText={(value) => setPhone(formatUsPhoneNumber(value))}
+              placeholder="248-555-1234"
               autoComplete="tel"
               keyboardType="phone-pad"
+              maxLength={12}
             />
             <View style={styles.locationRow}>
               <View style={styles.cityField}>
