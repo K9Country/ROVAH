@@ -32,6 +32,15 @@ function getSignupErrorMessage(error: unknown) {
 
   return message || 'We could not create your account. Please try again.';
 }
+
+function showExistingAccountMessage(intent?: string) {
+  const accountType = intent === 'host' ? 'host' : 'dog owner';
+
+  Alert.alert(
+    `${accountType.charAt(0).toUpperCase()}${accountType.slice(1)} account already exists`,
+    'An account already uses this email address. Please sign in to continue.'
+  );
+}
  
 export default function SignUpScreen() {
   const { intent, email: initialEmail } = useLocalSearchParams<{
@@ -89,7 +98,7 @@ export default function SignUpScreen() {
     try {
       setIsLoading(true);
  
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email: normalizedEmail,
         password,
         options: {
@@ -99,12 +108,22 @@ export default function SignUpScreen() {
           emailRedirectTo: getAuthEmailRedirectUrl(intent),
         },
       });
- 
+
       if (error) {
+        if (error.message.toLowerCase().includes('already registered')) {
+          showExistingAccountMessage(intent);
+          return;
+        }
+
         Alert.alert('Unable to create account', getSignupErrorMessage(error));
         return;
       }
- 
+
+      if (data.user?.identities?.length === 0) {
+        showExistingAccountMessage(intent);
+        return;
+      }
+
       router.replace(
         `/verify-email?email=${encodeURIComponent(normalizedEmail)}&intent=${intent === 'host' ? 'host' : 'guest'}` as never
       );
