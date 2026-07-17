@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { colors } from '../constants/theme';
+import { colors, typography } from '../constants/theme';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../services/auth-context';
 
@@ -56,10 +56,7 @@ export default function WelcomeScreen() {
         </View>
 
         {!isMember ? <View style={styles.hostInvitationCard}>
-          <Text style={styles.hostInvitationTitle}>Turn your yard into extra income</Text>
-          <Text style={styles.hostInvitationDescription}>
-            Share a safe outdoor space with dog families, set your own availability, and earn money on reservations.
-          </Text>
+          <Text adjustsFontSizeToFit minimumFontScale={0.65} numberOfLines={1} style={styles.hostInvitationTitle}>Turn your yard into extra income</Text>
           <Pressable
             accessibilityRole="button"
             onPress={continueAsHost}
@@ -68,7 +65,7 @@ export default function WelcomeScreen() {
               pressed && styles.buttonPressed,
             ]}
           >
-            <Text style={styles.hostInvitationButtonText}>Become a Host</Text>
+            <Text style={styles.hostInvitationButtonText}>Learn How</Text>
           </Pressable>
         </View> : null}
  
@@ -278,17 +275,11 @@ const styles = StyleSheet.create({
 
   hostInvitationTitle: {
     color: colors.warmWhite,
-    fontSize: 24,
+    fontFamily: typography.display,
+    fontSize: 27,
+    fontStyle: 'italic',
     fontWeight: '900',
-    lineHeight: 30,
-    textAlign: 'center',
-  },
-
-  hostInvitationDescription: {
-    color: colors.cream,
-    fontSize: 15,
-    lineHeight: 22,
-    marginTop: 10,
+    letterSpacing: -0.7,
     textAlign: 'center',
   },
 
@@ -297,7 +288,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.cream,
     borderRadius: 14,
     justifyContent: 'center',
-    marginTop: 18,
+    marginTop: 16,
     minHeight: 52,
     paddingHorizontal: 18,
   },
