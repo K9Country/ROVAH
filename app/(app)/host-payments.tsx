@@ -11,7 +11,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ModeLabel } from '../../components/mode-label';
 import { colors } from '../../constants/theme';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../services/auth-context';
@@ -112,7 +111,6 @@ export default function HostPaymentsScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ModeLabel mode="Host" page={8} />
       <ScrollView
         contentContainerStyle={styles.container}
         refreshControl={
@@ -125,7 +123,7 @@ export default function HostPaymentsScreen() {
         showsVerticalScrollIndicator={false}
       >
         <Pressable onPress={() => router.replace('/host-dashboard')} style={styles.backButton}>
-          <Text style={styles.backButtonText}>{'<'} Host Mode</Text>
+          <Text style={styles.backButtonText}>{'<'} Host Dashboard</Text>
         </Pressable>
         <Text style={styles.title}>Earnings & Payouts</Text>
         <Text style={styles.description}>
