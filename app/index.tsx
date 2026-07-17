@@ -280,12 +280,14 @@ const styles = StyleSheet.create({
     lineHeight: 32,
     fontWeight: '800',
     marginBottom: 12,
+    textAlign: 'center',
   },
  
   heroDescription: {
     color: colors.muted,
     fontSize: 16,
     lineHeight: 24,
+    textAlign: 'center',
   },
  
   actionArea: {
