@@ -185,15 +185,34 @@ export default function PropertyDetailsScreen() {
       setHostReviews([]);
     }
 
-    if (propertyResult.data && recordedViewPropertyId.current !== id) {
-      recordedViewPropertyId.current = id;
-      void supabase.rpc('record_property_view', {
-        target_property_id: id,
-      });
-    }
   }, [id, session?.user.id]);
 
   useEffect(() => { void loadListing(); }, [loadListing]);
+
+  useEffect(() => {
+    const recordView = async () => {
+      if (!property?.id || !session?.user.id || property.host_id === session.user.id) {
+        return;
+      }
+
+      if (recordedViewPropertyId.current === property.id) {
+        return;
+      }
+
+      const { error } = await supabase.rpc('record_property_view', {
+        target_property_id: property.id,
+      });
+
+      if (error) {
+        console.warn('Unable to record property view:', error.message);
+        return;
+      }
+
+      recordedViewPropertyId.current = property.id;
+    };
+
+    void recordView();
+  }, [property?.host_id, property?.id, session?.user.id]);
 
   const blocksTime = useCallback((start: Date, end: Date) => (
     bookingBlocks.some((block) => new Date(block.start_at) < end && new Date(block.end_at) > start)
