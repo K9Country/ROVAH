@@ -21,6 +21,16 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../services/auth-context';
 import type { HostProfile, IdentityVerificationStatus } from '../../types/host-profile';
 
+type HostFieldName =
+  | 'firstName'
+  | 'lastName'
+  | 'phone'
+  | 'siteAddress'
+  | 'city'
+  | 'state'
+  | 'postalCode'
+  | 'confirmations';
+
 function splitFullName(fullName: string) {
   const [firstName = '', ...lastNameParts] = fullName.trim().split(/\s+/);
   return { firstName, lastName: lastNameParts.join(' ') };
@@ -41,6 +51,16 @@ export default function HostOnboardingScreen() {
   const [acceptsHostTerms, setAcceptsHostTerms] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<HostFieldName, string>>>({});
+
+  const clearFieldError = (field: HostFieldName) => {
+    setFieldErrors((current) => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  };
 
   useEffect(() => {
     const loadHostProfile = async () => {
@@ -123,24 +143,21 @@ export default function HostOnboardingScreen() {
       return;
     }
 
-    if (!normalizedFirstName || !normalizedLastName || !normalizedPhone || !normalizedSiteAddress || !normalizedCity || !normalizedState || !normalizedPostalCode) {
-      Alert.alert(
-        'Missing information',
-        'Complete your first name, last name, phone number, and first site location.'
-      );
-      return;
-    }
-
-    if (!hasValidUsPhoneNumber(normalizedPhone)) {
-      Alert.alert('Phone number needed', phoneNumberHelpText);
-      return;
-    }
-
+    const validationErrors: Partial<Record<HostFieldName, string>> = {};
+    if (!normalizedFirstName) validationErrors.firstName = 'Enter your first name.';
+    if (!normalizedLastName) validationErrors.lastName = 'Enter your last name.';
+    if (!normalizedPhone) validationErrors.phone = 'Enter a phone number.';
+    else if (!hasValidUsPhoneNumber(normalizedPhone)) validationErrors.phone = phoneNumberHelpText;
+    if (!normalizedSiteAddress) validationErrors.siteAddress = 'Enter the site street address.';
+    if (!normalizedCity) validationErrors.city = 'Enter the site city.';
+    if (!normalizedState) validationErrors.state = 'Enter the site state.';
+    if (!normalizedPostalCode) validationErrors.postalCode = 'Enter the ZIP or postal code.';
     if (!controlsProperty || !acceptsHostTerms) {
-      Alert.alert(
-        'Confirmation required',
-        'Confirm that you control the property and agree to the host requirements.'
-      );
+      validationErrors.confirmations = 'Check both confirmations before continuing.';
+    }
+
+    if (Object.keys(validationErrors).length) {
+      setFieldErrors(validationErrors);
       return;
     }
 
@@ -231,36 +248,45 @@ export default function HostOnboardingScreen() {
           </View>
 
           <View style={styles.form}>
+            {Object.keys(fieldErrors).length ? (
+              <View style={styles.validationBanner}>
+                <Text style={styles.validationBannerTitle}>Please review the highlighted fields.</Text>
+                <Text style={styles.validationBannerText}>Each item below explains exactly what is needed.</Text>
+              </View>
+            ) : null}
             <View style={styles.nameRow}>
               <View style={styles.nameField}>
                 <FormField
                   label="First name"
                   value={firstName}
-                  onChangeText={setFirstName}
+                  onChangeText={(value) => { setFirstName(value); clearFieldError('firstName'); }}
                   placeholder="First name"
                   autoComplete="name"
                   autoCapitalize="words"
+                  error={fieldErrors.firstName}
                 />
               </View>
               <View style={styles.nameField}>
                 <FormField
                   label="Last name"
                   value={lastName}
-                  onChangeText={setLastName}
+                  onChangeText={(value) => { setLastName(value); clearFieldError('lastName'); }}
                   placeholder="Last name"
                   autoComplete="name"
                   autoCapitalize="words"
+                  error={fieldErrors.lastName}
                 />
               </View>
             </View>
             <FormField
               label="Phone number"
               value={phone}
-              onChangeText={(value) => setPhone(formatUsPhoneNumber(value))}
+              onChangeText={(value) => { setPhone(formatUsPhoneNumber(value)); clearFieldError('phone'); }}
               placeholder="248-555-1234"
               autoComplete="tel"
               keyboardType="phone-pad"
               maxLength={12}
+              error={fieldErrors.phone}
             />
             <View style={styles.siteLocationSection}>
               <Text style={styles.siteLocationTitle}>First site location</Text>
@@ -271,39 +297,43 @@ export default function HostOnboardingScreen() {
             <FormField
               label="Site street address"
               value={siteAddress}
-              onChangeText={setSiteAddress}
+              onChangeText={(value) => { setSiteAddress(value); clearFieldError('siteAddress'); }}
               placeholder="123 Country Lane"
               autoComplete="street-address"
               autoCapitalize="words"
+              error={fieldErrors.siteAddress}
             />
             <View style={styles.locationRow}>
               <View style={styles.cityField}>
                 <FormField
                   label="Site city"
                   value={city}
-                  onChangeText={setCity}
+                  onChangeText={(value) => { setCity(value); clearFieldError('city'); }}
                   placeholder="Your city"
                   autoCapitalize="words"
+                  error={fieldErrors.city}
                 />
               </View>
               <View style={styles.stateField}>
                 <FormField
                   label="Site state"
                   value={state}
-                  onChangeText={setState}
+                  onChangeText={(value) => { setState(value); clearFieldError('state'); }}
                   placeholder="State"
                   autoCapitalize="characters"
                   maxLength={2}
+                  error={fieldErrors.state}
                 />
               </View>
             </View>
             <FormField
               label="ZIP or postal code"
               value={postalCode}
-              onChangeText={setPostalCode}
+              onChangeText={(value) => { setPostalCode(value); clearFieldError('postalCode'); }}
               placeholder="ZIP or postal code"
               autoCapitalize="characters"
               keyboardType="number-pad"
+              error={fieldErrors.postalCode}
             />
             <View style={styles.identityCard}>
               <View style={styles.identityHeader}>
@@ -322,18 +352,19 @@ export default function HostOnboardingScreen() {
               </Text>
             </View>
 
-            <View style={styles.confirmationCard}>
+            <View style={[styles.confirmationCard, fieldErrors.confirmations && styles.confirmationCardError]}>
               <ConfirmationRow
                 checked={controlsProperty}
                 label="I own this property or have permission to list and host it."
-                onPress={() => setControlsProperty((current) => !current)}
+                onPress={() => { setControlsProperty((current) => !current); clearFieldError('confirmations'); }}
               />
               <View style={styles.confirmationDivider} />
               <ConfirmationRow
                 checked={acceptsHostTerms}
                 label="I agree to provide accurate listing details and follow K9 Country host requirements."
-                onPress={() => setAcceptsHostTerms((current) => !current)}
+                onPress={() => { setAcceptsHostTerms((current) => !current); clearFieldError('confirmations'); }}
               />
+              {fieldErrors.confirmations ? <Text style={styles.fieldErrorText}>{fieldErrors.confirmations}</Text> : null}
             </View>
 
             <Pressable
@@ -373,6 +404,7 @@ type FormFieldProps = {
   autoComplete?: 'name' | 'tel' | 'street-address';
   keyboardType?: 'default' | 'phone-pad' | 'number-pad';
   maxLength?: number;
+  error?: string;
 };
 
 function FormField({
@@ -384,6 +416,7 @@ function FormField({
   autoComplete,
   keyboardType = 'default',
   maxLength,
+  error,
 }: FormFieldProps) {
   return (
     <View>
@@ -397,9 +430,10 @@ function FormField({
         onChangeText={onChangeText}
         placeholder={placeholder}
         placeholderTextColor="#8A877D"
-        style={styles.input}
+        style={[styles.input, error && styles.inputError]}
         value={value}
       />
+      {error ? <Text style={styles.fieldErrorText}>{error}</Text> : null}
     </View>
   );
 }
@@ -447,10 +481,16 @@ const styles = StyleSheet.create({
   identityStatusText: { color: colors.olive, fontSize: 13, fontWeight: '800' },
   label: { color: colors.forest, fontSize: 15, fontWeight: '800', marginBottom: 8 },
   input: { minHeight: 56, borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.warmWhite, color: colors.forest, fontSize: 16, paddingHorizontal: 16 },
+  inputError: { borderColor: colors.red, borderWidth: 2 },
+  fieldErrorText: { color: colors.red, fontSize: 13, fontWeight: '700', lineHeight: 18, marginTop: 6 },
+  validationBanner: { backgroundColor: '#FCEDEB', borderColor: '#E9B7B0', borderRadius: 14, borderWidth: 1, gap: 3, padding: 14 },
+  validationBannerTitle: { color: colors.red, fontSize: 15, fontWeight: '900' },
+  validationBannerText: { color: colors.muted, fontSize: 13, lineHeight: 18 },
   locationRow: { flexDirection: 'row', gap: 12 },
   cityField: { flex: 1 },
   stateField: { width: 88 },
   confirmationCard: { borderColor: colors.border, borderRadius: 16, borderWidth: 1, backgroundColor: colors.warmWhite, paddingHorizontal: 16 },
+  confirmationCardError: { borderColor: colors.red, borderWidth: 2 },
   confirmationRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 16 },
   checkbox: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center', borderColor: colors.brown, borderRadius: 6, borderWidth: 2, marginRight: 12, marginTop: 1 },
   checkboxChecked: { backgroundColor: colors.forest, borderColor: colors.forest },

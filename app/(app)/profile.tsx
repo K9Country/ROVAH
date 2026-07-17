@@ -26,6 +26,8 @@ type ProfileForm = Omit<
   'user_id' | 'full_name' | 'profile_completed_at' | 'created_at' | 'updated_at' | 'profile_image_path'
 >;
 
+type ProfileFieldName = keyof ProfileForm;
+
 const emptyProfile: ProfileForm = {
   first_name: '',
   last_name: '',
@@ -58,6 +60,7 @@ export default function GuestProfileScreen() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<ProfileFieldName, string>>>({});
   const [profileImageUri, setProfileImageUri] = useState<string | null>(null);
   const isOnboarding = onboarding === 'true' && !isComplete;
 
@@ -135,6 +138,12 @@ export default function GuestProfileScreen() {
     value: ProfileForm[Key]
   ) => {
     setStatusMessage('');
+    setFieldErrors((current) => {
+      if (!current[key]) return current;
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
     setProfile((current) => ({ ...current, [key]: value }));
   };
 
@@ -148,24 +157,21 @@ export default function GuestProfileScreen() {
       return;
     }
 
-    const requiredValues = [
-      profile.first_name,
-      profile.last_name,
-      profile.email,
-      profile.phone,
-      profile.address_line1,
-      profile.city,
-      profile.state,
-      profile.postal_code,
-    ];
+    const validationErrors: Partial<Record<ProfileFieldName, string>> = {};
+    if (!profile.first_name.trim()) validationErrors.first_name = 'Enter your first name.';
+    if (!profile.last_name.trim()) validationErrors.last_name = 'Enter your last name.';
+    if (!profile.email.trim()) validationErrors.email = 'Enter your email address.';
+    else if (!/^\S+@\S+\.\S+$/.test(profile.email.trim())) validationErrors.email = 'Enter a valid email address.';
+    if (!profile.phone.trim()) validationErrors.phone = 'Enter a phone number.';
+    else if (!hasValidUsPhoneNumber(profile.phone)) validationErrors.phone = phoneNumberHelpText;
+    if (!profile.address_line1.trim()) validationErrors.address_line1 = 'Enter your street address.';
+    if (!profile.city.trim()) validationErrors.city = 'Enter your city.';
+    if (!profile.state.trim()) validationErrors.state = 'Enter your state.';
+    if (!profile.postal_code.trim()) validationErrors.postal_code = 'Enter your ZIP code.';
 
-    if (requiredValues.some((value) => !value.trim()) || profile.dog_count < 1) {
-      setStatusMessage('Complete every required field before saving your reservation profile.');
-      return;
-    }
-
-    if (!hasValidUsPhoneNumber(profile.phone)) {
-      setStatusMessage(phoneNumberHelpText);
+    if (Object.keys(validationErrors).length) {
+      setFieldErrors(validationErrors);
+      setStatusMessage('Please review the highlighted fields before saving your profile.');
       return;
     }
 
@@ -336,22 +342,22 @@ export default function GuestProfileScreen() {
 
           <ProfileSection title="Member information">
             <View style={styles.row}>
-              <View style={styles.nameField}><Field label="First name" required value={profile.first_name} onChangeText={(value) => updateProfile('first_name', value)} autoComplete="name" autoCapitalize="words" /></View>
-              <View style={styles.nameField}><Field label="Last name" required value={profile.last_name} onChangeText={(value) => updateProfile('last_name', value)} autoComplete="name" autoCapitalize="words" /></View>
+              <View style={styles.nameField}><Field label="First name" required error={fieldErrors.first_name} value={profile.first_name} onChangeText={(value) => updateProfile('first_name', value)} autoComplete="name" autoCapitalize="words" /></View>
+              <View style={styles.nameField}><Field label="Last name" required error={fieldErrors.last_name} value={profile.last_name} onChangeText={(value) => updateProfile('last_name', value)} autoComplete="name" autoCapitalize="words" /></View>
             </View>
-            <Field label="Email address" required value={profile.email} onChangeText={(value) => updateProfile('email', value)} autoComplete="email" autoCapitalize="none" keyboardType="email-address" />
-            <Field label="Phone number" required value={profile.phone} onChangeText={(value) => updateProfile('phone', formatUsPhoneNumber(value))} autoComplete="tel" keyboardType="phone-pad" maxLength={12} placeholder="248-555-1234" />
+            <Field label="Email address" required error={fieldErrors.email} value={profile.email} onChangeText={(value) => updateProfile('email', value)} autoComplete="email" autoCapitalize="none" keyboardType="email-address" />
+            <Field label="Phone number" required error={fieldErrors.phone} value={profile.phone} onChangeText={(value) => updateProfile('phone', formatUsPhoneNumber(value))} autoComplete="tel" keyboardType="phone-pad" maxLength={12} placeholder="248-555-1234" />
           </ProfileSection>
 
           <ProfileSection title="Private home address">
             <Text style={styles.privateNote}>Used only for your private reservation record. It is never shared with a host.</Text>
-            <Field label="Street address" required value={profile.address_line1} onChangeText={(value) => updateProfile('address_line1', value)} autoComplete="street-address" autoCapitalize="words" />
+            <Field label="Street address" required error={fieldErrors.address_line1} value={profile.address_line1} onChangeText={(value) => updateProfile('address_line1', value)} autoComplete="street-address" autoCapitalize="words" />
             <Field label="Apartment, suite, or unit" value={profile.address_line2} onChangeText={(value) => updateProfile('address_line2', value)} autoCapitalize="words" />
             <View style={styles.row}>
-              <View style={styles.cityField}><Field label="City" required value={profile.city} onChangeText={(value) => updateProfile('city', value)} autoCapitalize="words" /></View>
-              <View style={styles.stateField}><Field label="State" required value={profile.state} onChangeText={(value) => updateProfile('state', value)} autoCapitalize="characters" maxLength={2} /></View>
+              <View style={styles.cityField}><Field label="City" required error={fieldErrors.city} value={profile.city} onChangeText={(value) => updateProfile('city', value)} autoCapitalize="words" /></View>
+              <View style={styles.stateField}><Field label="State" required error={fieldErrors.state} value={profile.state} onChangeText={(value) => updateProfile('state', value)} autoCapitalize="characters" maxLength={2} /></View>
             </View>
-            <Field label="ZIP code" required value={profile.postal_code} onChangeText={(value) => updateProfile('postal_code', value)} autoComplete="postal-code" keyboardType="number-pad" />
+            <Field label="ZIP code" required error={fieldErrors.postal_code} value={profile.postal_code} onChangeText={(value) => updateProfile('postal_code', value)} autoComplete="postal-code" keyboardType="number-pad" />
           </ProfileSection>
 
           <ProfileSection title="Your dogs">
@@ -413,13 +419,15 @@ type FieldProps = {
   keyboardType?: 'default' | 'email-address' | 'phone-pad' | 'number-pad';
   maxLength?: number;
   multiline?: boolean;
+  error?: string;
 };
 
-function Field({ label, required, multiline, ...inputProps }: FieldProps) {
+function Field({ label, required, multiline, error, ...inputProps }: FieldProps) {
   return (
     <View style={styles.fieldGroup}>
       <Text style={styles.label}>{label}{required ? <Text style={styles.required}> Required</Text> : null}</Text>
-      <TextInput {...inputProps} multiline={multiline} placeholderTextColor="#8A877D" style={[styles.input, multiline && styles.multilineInput]} textAlignVertical={multiline ? 'top' : 'center'} />
+      <TextInput {...inputProps} multiline={multiline} placeholderTextColor="#8A877D" style={[styles.input, multiline && styles.multilineInput, error && styles.inputError]} textAlignVertical={multiline ? 'top' : 'center'} />
+      {error ? <Text style={styles.fieldErrorText}>{error}</Text> : null}
     </View>
   );
 }
@@ -455,7 +463,9 @@ const styles = StyleSheet.create({
   label: { color: colors.forest, fontSize: 14, fontWeight: '800', marginBottom: 7 },
   required: { color: colors.brown, fontSize: 12, fontWeight: '800' },
   input: { minHeight: 52, borderWidth: 1, borderColor: colors.border, borderRadius: 13, backgroundColor: colors.cream, color: colors.forest, fontSize: 16, paddingHorizontal: 14 },
+  inputError: { borderColor: colors.red, borderWidth: 2 },
   multilineInput: { minHeight: 100, paddingTop: 13, paddingBottom: 13 },
+  fieldErrorText: { color: colors.red, fontSize: 12, fontWeight: '700', lineHeight: 17, marginTop: 5 },
   row: { flexDirection: 'row', gap: 12 },
   nameField: { flex: 1 },
   cityField: { flex: 1 },
