@@ -20,6 +20,7 @@ function RootNavigator() {
       <Stack.Screen name="index" />
       <Stack.Screen name="host-info" />
       <Stack.Screen name="legal" />
+      <Stack.Screen name="admin" />
       <Stack.Screen name="auth/callback" />
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(app)" />

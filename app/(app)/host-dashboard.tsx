@@ -41,6 +41,7 @@ export default function HostDashboardScreen() {
   const [isPhotoViewerOpen, setIsPhotoViewerOpen] = useState(false);
   const [hasUnreadGuestMessages, setHasUnreadGuestMessages] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [isAdministrator, setIsAdministrator] = useState(false);
 
   const loadDashboard = useCallback(async () => {
     if (!session?.user.id) {
@@ -52,7 +53,7 @@ export default function HostDashboardScreen() {
     setErrorMessage(null);
     setIsLoading(true);
 
-    const [profileResult, propertiesResult] = await Promise.all([
+    const [profileResult, propertiesResult, administratorResult] = await Promise.all([
       supabase
         .from('host_profiles')
         .select('*')
@@ -63,6 +64,11 @@ export default function HostDashboardScreen() {
         .select('*')
         .eq('host_id', session.user.id)
         .order('created_at', { ascending: false }),
+      supabase
+        .from('admin_users')
+        .select('user_id')
+        .eq('user_id', session.user.id)
+        .maybeSingle(),
     ]);
 
     if (profileResult.error || propertiesResult.error) {
@@ -109,6 +115,7 @@ export default function HostDashboardScreen() {
       profile: profileResult.data as HostProfile | null,
       properties: propertiesWithBookingCounts,
     });
+    setIsAdministrator(Boolean(administratorResult.data) && !administratorResult.error);
 
     const { data: conversationData } = await supabase
       .from('property_conversations')
@@ -349,6 +356,16 @@ export default function HostDashboardScreen() {
           <Text style={styles.primaryButtonText}>+ Add a Private Space</Text>
         </Pressable>
 
+        {isAdministrator ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push('/admin')}
+            style={({ pressed }) => [styles.adminButton, pressed && styles.buttonPressed]}
+          >
+            <Text style={styles.adminButtonText}>Administrator: Review Sites</Text>
+          </Pressable>
+        ) : null}
+
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitleNoMargin}>Your properties</Text>
           <Text style={styles.sectionCount}>{dashboardData.properties.length}</Text>
@@ -553,6 +570,8 @@ const styles = StyleSheet.create({
   stateText: { color: colors.muted, fontSize: 15, lineHeight: 22, marginTop: 12, textAlign: 'center' },
   primaryButton: { alignItems: 'center', backgroundColor: colors.brown, borderRadius: 14, justifyContent: 'center', marginTop: 4, minHeight: 56, paddingHorizontal: 20 },
   primaryButtonText: { color: colors.warmWhite, fontSize: 16, fontWeight: '900' },
+  adminButton: { alignItems: 'center', borderColor: colors.forest, borderRadius: 14, borderWidth: 1, justifyContent: 'center', marginTop: 10, minHeight: 48, paddingHorizontal: 20 },
+  adminButtonText: { color: colors.forest, fontSize: 15, fontWeight: '900' },
   secondaryButton: { alignItems: 'center', borderColor: colors.forest, borderRadius: 14, borderWidth: 1, justifyContent: 'center', marginTop: 18, minHeight: 54, paddingHorizontal: 20 },
   secondaryButtonText: { color: colors.forest, fontSize: 16, fontWeight: '800' },
   buttonPressed: { opacity: 0.76 },
