@@ -85,7 +85,7 @@ export default function GuestProfileScreen() {
         const savedProfile = data as GuestProfile;
         setProfile({
           full_name: savedProfile.full_name,
-          email: savedProfile.email,
+          email: savedProfile.email || session.user.email || '',
           phone: formatPhoneNumber(savedProfile.phone),
           address_line1: savedProfile.address_line1,
           address_line2: savedProfile.address_line2,
@@ -98,7 +98,7 @@ export default function GuestProfileScreen() {
         setIsComplete(Boolean(savedProfile.profile_completed_at));
         if (savedProfile.profile_image_path) setProfileImageUri(supabase.storage.from('guest-profile-images').getPublicUrl(savedProfile.profile_image_path).data.publicUrl);
       } else {
-        setProfile(emptyProfile);
+        setProfile({ ...emptyProfile, email: session.user.email ?? '' });
         setIsComplete(false);
         setProfileImageUri(null);
       }
