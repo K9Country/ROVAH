@@ -79,7 +79,7 @@ function ReviewCard({
           <Text style={styles.reviewMeta}>{propertyLabel}</Text>
         </View>
         <View style={styles.ratingBadge}>
-          <Text style={styles.ratingText}>{review.bone_rating}/5</Text>
+          <Text style={styles.ratingText}>★ {review.bone_rating}/5</Text>
         </View>
       </View>
 
@@ -268,11 +268,11 @@ export default function HostGuestProfileScreen() {
           <View style={styles.summaryRow}>
             <View style={styles.summaryMetric}>
               <Text style={styles.summaryLabel}>Avg host score</Text>
-              <Text style={styles.summaryValue}>{averageHostRating}</Text>
+              <Text style={styles.summaryValue}>{averageHostRating === 'N/A' ? averageHostRating : `★ ${averageHostRating}`}</Text>
             </View>
             <View style={styles.summaryMetric}>
               <Text style={styles.summaryLabel}>Avg guest score</Text>
-              <Text style={styles.summaryValue}>{averageGuestRating}</Text>
+              <Text style={styles.summaryValue}>{averageGuestRating === 'N/A' ? averageGuestRating : `★ ${averageGuestRating}`}</Text>
             </View>
           </View>
           <View style={styles.summaryFooter}>

@@ -1,0 +1,6 @@
+-- Deprecated intentionally.
+--
+-- K9 Country supports separate host and member experiences for the same
+-- signed-in person. The app's selected sign-in mode controls navigation, and
+-- the later allow_separate_host_and_member_experiences migration maintains the
+-- owner-only RLS policies for both profiles.

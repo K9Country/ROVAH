@@ -233,8 +233,10 @@ export default function HostDashboardScreen() {
     try {
       setIsUploadingProfilePhoto(true);
       const asset = result.assets[0];
-      const extension = asset.fileName?.split('.').pop() ?? asset.mimeType?.split('/').pop() ?? 'jpg';
-      const path = `${session.user.id}/host-photo.${extension}`;
+            const rawExtension = asset.fileName?.split('.').pop() ?? asset.mimeType?.split('/').pop() ?? 'jpg';
+            const extension = rawExtension.replace(/[^a-z0-9]/gi, '').toLowerCase() || 'jpg';
+            // Use a new path for every replacement so the browser never reuses a cached prior photo.
+            const path = `${session.user.id}/host-photo-${Date.now()}.${extension}`;
       const response = await fetch(asset.uri);
       const arrayBuffer = await response.arrayBuffer();
 
@@ -289,20 +291,6 @@ export default function HostDashboardScreen() {
             <Text style={styles.primaryButtonText}>Try Again</Text>
           </Pressable>
 
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.push('/settings' as never)}
-            style={styles.mainEntryLink}
-          >
-            <Text style={styles.mainEntryLinkText}>Settings & Privacy</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.push('/support' as never)}
-            style={styles.mainEntryLink}
-          >
-            <Text style={styles.mainEntryLinkText}>Safety & Support</Text>
-          </Pressable>
         </View>
       </SafeAreaView>
     );
@@ -336,7 +324,7 @@ export default function HostDashboardScreen() {
           </View>
           <View style={styles.photoColumn}>
             <Pressable
-              accessibilityLabel={profileImageUrl ? 'View host photo' : 'Upload host photo'}
+              accessibilityLabel="Change host photo"
               accessibilityRole="button"
               onPress={() => void uploadProfilePhoto()}
               style={styles.profilePhotoFrame}
@@ -346,15 +334,6 @@ export default function HostDashboardScreen() {
                 source={profileImageUrl ? { uri: profileImageUrl } : require('../../assets/images/k9-11.png')}
                 style={styles.profilePhoto}
               />
-              <View pointerEvents="none" style={styles.profilePhotoActionOverlay}>
-                {isUploadingProfilePhoto ? (
-                  <ActivityIndicator color={colors.warmWhite} size="small" />
-                ) : (
-                  <Text style={styles.profilePhotoActionText}>
-                    {profileImageUrl ? 'Change\nPhoto' : 'Upload\nPhoto'}
-                  </Text>
-                )}
-              </View>
             </Pressable>
           </View>
         </View>
@@ -534,15 +513,6 @@ export default function HostDashboardScreen() {
           <Text style={styles.trustSafetyLinkText}>How K9 Country helps keep every visit safe</Text>
         </Pressable>
 
-        <Pressable
-          accessibilityRole="link"
-          onPress={() => router.push('/support' as never)}
-          style={styles.trustSafetyLink}
-        >
-          <Text style={styles.trustSafetyLinkTitle}>Safety & Support</Text>
-          <Text style={styles.trustSafetyLinkText}>Submit a private report or get help with an issue</Text>
-        </Pressable>
-
       </ScrollView>
     </SafeAreaView>
   );
@@ -587,8 +557,6 @@ const styles = StyleSheet.create({
   photoColumn: { alignItems: 'center', width: 118 },
   profilePhotoFrame: { alignItems: 'center', backgroundColor: colors.lightGreen, borderColor: colors.brown, borderRadius: 48, borderWidth: 2, height: 96, justifyContent: 'center', overflow: 'hidden', width: 96 },
   profilePhoto: { height: '100%', width: '100%' },
-  profilePhotoActionOverlay: { alignItems: 'center', backgroundColor: 'rgba(20, 42, 27, 0.62)', bottom: 0, justifyContent: 'center', left: 0, position: 'absolute', right: 0, top: 0 },
-  profilePhotoActionText: { color: colors.warmWhite, fontSize: 13, fontWeight: '900', lineHeight: 17, textAlign: 'center' },
   stateTitle: { color: colors.forest, fontSize: 25, fontWeight: '900', textAlign: 'center' },
   stateText: { color: colors.muted, fontSize: 15, lineHeight: 22, marginTop: 12, textAlign: 'center' },
   primaryButton: { alignItems: 'center', backgroundColor: colors.brown, borderRadius: 14, justifyContent: 'center', marginTop: 4, minHeight: 56, paddingHorizontal: 20 },

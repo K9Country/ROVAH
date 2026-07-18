@@ -6,6 +6,7 @@ import { colors } from '../../constants/theme';
 import { useAuth } from '../../services/auth-context';
 
 const hostOnlyRoutes = new Set([
+  '/host',
   '/create-property',
   '/host-calendar',
   '/host-dashboard',
@@ -20,12 +21,14 @@ const hostOnlyRoutes = new Set([
 const memberOnlyRoutes = new Set([
   '/dashboard',
   '/favorites',
+  '/host-profile',
   '/messages',
   '/profile',
   '/property',
   '/reservations',
-  '/review',
   '/search',
+  '/settings',
+  '/support',
 ]);
 
 export default function AppLayout() {

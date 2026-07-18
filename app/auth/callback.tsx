@@ -1,38 +1,37 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors, typography } from '../../constants/theme';
-import { hasCompletedMemberProfile } from '../../lib/member-profile';
 import { useAuth } from '../../services/auth-context';
 
 export default function EmailConfirmationCallbackScreen() {
   const { intent } = useLocalSearchParams<{ intent?: string }>();
-  const { isLoading, isMember, session } = useAuth();
+  const { isLoading, isMember, session, setActiveMode } = useAuth();
 
   useEffect(() => {
     if (!isLoading && isMember && session?.user.id) {
       const finishSignIn = async () => {
         // This controls the first screen after confirmation only. Host access
         // itself remains protected by the host profile and route guards.
-        const isHost =
-          intent === 'host' || session.user.user_metadata?.account_intent === 'host';
-        await AsyncStorage.setItem('@k9-country/host-mode', isHost ? 'host' : 'guest');
+        const isHost = intent === 'host';
+        await setActiveMode(isHost ? 'host' : 'guest');
 
         if (isHost) {
           router.replace('/host');
           return;
         }
 
-        const isComplete = await hasCompletedMemberProfile(session.user.id);
-        router.replace(isComplete ? '/dashboard' : '/profile?onboarding=true');
+        // An email-confirmation link belongs to the account-creation flow.
+        // Take every new member through their required private profile before
+        // they can reach the member dashboard or reserve a site.
+        router.replace('/profile?onboarding=true');
       };
 
       void finishSignIn();
     }
-  }, [intent, isLoading, isMember, session?.user.id]);
+  }, [intent, isLoading, isMember, session?.user.id, setActiveMode]);
 
   return (
     <SafeAreaView style={styles.safeArea}>

@@ -13,6 +13,8 @@ export type BookingReview = {
   comment_visibility: 'public' | 'private';
   fence_security: ReviewAnswer;
   cleanliness: ReviewAnswer;
+  property_matches_listing: 'yes' | 'no' | null;
+  would_book_again: 'yes' | 'no' | null;
   nearby_distractions: string[];
   unexpected_encounters: string;
   photo_urls: string[];

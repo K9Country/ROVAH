@@ -155,9 +155,6 @@ export default function FavoritesScreen() {
         keyExtractor={(item) => item.id}
         ListHeaderComponent={
           <>
-            <Pressable onPress={() => router.back()} style={styles.backButton}>
-              <Text style={styles.backButtonText}>← Member Dashboard</Text>
-            </Pressable>
             <Text style={styles.title}>My Favorites</Text>
             <Text style={styles.description}>Keep the private spaces you love in one easy-to-find place.</Text>
           </>
@@ -199,7 +196,7 @@ export default function FavoritesScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.cream },
-  content: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 36 },
+  content: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 36 },
   backButton: { alignSelf: 'flex-start', justifyContent: 'center', minHeight: 44, marginBottom: 12 },
   backButtonText: { color: colors.forest, fontSize: 16, fontWeight: '800' },
   eyebrow: { color: colors.brown, fontSize: 12, fontWeight: '900', letterSpacing: 1.3, marginBottom: 6 },

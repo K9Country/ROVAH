@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -47,17 +48,26 @@ function splitFullName(fullName: string) {
   return { firstName, lastName: lastNameParts.join(' ') };
 }
 
+function normalizeNameParts(firstName: string, lastName: string, fullName: string) {
+  const first = firstName.trim();
+  const last = lastName.trim();
+  if (first && last && first === last) {
+    return splitFullName(first);
+  }
+  if (first || last) {
+    return { firstName: first, lastName: last };
+  }
+  return splitFullName(fullName);
+}
+
 export default function GuestProfileScreen() {
-  const { returnTo, onboarding } = useLocalSearchParams<{ returnTo?: string; onboarding?: string }>();
+  const { onboarding } = useLocalSearchParams<{ onboarding?: string }>();
   const { isMember, session } = useAuth();
-  const backDestination =
-    typeof returnTo === 'string' && returnTo.startsWith('/')
-      ? returnTo
-      : '/dashboard';
   const [profile, setProfile] = useState<ProfileForm>(emptyProfile);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isDeleteWarningOpen, setIsDeleteWarningOpen] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<ProfileFieldName, string>>>({});
@@ -91,10 +101,14 @@ export default function GuestProfileScreen() {
         const metadataLastName = typeof session.user.user_metadata?.last_name === 'string'
           ? session.user.user_metadata.last_name
           : '';
-        const savedNameParts = splitFullName(savedProfile.full_name);
+        const savedNameParts = normalizeNameParts(
+          savedProfile.first_name || metadataFirstName,
+          savedProfile.last_name || metadataLastName,
+          savedProfile.full_name
+        );
         setProfile({
-          first_name: savedProfile.first_name || metadataFirstName || savedNameParts.firstName,
-          last_name: savedProfile.last_name || metadataLastName || savedNameParts.lastName,
+          first_name: savedNameParts.firstName,
+          last_name: savedNameParts.lastName,
           email: savedProfile.email || session.user.email || '',
           phone: formatUsPhoneNumber(savedProfile.phone),
           address_line1: savedProfile.address_line1,
@@ -108,19 +122,15 @@ export default function GuestProfileScreen() {
         setIsComplete(Boolean(savedProfile.profile_completed_at));
         if (savedProfile.profile_image_path) setProfileImageUri(supabase.storage.from('guest-profile-images').getPublicUrl(savedProfile.profile_image_path).data.publicUrl);
       } else {
-        const metadataNameParts = splitFullName(
-          typeof session.user.user_metadata?.full_name === 'string'
-            ? session.user.user_metadata.full_name
-            : ''
+        const metadataNameParts = normalizeNameParts(
+          typeof session.user.user_metadata?.first_name === 'string' ? session.user.user_metadata.first_name : '',
+          typeof session.user.user_metadata?.last_name === 'string' ? session.user.user_metadata.last_name : '',
+          typeof session.user.user_metadata?.full_name === 'string' ? session.user.user_metadata.full_name : ''
         );
         setProfile({
           ...emptyProfile,
-          first_name: typeof session.user.user_metadata?.first_name === 'string'
-            ? session.user.user_metadata.first_name
-            : metadataNameParts.firstName,
-          last_name: typeof session.user.user_metadata?.last_name === 'string'
-            ? session.user.user_metadata.last_name
-            : metadataNameParts.lastName,
+          first_name: metadataNameParts.firstName,
+          last_name: metadataNameParts.lastName,
           email: session.user.email ?? '',
         });
         setIsComplete(false);
@@ -226,9 +236,7 @@ export default function GuestProfileScreen() {
 
       setIsComplete(true);
       setStatusMessage('');
-      if (typeof returnTo === 'string' && returnTo.startsWith('/')) {
-        router.replace(returnTo as never);
-      }
+      router.replace('/dashboard?profileSaved=true' as never);
     } catch (error) {
       setStatusMessage(
         error instanceof Error
@@ -313,14 +321,6 @@ export default function GuestProfileScreen() {
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.keyboardView}>
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="always" showsVerticalScrollIndicator={false}>
-          {!isOnboarding ? (
-            <Pressable onPress={() => router.replace(backDestination as never)} style={styles.backButton}>
-              <Text style={styles.backButtonText}>
-                {returnTo ? '← Back to reservation' : '← Member Dashboard'}
-              </Text>
-            </Pressable>
-          ) : null}
-
           <View style={styles.profileHeader}>
             <View style={styles.profileHeaderCopy}>
               <Text style={styles.title}>My Profile</Text>
@@ -382,12 +382,6 @@ export default function GuestProfileScreen() {
             {isSaving ? <ActivityIndicator color={colors.warmWhite} /> : <Text style={styles.primaryButtonText}>Save Private Profile</Text>}
           </Pressable>
 
-          {isComplete ? (
-            <Pressable accessibilityRole="button" onPress={() => router.push('/search' as never)} style={styles.beginSearchButton}>
-              <Text style={styles.beginSearchButtonText}>Search Private Spaces</Text>
-            </Pressable>
-          ) : null}
-
           <View style={styles.deleteSection}>
             <Text style={styles.deleteTitle}>Delete My Profile</Text>
             <Text style={styles.deleteText}>
@@ -396,7 +390,7 @@ export default function GuestProfileScreen() {
             <Pressable
               accessibilityRole="button"
               disabled={isDeleting}
-              onPress={() => void deleteProfile()}
+              onPress={() => setIsDeleteWarningOpen(true)}
               style={[styles.deleteButton, isDeleting && styles.primaryButtonDisabled]}
             >
               {isDeleting ? <ActivityIndicator color={colors.red} /> : <Text style={styles.deleteButtonText}>Delete My Profile</Text>}
@@ -404,6 +398,21 @@ export default function GuestProfileScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+      <Modal animationType="fade" onRequestClose={() => setIsDeleteWarningOpen(false)} transparent visible={isDeleteWarningOpen}>
+        <View style={styles.deleteWarningBackdrop}>
+          <View accessibilityRole="alert" style={styles.deleteWarningModal}>
+            <Text style={styles.deleteWarningTitle}>Delete your profile?</Text>
+            <Text style={styles.deleteWarningText}>This permanently removes your private member profile, including your contact details, address, dog information, and profile photo. This cannot be undone.</Text>
+            <Text style={styles.deleteWarningText}>Your reservation history may still be retained where required for records and safety.</Text>
+            <Pressable accessibilityRole="button" disabled={isDeleting} onPress={() => void deleteProfile()} style={[styles.confirmDeleteButton, isDeleting && styles.primaryButtonDisabled]}>
+              {isDeleting ? <ActivityIndicator color={colors.warmWhite} /> : <Text style={styles.confirmDeleteButtonText}>Yes, Delete My Profile</Text>}
+            </Pressable>
+            <Pressable accessibilityRole="button" disabled={isDeleting} onPress={() => setIsDeleteWarningOpen(false)} style={styles.cancelDeleteButton}>
+              <Text style={styles.cancelDeleteButtonText}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -439,7 +448,7 @@ function ProfileSection({ title, children }: { title: string; children: React.Re
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.cream },
   keyboardView: { flex: 1 },
-  container: { paddingHorizontal: 20, paddingTop: 0, paddingBottom: 42 },
+  container: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 42 },
   centeredState: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 26 },
   loadingText: { color: colors.muted, fontSize: 15, marginTop: 14 },
   backButton: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center', marginBottom: 12 },
@@ -483,11 +492,17 @@ const styles = StyleSheet.create({
   primaryButton: { minHeight: 56, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: colors.brown, paddingHorizontal: 22 },
   primaryButtonDisabled: { opacity: 0.65 },
   primaryButtonText: { color: colors.warmWhite, fontSize: 16, fontWeight: '900' },
-  beginSearchButton: { alignItems: 'center', backgroundColor: colors.forest, borderColor: colors.forest, borderRadius: 14, borderWidth: 1, justifyContent: 'center', marginTop: 12, minHeight: 56, paddingHorizontal: 22 },
-  beginSearchButtonText: { color: colors.gold, fontSize: 16, fontWeight: '900' },
   deleteSection: { backgroundColor: '#FCEDEB', borderColor: '#E9B7B0', borderRadius: 18, borderWidth: 1, marginTop: 20, padding: 18 },
   deleteTitle: { color: colors.red, fontSize: 18, fontWeight: '900', marginBottom: 6 },
   deleteText: { color: colors.muted, fontSize: 14, lineHeight: 20, marginBottom: 15 },
   deleteButton: { alignItems: 'center', borderColor: colors.red, borderRadius: 13, borderWidth: 1, justifyContent: 'center', minHeight: 52 },
   deleteButtonText: { color: colors.red, fontSize: 15, fontWeight: '900' },
+  deleteWarningBackdrop: { alignItems: 'center', backgroundColor: 'rgba(20, 38, 24, 0.58)', flex: 1, justifyContent: 'center', padding: 24 },
+  deleteWarningModal: { backgroundColor: colors.warmWhite, borderRadius: 20, maxWidth: 430, padding: 24, width: '100%' },
+  deleteWarningTitle: { color: colors.red, fontSize: 23, fontWeight: '900', textAlign: 'center' },
+  deleteWarningText: { color: colors.muted, fontSize: 15, lineHeight: 22, marginTop: 12, textAlign: 'center' },
+  confirmDeleteButton: { alignItems: 'center', backgroundColor: colors.red, borderRadius: 13, justifyContent: 'center', marginTop: 22, minHeight: 52 },
+  confirmDeleteButtonText: { color: colors.warmWhite, fontSize: 15, fontWeight: '900' },
+  cancelDeleteButton: { alignItems: 'center', justifyContent: 'center', marginTop: 8, minHeight: 48 },
+  cancelDeleteButtonText: { color: colors.forest, fontSize: 15, fontWeight: '900' },
 });

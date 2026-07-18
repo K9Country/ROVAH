@@ -4,6 +4,7 @@ import * as Linking from 'expo-linking';
 import {
     createContext,
     PropsWithChildren,
+    useCallback,
     useContext,
     useEffect,
     useMemo,
@@ -18,6 +19,7 @@ type AuthContextValue = {
   isAnonymous: boolean;
   isMember: boolean;
   isHost: boolean;
+  setActiveMode: (mode: 'host' | 'guest') => Promise<void>;
 };
 
 const hostModeStorageKey = '@k9-country/host-mode';
@@ -28,6 +30,11 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isHost, setIsHost] = useState(false);
+
+  const setActiveMode = useCallback(async (mode: 'host' | 'guest') => {
+    await AsyncStorage.setItem(hostModeStorageKey, mode);
+    setIsHost(mode === 'host');
+  }, []);
 
   useEffect(() => {
     const loadStoredHostMode = async () => {
@@ -61,46 +68,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
       try {
         const storedValue = await AsyncStorage.getItem(hostModeStorageKey);
-        if (storedValue === 'host') {
-          if (isMounted) {
-            setIsHost(true);
-          }
-          return;
-        }
-
-        if (storedValue === 'guest') {
-          if (isMounted) {
-            setIsHost(false);
-          }
-          return;
-        }
-      } catch (error) {
-        console.error('Unable to read host mode preference:', error);
-      }
-
-      try {
-        const { data, error } = await supabase
-          .from('host_profiles')
-          .select('user_id')
-          .eq('user_id', currentSession.user.id)
-          .maybeSingle();
-
-        if (!isMounted) {
-          return;
-        }
-
-        if (error) {
-          console.error('Unable to resolve host status:', error.message);
-          setIsHost(false);
-          return;
-        }
-
-        setIsHost(Boolean(data));
-      } catch (error) {
-        console.error('Unable to resolve host status:', error);
         if (isMounted) {
-          setIsHost(false);
+          setIsHost(storedValue === 'host');
         }
+      } catch (error) {
+        console.error('Unable to read active app mode:', error);
+        if (isMounted) setIsHost(false);
       }
     };
 
@@ -193,9 +166,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
         isAnonymous,
         isMember: Boolean(session) && !isAnonymous,
         isHost,
+        setActiveMode,
       };
     },
-    [session, isLoading, isHost]
+    [session, isLoading, isHost, setActiveMode]
   );
  
   return (

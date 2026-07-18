@@ -58,8 +58,8 @@ export default function TrustSafetyScreen() {
     <SafeAreaView style={styles.safeArea}>
       <Stack.Screen options={{ title: 'Trust & Safety' }} />
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.backButton}>
-          <Text style={styles.backButtonText}>← Back</Text>
+        <Pressable accessibilityRole="button" onPress={() => router.replace('/')} style={styles.backButton}>
+          <Text style={styles.backButtonText}>Return to Welcome Page</Text>
         </Pressable>
 
         <View style={styles.hero}>

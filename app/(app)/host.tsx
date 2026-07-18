@@ -1,4 +1,3 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
@@ -37,7 +36,7 @@ function splitFullName(fullName: string) {
 }
 
 export default function HostOnboardingScreen() {
-  const { isLoading: isAuthLoading, session } = useAuth();
+  const { isLoading: isAuthLoading, session, setActiveMode } = useAuth();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
@@ -118,7 +117,12 @@ export default function HostOnboardingScreen() {
     };
 
     void loadHostProfile();
-  }, [session?.user.id]);
+  }, [
+    session?.user.id,
+    session?.user.user_metadata?.first_name,
+    session?.user.user_metadata?.full_name,
+    session?.user.user_metadata?.last_name,
+  ]);
 
   useEffect(() => {
     if (isAuthLoading || session?.user.id) {
@@ -205,7 +209,7 @@ export default function HostOnboardingScreen() {
         return;
       }
 
-      await AsyncStorage.setItem('@k9-country/host-mode', 'host');
+      await setActiveMode('host');
       router.replace('/host-dashboard');
     } catch {
       Alert.alert(

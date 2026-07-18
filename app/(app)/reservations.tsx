@@ -55,6 +55,7 @@ function formatVisitTime(date: Date) {
 export default function ReservationsScreen() {
   const { session } = useAuth();
   const [bookings, setBookings] = useState<GuestBooking[]>([]);
+  const [reviewedBookingIds, setReviewedBookingIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [cancellingBookingId, setCancellingBookingId] = useState<string | null>(
@@ -66,31 +67,40 @@ export default function ReservationsScreen() {
   const loadBookings = useCallback(async () => {
     if (!session?.user.id) {
       setBookings([]);
+      setReviewedBookingIds(new Set());
       setIsLoading(false);
       return;
     }
 
-    const { data, error } = await supabase
-      .from('bookings')
-      .select(
-        'id, property_id, start_at, end_at, dog_count, total_amount, status, payment_status, properties(name, city, state)'
-      )
-      .eq('guest_id', session.user.id)
-      .order('start_at', { ascending: true });
+    const [bookingResult, reviewResult] = await Promise.all([
+      supabase
+        .from('bookings')
+        .select(
+          'id, property_id, start_at, end_at, dog_count, total_amount, status, payment_status, properties(name, city, state)'
+        )
+        .eq('guest_id', session.user.id)
+        .order('start_at', { ascending: true }),
+      supabase
+        .from('booking_reviews')
+        .select('booking_id')
+        .eq('reviewer_id', session.user.id)
+        .eq('review_type', 'guest_to_host'),
+    ]);
 
-    if (error) {
-      Alert.alert('Unable to load reservations', error.message);
+    if (bookingResult.error) {
+      Alert.alert('Unable to load reservations', bookingResult.error.message);
       setBookings([]);
       return;
     }
 
-    const bookingRows = (data ?? []).map((booking) => ({
+    const bookingRows = (bookingResult.data ?? []).map((booking) => ({
       ...booking,
       properties: Array.isArray(booking.properties)
         ? booking.properties[0] ?? null
         : booking.properties,
     }));
     setBookings(bookingRows as GuestBooking[]);
+    setReviewedBookingIds(new Set((reviewResult.data ?? []).map((review) => review.booking_id)));
   }, [session?.user.id]);
 
   useEffect(() => {
@@ -119,7 +129,18 @@ export default function ReservationsScreen() {
       bookings.filter(
         (booking) =>
           booking.status === 'confirmed' &&
-          new Date(booking.start_at).getTime() >= currentTime
+          new Date(booking.start_at).getTime() > currentTime
+      ),
+    [bookings, currentTime]
+  );
+
+  const startedBookings = useMemo(
+    () =>
+      bookings.filter(
+        (booking) =>
+          booking.status === 'confirmed' &&
+          new Date(booking.start_at).getTime() <= currentTime &&
+          new Date(booking.end_at).getTime() > currentTime
       ),
     [bookings, currentTime]
   );
@@ -127,13 +148,13 @@ export default function ReservationsScreen() {
   const historyBookings = useMemo(
     () =>
       bookings
-        .filter((booking) => !upcomingBookings.some((upcoming) => upcoming.id === booking.id))
+        .filter((booking) => !upcomingBookings.some((upcoming) => upcoming.id === booking.id) && !startedBookings.some((started) => started.id === booking.id))
         .sort(
           (first, second) =>
             new Date(second.start_at).getTime() -
             new Date(first.start_at).getTime()
         ),
-    [bookings, upcomingBookings]
+    [bookings, startedBookings, upcomingBookings]
   );
 
   const handleRefresh = async () => {
@@ -186,7 +207,7 @@ export default function ReservationsScreen() {
     }
   };
 
-  const renderBooking = (booking: GuestBooking, isUpcoming: boolean) => {
+  const renderBooking = (booking: GuestBooking, isUpcoming: boolean, isStarted = false) => {
     const start = new Date(booking.start_at);
     const end = new Date(booking.end_at);
     const propertyName = booking.properties?.name ?? 'Private space';
@@ -209,6 +230,8 @@ export default function ReservationsScreen() {
               styles.statusBadge,
               booking.status === 'cancelled'
                 ? styles.cancelledBadge
+                : isStarted
+                  ? styles.startedBadge
                 : styles.confirmedBadge,
             ]}
           >
@@ -220,7 +243,7 @@ export default function ReservationsScreen() {
                   : styles.confirmedStatusText,
               ]}
             >
-              {booking.status === 'cancelled' ? 'Cancelled' : 'Confirmed'}
+              {booking.status === 'cancelled' ? 'Cancelled' : isStarted ? 'Started' : 'Confirmed'}
             </Text>
           </View>
         </View>
@@ -240,9 +263,9 @@ export default function ReservationsScreen() {
               : 'Payment setup pending — no money collected'}
         </Text>
 
-        {isUpcoming && booking.status === 'confirmed' ? (
+        {(isUpcoming || isStarted) && booking.status === 'confirmed' ? (
           <>
-            {cancellationAvailable ? (
+            {isStarted ? <Text style={styles.visitStartedText}>Your visit is in progress.</Text> : cancellationAvailable ? (
               isConfirmingCancellation ? (
                 <View style={styles.cancelConfirmation}>
                   <Text style={styles.cancelConfirmationText}>
@@ -302,14 +325,14 @@ export default function ReservationsScreen() {
           </>
         ) : null}
 
-        {!isUpcoming && booking.status === 'confirmed' ? (
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.push(`/review?bookingId=${booking.id}&direction=guest_to_host` as never)}
-            style={({ pressed }) => [styles.reviewButton, pressed && styles.buttonPressed]}
-          >
-            <Text style={styles.reviewButtonText}>Site Review</Text>
-          </Pressable>
+        {!isUpcoming && !isStarted && booking.status === 'confirmed' ? (
+          reviewedBookingIds.has(booking.id) ? <View style={styles.reviewComplete}><Text style={styles.reviewCompleteText}>★ Review complete</Text></View> : <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push(`/review?bookingId=${booking.id}&direction=guest_to_host` as never)}
+              style={({ pressed }) => [styles.reviewButton, pressed && styles.buttonPressed]}
+            >
+              <Text style={styles.reviewButtonText}>Review My Visit</Text>
+            </Pressable>
         ) : null}
       </View>
     );
@@ -328,17 +351,9 @@ export default function ReservationsScreen() {
         }
         showsVerticalScrollIndicator={false}
       >
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => router.replace('/dashboard')}
-          style={styles.backButton}
-        >
-          <Text style={styles.backButtonText}>← Member Dashboard</Text>
-        </Pressable>
-
         <Text style={styles.title}>My Reservations</Text>
         <Text style={styles.description}>
-          Upcoming reservations appear in date order. Cancel without a K9 Country fee until one hour before your visit.
+          Started visits appear first, followed by upcoming reservations. Completed visits are ready for review.
         </Text>
 
         {isLoading ? (
@@ -348,6 +363,11 @@ export default function ReservationsScreen() {
           </View>
         ) : (
           <>
+            {startedBookings.length > 0 ? <>
+              <Text style={styles.sectionTitle}>Started</Text>
+              {startedBookings.map((booking) => renderBooking(booking, false, true))}
+            </> : null}
+
             <Text style={styles.sectionTitle}>Upcoming</Text>
             {upcomingBookings.length > 0 ? (
               upcomingBookings.map((booking) => renderBooking(booking, true))
@@ -367,7 +387,7 @@ export default function ReservationsScreen() {
 
             {historyBookings.length > 0 ? (
               <>
-                <Text style={styles.sectionTitle}>Past & Cancelled</Text>
+                <Text style={styles.sectionTitle}>Completed & Cancelled</Text>
                 {historyBookings.map((booking) => renderBooking(booking, false))}
               </>
             ) : null}
@@ -381,7 +401,7 @@ export default function ReservationsScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.cream },
   container: { padding: 20, paddingBottom: 40 },
-  backButton: { alignSelf: 'flex-start', justifyContent: 'center', minHeight: 42 },
+  backButton: { alignSelf: 'flex-start', justifyContent: 'center', marginBottom: 12, minHeight: 44 },
   backButtonText: { color: colors.forest, fontSize: 16, fontWeight: '800' },
   eyebrow: { color: colors.brown, fontSize: 11, fontWeight: '900', letterSpacing: 1.3, marginTop: 14 },
   title: { color: colors.forest, fontSize: 30, fontWeight: '900', marginTop: 6 },
@@ -394,6 +414,7 @@ const styles = StyleSheet.create({
   propertyLocation: { color: colors.muted, fontSize: 13, marginTop: 4 },
   statusBadge: { borderRadius: 12, paddingHorizontal: 9, paddingVertical: 6 },
   confirmedBadge: { backgroundColor: colors.lightGreen },
+  startedBadge: { backgroundColor: '#FFF5E8' },
   cancelledBadge: { backgroundColor: '#F0C5C0' },
   statusText: { fontSize: 11, fontWeight: '900' },
   confirmedStatusText: { color: '#3D522C' },
@@ -416,6 +437,9 @@ const styles = StyleSheet.create({
   messageHostIcon: { fontSize: 17, marginLeft: 8 },
   reviewButton: { alignItems: 'center', backgroundColor: colors.forest, borderRadius: 12, justifyContent: 'center', marginTop: 10, minHeight: 48 },
   reviewButtonText: { color: colors.cream, fontSize: 15, fontWeight: '900' },
+  reviewComplete: { alignItems: 'center', backgroundColor: colors.lightGreen, borderColor: '#CBD1BD', borderRadius: 12, borderWidth: 1, justifyContent: 'center', marginTop: 10, minHeight: 48 },
+  reviewCompleteText: { color: colors.forest, fontSize: 15, fontWeight: '900' },
+  visitStartedText: { color: colors.brown, fontSize: 13, fontWeight: '800', marginTop: 16 },
   windowClosedText: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 16 },
   buttonPressed: { opacity: 0.72 },
   buttonDisabled: { opacity: 0.6 },

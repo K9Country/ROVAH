@@ -4,6 +4,7 @@ import {
     ActivityIndicator,
     Alert,
     Pressable,
+    Modal,
     RefreshControl,
     ScrollView,
     StyleSheet,
@@ -40,6 +41,7 @@ export default function HostMessagesScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [deletingConversationId, setDeletingConversationId] = useState<string | null>(null);
+  const [conversationPendingDeletion, setConversationPendingDeletion] = useState<ConversationListItem | null>(null);
 
   const loadConversations = useCallback(async () => {
     if (!session?.user.id) {
@@ -117,10 +119,7 @@ export default function HostMessagesScreen() {
 
   const deleteConversation = (conversation: ConversationListItem) => {
     if (deletingConversationId) return;
-    Alert.alert('Delete conversation?', `This will permanently delete your conversation with ${conversation.personName} for both of you.`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => void confirmDeleteConversation(conversation.id) },
-    ]);
+    setConversationPendingDeletion(conversation);
   };
 
   const confirmDeleteConversation = async (conversationId: string) => {
@@ -139,6 +138,7 @@ export default function HostMessagesScreen() {
       Alert.alert('Unable to delete conversation', error instanceof Error ? error.message : 'Please try again.');
     } finally {
       setDeletingConversationId(null);
+      setConversationPendingDeletion(null);
     }
   };
 
@@ -208,6 +208,46 @@ export default function HostMessagesScreen() {
           })
         )}
       </ScrollView>
+
+      <Modal
+        animationType="fade"
+        onRequestClose={() => setConversationPendingDeletion(null)}
+        transparent
+        visible={conversationPendingDeletion !== null}
+      >
+        <View style={styles.deleteModalBackdrop}>
+          <View accessibilityRole="alert" style={styles.deleteModal}>
+            <Text style={styles.deleteModalTitle}>Delete conversation?</Text>
+            <Text style={styles.deleteModalText}>
+              {conversationPendingDeletion
+                ? `This permanently deletes your conversation with ${conversationPendingDeletion.personName} for both of you.`
+                : ''}
+            </Text>
+            <View style={styles.deleteModalActions}>
+              <Pressable
+                accessibilityRole="button"
+                disabled={deletingConversationId !== null}
+                onPress={() => setConversationPendingDeletion(null)}
+                style={styles.cancelDeleteButton}
+              >
+                <Text style={styles.cancelDeleteText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                disabled={deletingConversationId !== null || conversationPendingDeletion === null}
+                onPress={() => {
+                  if (conversationPendingDeletion) {
+                    void confirmDeleteConversation(conversationPendingDeletion.id);
+                  }
+                }}
+                style={[styles.confirmDeleteButton, deletingConversationId !== null && styles.deleteButtonDisabled]}
+              >
+                {deletingConversationId ? <ActivityIndicator color={colors.warmWhite} size="small" /> : <Text style={styles.confirmDeleteText}>Delete</Text>}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -234,4 +274,14 @@ const styles = StyleSheet.create({
   lastMessageTime: { color: colors.muted, fontSize: 12, fontVariant: ['tabular-nums'], marginTop: 4 },
   deleteConversationButton: { alignItems: 'center', justifyContent: 'center', minHeight: 54, width: 46 },
   deleteConversationText: { color: colors.brown, fontSize: 28, fontWeight: '400', lineHeight: 30 },
+  deleteModalBackdrop: { alignItems: 'center', backgroundColor: 'rgba(0, 0, 0, 0.42)', flex: 1, justifyContent: 'center', padding: 24 },
+  deleteModal: { backgroundColor: colors.warmWhite, borderRadius: 20, maxWidth: 420, padding: 22, width: '100%' },
+  deleteModalTitle: { color: colors.forest, fontSize: 21, fontWeight: '900' },
+  deleteModalText: { color: colors.muted, fontSize: 15, lineHeight: 22, marginTop: 9 },
+  deleteModalActions: { flexDirection: 'row', gap: 10, marginTop: 22 },
+  cancelDeleteButton: { alignItems: 'center', borderColor: colors.border, borderRadius: 12, borderWidth: 1, flex: 1, justifyContent: 'center', minHeight: 48 },
+  cancelDeleteText: { color: colors.forest, fontSize: 15, fontWeight: '900' },
+  confirmDeleteButton: { alignItems: 'center', backgroundColor: '#B42318', borderRadius: 12, flex: 1, justifyContent: 'center', minHeight: 48 },
+  confirmDeleteText: { color: colors.warmWhite, fontSize: 15, fontWeight: '900' },
+  deleteButtonDisabled: { opacity: 0.6 },
 });

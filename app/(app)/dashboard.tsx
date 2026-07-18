@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
@@ -68,6 +68,7 @@ const dashboardActions: DashboardAction[] = [
  
 export default function DashboardScreen() {
   const { session } = useAuth();
+  const { profileSaved } = useLocalSearchParams<{ profileSaved?: string }>();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
   const [memories, setMemories] = useState<MemoryPhoto[]>([]);
@@ -251,6 +252,13 @@ export default function DashboardScreen() {
           <Image source={require('../../assets/images/k9-10.png')} style={styles.k9HeaderImage} />
         </View>
 
+        {profileSaved === 'true' ? (
+          <View accessibilityRole="alert" style={styles.profileSavedBanner}>
+            <Text style={styles.profileSavedTitle}>Profile saved</Text>
+            <Text style={styles.profileSavedText}>Your member profile is complete and ready for reservations.</Text>
+          </View>
+        ) : null}
+
         <Pressable
           accessibilityRole="button"
           onPress={() => handleNavigation('/search')}
@@ -296,7 +304,7 @@ export default function DashboardScreen() {
                   style={styles.actionMessageIcon}
                 />
               ) : (
-                <Text style={styles.actionIcon}>{action.icon}</Text>
+                <Text style={[styles.actionIcon, action.title === 'Favorites' && styles.favoriteActionIcon]}>{action.icon}</Text>
               )}
  
               <Text style={styles.actionTitle}>{action.title}</Text>
@@ -381,23 +389,40 @@ export default function DashboardScreen() {
             ]}
           >
             {isSigningOut ? (
-              <ActivityIndicator color="#8A4F17" />
+              <ActivityIndicator color={colors.red} />
             ) : (
               <Text style={styles.signOutButtonText}>Sign Out</Text>
             )}
           </Pressable>
 
-          <Pressable accessibilityRole="button" onPress={() => router.push('/settings' as never)} style={styles.hostReturnLink}>
-            <Text style={styles.hostReturnLinkText}>Settings & Privacy</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" onPress={() => router.push('/support' as never)} style={styles.hostReturnLink}>
-            <Text style={styles.hostReturnLinkText}>Safety & Support</Text>
-          </Pressable>
+          <View style={styles.accountLinksRow}>
+            <Pressable accessibilityRole="link" onPress={() => router.push('/support' as never)} style={styles.accountLink}>
+              <Text style={styles.accountLinkText}>Safety & Support</Text>
+            </Pressable>
+            <Pressable accessibilityRole="link" onPress={() => router.push('/settings' as never)} style={styles.accountLink}>
+              <Text style={styles.accountLinkText}>Settings & Privacy</Text>
+            </Pressable>
+          </View>
         </View>
 
+        <View style={styles.trustSafetyArtwork}>
+          <Image
+            accessibilityLabel="K9 Country fence"
+            source={require('../../assets/images/k9-13.png')}
+            style={styles.trustSafetyArtworkImage}
+          />
+        </View>
         <Pressable accessibilityRole="link" onPress={() => router.push('/trust-safety' as never)} style={styles.trustSafetyLink}>
           <Text style={styles.trustSafetyLinkTitle}>Trust & Safety</Text>
           <Text style={styles.trustSafetyLinkText}>How K9 Country helps keep every visit safe</Text>
+        </Pressable>
+        <Pressable accessibilityRole="link" onPress={() => router.push('/pricing' as never)} style={[styles.trustSafetyLink, styles.pricingLink]}>
+          <Text style={styles.trustSafetyLinkTitle}>Pricing</Text>
+          <Text style={styles.trustSafetyLinkText}>Simple, fair, transparent pricing for members and hosts</Text>
+        </Pressable>
+        <Pressable accessibilityRole="link" onPress={() => router.push('/privacy' as never)} style={[styles.trustSafetyLink, styles.privacyLink]}>
+          <Text style={styles.trustSafetyLinkTitle}>Privacy Policy</Text>
+          <Text style={styles.trustSafetyLinkText}>How K9 Country collects, uses, and protects your information</Text>
         </Pressable>
       </ScrollView>
     </SafeAreaView>
@@ -429,7 +454,10 @@ const styles = StyleSheet.create({
   },
  
   k9HeaderImage: { height: 266, marginTop: 0, resizeMode: 'contain', transform: [{ translateX: 12 }], width: '121%' },
- 
+  profileSavedBanner: { backgroundColor: colors.lightGreen, borderColor: '#C4D2B6', borderRadius: 18, borderWidth: 1, marginBottom: 16, padding: 16 },
+  profileSavedTitle: { color: colors.forest, fontSize: 17, fontWeight: '900', marginBottom: 4 },
+  profileSavedText: { color: colors.muted, fontSize: 14, lineHeight: 20 },
+
   featureCard: { backgroundColor: colors.forest, borderRadius: 22, flexDirection: 'row', marginBottom: 16, padding: 18, ...shadows.card },
  
   featureIcon: {
@@ -485,18 +513,19 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
 
-  hostReturnLink: {
-    alignSelf: 'center',
-    marginTop: 24,
-  },
-
-  hostReturnLinkText: {
+  accountLinksRow: { alignItems: 'center', marginTop: 20 },
+  accountLink: { alignItems: 'center', justifyContent: 'center', minHeight: 44, paddingHorizontal: 6 },
+  accountLinkText: {
     color: colors.brown,
     fontSize: 13,
     fontWeight: '700',
     textDecorationLine: 'underline',
   },
+  trustSafetyArtwork: { marginHorizontal: -20, marginTop: 24 },
+  trustSafetyArtworkImage: { height: 48, resizeMode: 'contain', width: '100%' },
   trustSafetyLink: { alignItems: 'center', marginTop: 30, paddingHorizontal: 20, paddingVertical: 12 },
+  pricingLink: { marginTop: 6 },
+  privacyLink: { marginTop: 6 },
   trustSafetyLinkTitle: { color: colors.forest, fontSize: 15, fontWeight: '900', textDecorationLine: 'underline' },
   trustSafetyLinkText: { color: colors.muted, fontSize: 12, marginTop: 4, textAlign: 'center' },
  
@@ -534,6 +563,9 @@ const styles = StyleSheet.create({
   actionIcon: {
     fontSize: 26,
     marginBottom: 8,
+  },
+  favoriteActionIcon: {
+    color: colors.red,
   },
 
   actionMessageIcon: {
@@ -584,12 +616,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: colors.brown,
+    borderColor: colors.red,
     paddingHorizontal: 22,
   },
  
   signOutButtonText: {
-    color: colors.brown,
+    color: colors.red,
     fontSize: 15,
     fontWeight: '800',
   },

@@ -1,4 +1,3 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import {
@@ -16,15 +15,15 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../services/auth-context';
 
 export default function WelcomeScreen() {
-  const { isHost, isMember } = useAuth();
+  const { isHost, isMember, setActiveMode } = useAuth();
 
-  const continueAsMember = () => {
-    void AsyncStorage.setItem('@k9-country/host-mode', 'guest');
+  const continueAsMember = async () => {
+    await setActiveMode('guest');
     router.push((isMember ? '/dashboard' : '/sign-up?intent=guest') as never);
   };
 
-  const continueAsHost = () => {
-    void AsyncStorage.setItem('@k9-country/host-mode', 'host');
+  const continueAsHost = async () => {
+    await setActiveMode('host');
     router.push((isHost ? '/host-dashboard' : '/sign-up?intent=host') as never);
   };
 
@@ -36,7 +35,7 @@ export default function WelcomeScreen() {
       return;
     }
 
-    await AsyncStorage.removeItem('@k9-country/host-mode');
+    await setActiveMode('guest');
     router.replace('/');
   };
 
@@ -59,7 +58,7 @@ export default function WelcomeScreen() {
           <Text adjustsFontSizeToFit minimumFontScale={0.65} numberOfLines={1} style={styles.hostInvitationTitle}>TURN YOUR LAND INTO EXTRA INCOME</Text>
           <Pressable
             accessibilityRole="button"
-            onPress={continueAsHost}
+            onPress={() => void continueAsHost()}
             style={({ pressed }) => [
               styles.hostInvitationButton,
               pressed && styles.buttonPressed,
@@ -70,8 +69,7 @@ export default function WelcomeScreen() {
           <Pressable
             accessibilityRole="button"
             onPress={() => {
-              void AsyncStorage.setItem('@k9-country/host-mode', 'host');
-              router.push('/sign-in?intent=host' as never);
+              void setActiveMode('host').then(() => router.push('/sign-in?intent=host' as never));
             }}
             style={({ pressed }) => [
               styles.hostSignInButton,
@@ -108,7 +106,7 @@ export default function WelcomeScreen() {
           {isMember ? (
             <View style={styles.returningCard}>
               <Text style={styles.returningTitle}>Welcome back</Text>
-              <Pressable accessibilityRole="button" onPress={isHost ? continueAsHost : continueAsMember} style={styles.returningDashboardLink}>
+              <Pressable accessibilityRole="button" onPress={() => void (isHost ? continueAsHost() : continueAsMember())} style={styles.returningDashboardLink}>
                 <Text style={styles.returningDashboardLinkText}>{isHost ? 'Go to Host Dashboard' : 'Go to Member Dashboard'}</Text>
               </Pressable>
             </View>
@@ -127,22 +125,21 @@ export default function WelcomeScreen() {
 
             <Pressable
               accessibilityRole="button"
-              onPress={continueAsMember}
+              onPress={() => void continueAsMember()}
               style={({ pressed }) => [
                 styles.primaryButton,
                 pressed && styles.buttonPressed,
               ]}
             >
               <Text style={styles.primaryButtonText}>
-                {isMember ? 'Go to Member Dashboard' : 'Continue as a Member'}
+                {isMember ? 'Go to Member Dashboard' : 'Continue as a New Member'}
               </Text>
             </Pressable>
 
             <Pressable
               accessibilityRole="button"
               onPress={() => {
-                void AsyncStorage.setItem('@k9-country/host-mode', 'guest');
-                router.push('/sign-in?intent=guest' as never);
+                void setActiveMode('guest').then(() => router.push('/sign-in?intent=guest' as never));
               }}
               style={({ pressed }) => [
                 styles.textButton,
@@ -202,10 +199,6 @@ export default function WelcomeScreen() {
           <UpdateItem title="New adventures" description="Check back often to see what’s new in your area." />
         </View> : null}
  
-        {!isMember ? <Text style={styles.footer}>
-          Safe spaces for dogs to run, explore, sniff, and be themselves.
-        </Text> : null}
-
         <Pressable
           accessibilityRole="link"
           onPress={() => router.push('/trust-safety' as never)}
@@ -225,6 +218,17 @@ export default function WelcomeScreen() {
           <Text style={styles.trustSafetyLinkTitle}>Pricing</Text>
           <Text style={styles.trustSafetyLinkText}>
             Simple, fair, transparent pricing for members and hosts
+          </Text>
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="link"
+          onPress={() => router.push('/privacy' as never)}
+          style={[styles.trustSafetyLink, styles.privacyLink]}
+        >
+          <Text style={styles.trustSafetyLinkTitle}>Privacy Policy</Text>
+          <Text style={styles.trustSafetyLinkText}>
+            How K9 Country collects, uses, and protects your information
           </Text>
         </Pressable>
       </ScrollView>
@@ -370,7 +374,8 @@ const styles = StyleSheet.create({
 
   returningCard: {
     alignItems: 'center',
-    paddingVertical: 24,
+    paddingBottom: 24,
+    paddingTop: 8,
   },
 
   returningTitle: {
@@ -382,7 +387,7 @@ const styles = StyleSheet.create({
 
   returningDashboardLink: {
     justifyContent: 'center',
-    marginTop: 8,
+    marginTop: 20,
     minHeight: 40,
     paddingHorizontal: 10,
   },
@@ -620,13 +625,6 @@ const styles = StyleSheet.create({
     marginHorizontal: 12,
   },
  
-  footer: {
-    color: colors.muted,
-    fontSize: 13,
-    textAlign: 'center',
-    marginTop: 24,
-  },
-
   trustSafetyLink: {
     alignItems: 'center',
     marginTop: 28,
@@ -635,6 +633,10 @@ const styles = StyleSheet.create({
   },
 
   pricingLink: {
+    marginTop: 6,
+  },
+
+  privacyLink: {
     marginTop: 6,
   },
 
@@ -651,5 +653,4 @@ const styles = StyleSheet.create({
     marginTop: 4,
     textAlign: 'center',
   },
-
 });

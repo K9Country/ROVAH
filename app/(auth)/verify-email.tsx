@@ -53,7 +53,6 @@ export default function VerifyEmailScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        {!isHost ? <View style={styles.logoBadge}><Text style={styles.logoText}>K9</Text></View> : null}
         <Text style={styles.title}>Check your email</Text>
         <Text style={styles.description}>
           {resent === 'true' ? 'We sent a fresh confirmation email to:' : 'We sent a confirmation email to:'}
@@ -90,8 +89,6 @@ export default function VerifyEmailScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.cream },
   container: { alignItems: 'center', flex: 1, justifyContent: 'center', paddingHorizontal: 28 },
-  logoBadge: { alignItems: 'center', backgroundColor: colors.forest, borderColor: colors.brown, borderRadius: 36, borderWidth: 4, height: 72, justifyContent: 'center', marginBottom: 18, width: 72 },
-  logoText: { color: colors.cream, fontSize: 32, fontWeight: '900' },
   title: { color: colors.forest, fontSize: 29, fontWeight: '900', textAlign: 'center' },
   description: { color: colors.muted, fontSize: 16, lineHeight: 23, marginTop: 12, textAlign: 'center' },
   email: { color: colors.forest, fontSize: 16, fontWeight: '800', marginTop: 8, textAlign: 'center' },

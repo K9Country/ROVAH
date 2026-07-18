@@ -192,7 +192,7 @@ export default function HostReviewsScreen() {
           onPress={() => router.replace('/host-dashboard')}
           style={styles.backButton}
         >
-          <Text style={styles.backButtonText}>{'<'} Host Mode</Text>
+          <Text style={styles.backButtonText}>{'<'} Host Dashboard</Text>
         </Pressable>
 
         <Text style={styles.title}>
@@ -213,7 +213,7 @@ export default function HostReviewsScreen() {
           <View style={styles.summaryCard}>
             <View>
               <Text style={styles.summaryLabel}>SITE RATING</Text>
-              <Text style={styles.summaryValue}>{averageRating ? `${averageRating} / 5` : 'No rating yet'}</Text>
+              <Text style={styles.summaryValue}>{averageRating ? `★ ${averageRating} / 5` : 'No rating yet'}</Text>
               <Text style={styles.summaryText}>{reviews.length} {reviews.length === 1 ? 'guest review' : 'guest reviews'}</Text>
             </View>
             <Pressable
@@ -248,7 +248,7 @@ export default function HostReviewsScreen() {
                     <Text style={styles.siteLocation}>{property.city}, {property.state}</Text>
                   </View>
                   <View style={styles.siteRating}>
-                    <Text style={styles.siteRatingValue}>{propertyAverage}</Text>
+                    <Text style={styles.siteRatingValue}>{propertyAverage === '—' ? propertyAverage : `★ ${propertyAverage}`}</Text>
                     <Text style={styles.siteRatingLabel}>{propertyReviews.length} reviews</Text>
                   </View>
                 </Pressable>
@@ -269,7 +269,7 @@ export default function HostReviewsScreen() {
                     <Text style={styles.reviewTitle}>Guest site review</Text>
                     <Text style={styles.reviewDate}>{formatDate(review.created_at)}</Text>
                   </View>
-                  <View style={styles.ratingBadge}><Text style={styles.ratingText}>{review.bone_rating}/5</Text></View>
+                  <View style={styles.ratingBadge}><Text style={styles.ratingText}>★ {review.bone_rating}/5</Text></View>
                 </View>
                 {review.review_text ? <Text style={styles.reviewText}>{review.review_text}</Text> : <Text style={styles.mutedText}>No written note shared.</Text>}
                 <View style={styles.detailsGrid}>

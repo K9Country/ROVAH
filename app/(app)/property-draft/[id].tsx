@@ -44,7 +44,7 @@ const amenityOptions = [
   { code: 'agility_course', label: 'Agility course', icon: 'Course' },
   { code: 'hiking_trails', label: 'Hiking trails', icon: 'Trail' },
   { code: 'lake_access', label: 'Lake access', icon: 'Lake' },
-  { code: 'cell_service', label: 'Cell service', icon: 'Signal' },
+  { code: 'poop_bags', label: '💩 Poop bags', icon: '💩' },
   { code: 'wheelchair_accessible', label: 'Wheelchair accessible', icon: 'Access' },
 ] as const;
 

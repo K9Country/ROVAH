@@ -20,6 +20,7 @@ import { colors } from '../../constants/theme';
 import { getAuthEmailRedirectUrl } from '../../lib/auth-redirect';
 import { hasCompletedMemberProfile } from '../../lib/member-profile';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../services/auth-context';
 
 const rememberedEmailKey = '@k9-country/remembered-email';
  
@@ -31,6 +32,8 @@ export default function SignInScreen() {
   const [rememberEmail, setRememberEmail] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [isResendingVerification, setIsResendingVerification] = useState(false);
+  const [signInError, setSignInError] = useState<string | null>(null);
+  const { setActiveMode } = useAuth();
 
   useEffect(() => {
     const loadRememberedEmail = async () => {
@@ -43,9 +46,15 @@ export default function SignInScreen() {
 
     void loadRememberedEmail();
   }, []);
+
+  const showSignInError = (message: string) => {
+    setSignInError(message);
+    Alert.alert('Sign in failed', message);
+  };
  
   const handleSignIn = async () => {
     const normalizedEmail = email.trim().toLowerCase();
+    setSignInError(null);
  
     if (!normalizedEmail || !password) {
       Alert.alert('Missing information', 'Enter your email and password.');
@@ -79,10 +88,14 @@ export default function SignInScreen() {
             return;
           }
 
-        Alert.alert(
-          'Unable to sign in',
-          'That email address or password is not correct. Please try again, or use Create Host Account only if you are new to K9 Country.'
+        showSignInError(
+          'Wrong password or email address. Check your credentials and try again.'
         );
+        return;
+      }
+
+      if (!data.user) {
+        showSignInError('Wrong password or email address. Check your credentials and try again.');
         return;
       }
 
@@ -93,21 +106,16 @@ export default function SignInScreen() {
       }
 
       if (intent === 'host') {
-        await AsyncStorage.setItem('@k9-country/host-mode', 'host');
+        await setActiveMode('host');
         router.replace('/host-dashboard');
         return;
       }
 
-      await AsyncStorage.setItem('@k9-country/host-mode', 'guest');
-      const isProfileComplete = data.user
-        ? await hasCompletedMemberProfile(data.user.id)
-        : false;
+      await setActiveMode('guest');
+      const isProfileComplete = await hasCompletedMemberProfile(data.user.id);
       router.replace(isProfileComplete ? '/dashboard' : '/profile?onboarding=true');
     } catch {
-      Alert.alert(
-        'Something went wrong',
-        'We could not sign you in. Please try again.'
-      );
+      showSignInError('We could not sign you in. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -153,13 +161,13 @@ export default function SignInScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <Pressable
+          {intent === 'host' ? <Pressable
             accessibilityRole="button"
-            onPress={() => intent === 'host' ? router.replace('/') : router.back()}
+            onPress={() => router.replace('/')}
             style={styles.backButton}
           >
-            <Text style={styles.backButtonText}>← {intent === 'host' ? 'Welcome page' : 'Back'}</Text>
-          </Pressable>
+            <Text style={styles.backButtonText}>← Welcome Page</Text>
+          </Pressable> : null}
  
           <View style={[styles.headingArea, intent === 'host' && styles.hostHeadingArea]}>
             {intent !== 'host' ? (
@@ -185,6 +193,12 @@ export default function SignInScreen() {
           </View>
  
           <View style={styles.form}>
+            {signInError ? (
+              <View accessibilityLiveRegion="polite" accessibilityRole="alert" style={styles.signInError}>
+                <Text style={styles.signInErrorText}>{signInError}</Text>
+              </View>
+            ) : null}
+
             <View>
               <Text style={styles.label}>Email address</Text>
  
@@ -194,7 +208,10 @@ export default function SignInScreen() {
                 autoComplete="email"
                 autoCorrect={false}
                 keyboardType="email-address"
-                onChangeText={setEmail}
+                onChangeText={(value) => {
+                  setEmail(value);
+                  setSignInError(null);
+                }}
                 placeholder="you@example.com"
                 placeholderTextColor="#8A877D"
                 returnKeyType="next"
@@ -210,7 +227,10 @@ export default function SignInScreen() {
                 accessibilityLabel="Password"
                 autoCapitalize="none"
                 autoComplete="current-password"
-                onChangeText={setPassword}
+                onChangeText={(value) => {
+                  setPassword(value);
+                  setSignInError(null);
+                }}
                 onSubmitEditing={handleSignIn}
                 placeholder="Enter your password"
                 placeholderTextColor="#8A877D"
@@ -304,6 +324,14 @@ export default function SignInScreen() {
                   <Text style={styles.resendVerificationText}>Resend verification email</Text>
                 )}
               </Pressable>
+              {intent !== 'host' ? <View style={styles.memberFooterArtwork}>
+                <Image
+                  accessibilityLabel="K9 Country fence"
+                  contentFit="contain"
+                  source={require('../../assets/images/k9-13.png')}
+                  style={styles.memberFooterImage}
+                />
+              </View> : null}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -333,7 +361,7 @@ const styles = StyleSheet.create({
     left: 16,
     minHeight: 36,
     position: 'absolute',
-    top: 8,
+    top: 0,
     justifyContent: 'center',
     zIndex: 1,
   },
@@ -360,8 +388,9 @@ const styles = StyleSheet.create({
 
   memberHeroBleed: {
     alignSelf: 'stretch',
-    marginBottom: 12,
+    marginBottom: 16,
     marginHorizontal: -24,
+    marginTop: -24,
   },
  
   title: {
@@ -400,7 +429,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     paddingHorizontal: 16,
   },
- 
+
+  signInError: {
+    backgroundColor: '#FCEDEB',
+    borderColor: '#E9B7B0',
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+  },
+
+  signInErrorText: {
+    color: '#8C352C',
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+
   primaryButton: {
     minHeight: 56,
     alignItems: 'center',
@@ -496,6 +540,16 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
     textDecorationLine: 'underline',
+  },
+
+  memberFooterArtwork: {
+    marginHorizontal: -24,
+    marginTop: 14,
+  },
+
+  memberFooterImage: {
+    aspectRatio: 8,
+    width: '100%',
   },
 
   textButton: {

@@ -1,4 +1,3 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -7,10 +6,10 @@ import { colors } from '../constants/theme';
 import { useAuth } from '../services/auth-context';
 
 export default function HostInfoScreen() {
-  const { isHost } = useAuth();
+  const { isHost, setActiveMode } = useAuth();
 
-  const startHosting = () => {
-    void AsyncStorage.setItem('@k9-country/host-mode', 'host');
+  const startHosting = async () => {
+    await setActiveMode('host');
     router.push((isHost ? '/host-dashboard' : '/sign-up?intent=host') as never);
   };
 
@@ -46,7 +45,7 @@ export default function HostInfoScreen() {
           <Step number="3" text="Welcome bookings on the schedule you choose." />
         </View>
 
-        <Pressable accessibilityRole="button" onPress={startHosting} style={styles.primaryButton}>
+        <Pressable accessibilityRole="button" onPress={() => void startHosting()} style={styles.primaryButton}>
           <Text style={styles.primaryText}>{isHost ? 'Go to Host Area' : 'Start Hosting'}</Text>
         </Pressable>
         <Text style={styles.note}>Income depends on your price, availability, local demand, and completed bookings.</Text>

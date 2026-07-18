@@ -2,7 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -66,6 +66,9 @@ export default function HostReservationsScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [reservationPendingCancellation, setReservationPendingCancellation] = useState<HostBooking | null>(null);
+  const [cancellationError, setCancellationError] = useState<string | null>(null);
+  const [cancellationNotice, setCancellationNotice] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const now = useMemo(() => new Date(), []);
 
@@ -140,39 +143,38 @@ export default function HostReservationsScreen() {
   }, [visibleMonth]);
   const reservationsOnSelectedDay = useMemo(() => selectedDay ? bookings.filter((booking) => sameDay(new Date(booking.start_at), selectedDay)) : [], [bookings, selectedDay]);
 
-  const cancelReservation = (booking: HostBooking) => {
-    Alert.alert(
-      'Cancel this reservation?',
-      'The guest will see the cancellation in their reservation history. No money is collected or refunded while payments are not configured.',
-      [
-        { text: 'Keep reservation', style: 'cancel' },
-        {
-          text: 'Cancel reservation',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setCancellingId(booking.id);
-              const { data, error } = await supabase
-                .from('bookings')
-                .update({ status: 'cancelled' })
-                .eq('id', booking.id)
-                .eq('status', 'confirmed')
-                .select('id')
-                .maybeSingle();
-              if (error) throw error;
-              if (!data) {
-                Alert.alert('Cancellation unavailable', 'This reservation may already be cancelled or has already started.');
-              }
-              await loadBookings();
-            } catch (error) {
-              Alert.alert('Unable to cancel reservation', error instanceof Error ? error.message : 'Please try again.');
-            } finally {
-              setCancellingId(null);
-            }
-          },
-        },
-      ]
-    );
+  const requestReservationCancellation = (booking: HostBooking) => {
+    setCancellationError(null);
+    setReservationPendingCancellation(booking);
+  };
+
+  const confirmReservationCancellation = async () => {
+    const booking = reservationPendingCancellation;
+    if (!booking || cancellingId) return;
+
+    try {
+      setCancellingId(booking.id);
+      setCancellationError(null);
+      const { data, error } = await supabase
+        .from('bookings')
+        .update({ status: 'cancelled' })
+        .eq('id', booking.id)
+        .eq('status', 'confirmed')
+        .select('id')
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) {
+        setCancellationError('This reservation is no longer available to cancel. It may have already started or been cancelled.');
+        return;
+      }
+      await loadBookings();
+      setReservationPendingCancellation(null);
+      setCancellationNotice('Reservation cancelled. The guest can see the update in their reservation history.');
+    } catch (error) {
+      setCancellationError(error instanceof Error ? error.message : 'We could not cancel this reservation. Please try again.');
+    } finally {
+      setCancellingId(null);
+    }
   };
 
   const renderBooking = (booking: HostBooking, showReview = false) => {
@@ -196,7 +198,7 @@ export default function HostReservationsScreen() {
         <View style={styles.actions}>
           <Pressable onPress={() => router.push(`/host-guests/${booking.guest_id}?guestName=${encodeURIComponent(guestName)}` as never)} style={styles.secondaryAction}><Text style={styles.secondaryActionText}>Guest record</Text></Pressable>
           <Pressable onPress={() => router.push(`/messages/${booking.property_id}` as never)} style={styles.secondaryAction}><Text style={styles.secondaryActionText}>Message</Text></Pressable>
-          {canCancel ? <Pressable disabled={cancellingId === booking.id} onPress={() => cancelReservation(booking)} style={styles.cancelAction}>{cancellingId === booking.id ? <ActivityIndicator color={colors.red} size="small" /> : <Text style={styles.cancelActionText}>Cancel</Text>}</Pressable> : null}
+          {canCancel ? <Pressable accessibilityRole="button" disabled={cancellingId !== null} onPress={() => requestReservationCancellation(booking)} style={[styles.cancelAction, cancellingId !== null && styles.actionDisabled]}><Text style={styles.cancelActionText}>Cancel reservation</Text></Pressable> : null}
           {showReview ? <Pressable onPress={() => router.push(`/review?bookingId=${booking.id}&direction=host_to_guest` as never)} style={styles.reviewAction}><Text style={styles.reviewActionText}>Review guest</Text></Pressable> : null}
         </View>
       </View>
@@ -212,6 +214,7 @@ export default function HostReservationsScreen() {
         <View style={styles.segmentedControl}>{viewOptions.map((option) => <Pressable accessibilityRole="button" key={option.key} onPress={() => setActiveView(option.key)} style={[styles.segment, activeView === option.key && styles.segmentSelected]}><Text style={[styles.segmentText, activeView === option.key && styles.segmentTextSelected]}>{option.label}</Text></Pressable>)}</View>
         {isLoading ? <View style={styles.loading}><ActivityIndicator color={colors.forest} /><Text style={styles.loadingText}>Loading reservations...</Text></View> : null}
         {errorMessage ? <View style={styles.errorCard}><Text style={styles.errorText}>{errorMessage}</Text></View> : null}
+        {cancellationNotice ? <View accessibilityRole="alert" style={styles.noticeCard}><Text style={styles.noticeText}>{cancellationNotice}</Text></View> : null}
         {!isLoading && activeView !== 'calendar' ? (
           currentBookings.length ? currentBookings.map((booking) => renderBooking(booking, activeView === 'past')) : <View style={styles.emptyCard}><Text style={styles.emptyTitle}>No {activeView === 'canceled' ? 'cancelled' : activeView} reservations</Text><Text style={styles.emptyText}>Reservations for this view will appear here as guests book your sites.</Text></View>
         ) : null}
@@ -228,10 +231,35 @@ export default function HostReservationsScreen() {
           <View style={styles.dayDetail}><Text style={styles.dayDetailTitle}>{selectedDay ? selectedDay.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }) : 'Select a day'}</Text>{selectedDay ? reservationsOnSelectedDay.length ? reservationsOnSelectedDay.map((booking) => renderBooking(booking, new Date(booking.start_at) < now && booking.status === 'confirmed')) : <Text style={styles.emptyText}>No reservations are scheduled on this day.</Text> : <Text style={styles.emptyText}>Booked days show the number of confirmed visits.</Text>}</View>
         </> : null}
       </ScrollView>
+      <Modal
+        animationType="fade"
+        onRequestClose={() => !cancellingId && setReservationPendingCancellation(null)}
+        transparent
+        visible={reservationPendingCancellation !== null}
+      >
+        <View style={styles.modalBackdrop}>
+          <View accessibilityRole="alert" style={styles.cancelModal}>
+            <Text style={styles.cancelModalTitle}>Cancel this reservation?</Text>
+            <Text style={styles.cancelModalText}>
+              {reservationPendingCancellation ? `${guestNames[reservationPendingCancellation.guest_id] ?? 'This guest'} will see the cancellation in their reservation history.` : ''}
+            </Text>
+            <Text style={styles.cancelModalDetail}>No money is collected or refunded while payments are not configured.</Text>
+            {cancellationError ? <Text accessibilityRole="alert" style={styles.cancelModalError}>{cancellationError}</Text> : null}
+            <View style={styles.cancelModalActions}>
+              <Pressable accessibilityRole="button" disabled={cancellingId !== null} onPress={() => setReservationPendingCancellation(null)} style={styles.keepReservationButton}>
+                <Text style={styles.keepReservationText}>Keep reservation</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button" disabled={cancellingId !== null} onPress={() => void confirmReservationCancellation()} style={[styles.confirmCancelButton, cancellingId !== null && styles.actionDisabled]}>
+                {cancellingId ? <ActivityIndicator color={colors.warmWhite} size="small" /> : <Text style={styles.confirmCancelText}>Cancel reservation</Text>}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: colors.cream }, container: { padding: 20, paddingBottom: 40 }, backButton: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' }, backButtonText: { color: colors.forest, fontSize: 16, fontWeight: '800' }, title: { color: colors.forest, fontSize: 30, fontWeight: '900' }, description: { color: colors.muted, fontSize: 16, lineHeight: 23, marginTop: 10 }, segmentedControl: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 14, borderWidth: 1, flexDirection: 'row', marginTop: 22, padding: 4 }, segment: { alignItems: 'center', borderRadius: 10, flex: 1, justifyContent: 'center', minHeight: 40, paddingHorizontal: 3 }, segmentSelected: { backgroundColor: colors.forest }, segmentText: { color: colors.muted, fontSize: 11, fontWeight: '800' }, segmentTextSelected: { color: colors.warmWhite }, loading: { alignItems: 'center', paddingVertical: 44 }, loadingText: { color: colors.muted, marginTop: 12 }, errorCard: { backgroundColor: '#FCEDEB', borderColor: '#E9B7B0', borderRadius: 14, borderWidth: 1, marginTop: 18, padding: 14 }, errorText: { color: colors.red, fontWeight: '700' }, emptyCard: { backgroundColor: colors.lightGreen, borderColor: colors.border, borderRadius: 18, borderWidth: 1, marginTop: 18, padding: 18 }, emptyTitle: { color: colors.forest, fontSize: 18, fontWeight: '900' }, emptyText: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 7 }, bookingCard: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 18, borderWidth: 1, marginTop: 14, padding: 16 }, bookingHeader: { alignItems: 'flex-start', flexDirection: 'row', justifyContent: 'space-between' }, bookingCopy: { flex: 1, paddingRight: 10 }, bookingName: { color: colors.forest, fontSize: 17, fontWeight: '900' }, bookingSite: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 4 }, statusBadge: { backgroundColor: colors.lightGreen, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 6 }, statusCancelled: { backgroundColor: '#FCEDEB' }, statusText: { color: colors.olive, fontSize: 11, fontWeight: '900' }, statusCancelledText: { color: colors.red }, bookingDate: { color: colors.forest, fontSize: 15, fontWeight: '800', marginTop: 15 }, bookingDetails: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 4 }, paymentNote: { color: colors.brown, fontSize: 12, fontWeight: '800', marginTop: 8 }, actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 }, secondaryAction: { alignItems: 'center', borderColor: colors.forest, borderRadius: 10, borderWidth: 1, justifyContent: 'center', minHeight: 40, paddingHorizontal: 11 }, secondaryActionText: { color: colors.forest, fontSize: 12, fontWeight: '900' }, cancelAction: { alignItems: 'center', borderColor: colors.red, borderRadius: 10, borderWidth: 1, justifyContent: 'center', minHeight: 40, paddingHorizontal: 11 }, cancelActionText: { color: colors.red, fontSize: 12, fontWeight: '900' }, reviewAction: { alignItems: 'center', backgroundColor: colors.forest, borderRadius: 10, justifyContent: 'center', minHeight: 40, paddingHorizontal: 11 }, reviewActionText: { color: colors.warmWhite, fontSize: 12, fontWeight: '900' }, calendarCard: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 18, borderWidth: 1, marginTop: 20, padding: 14 }, monthHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 }, monthButton: { alignItems: 'center', borderColor: colors.border, borderRadius: 17, borderWidth: 1, height: 34, justifyContent: 'center', width: 34 }, monthButtonText: { color: colors.forest, fontSize: 19, fontWeight: '900' }, monthTitle: { color: colors.forest, fontSize: 17, fontWeight: '900' }, calendarGrid: { flexDirection: 'row', flexWrap: 'wrap' }, weekDay: { color: colors.muted, fontSize: 11, fontWeight: '900', marginBottom: 8, textAlign: 'center', width: '14.2857%' }, dayCell: { alignItems: 'center', borderRadius: 18, height: 42, justifyContent: 'center', marginBottom: 5, width: '14.2857%' }, bookedDay: { backgroundColor: colors.lightGreen }, selectedDay: { backgroundColor: colors.forest }, dayText: { color: colors.forest, fontSize: 13, fontWeight: '800' }, dayCount: { color: colors.brown, fontSize: 10, fontWeight: '900' }, selectedDayText: { color: colors.warmWhite }, dayDetail: { marginTop: 12 }, dayDetailTitle: { color: colors.forest, fontSize: 18, fontWeight: '900' },
+  safeArea: { flex: 1, backgroundColor: colors.cream }, container: { padding: 20, paddingBottom: 40 }, backButton: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' }, backButtonText: { color: colors.forest, fontSize: 16, fontWeight: '800' }, title: { color: colors.forest, fontSize: 30, fontWeight: '900' }, description: { color: colors.muted, fontSize: 16, lineHeight: 23, marginTop: 10 }, segmentedControl: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 14, borderWidth: 1, flexDirection: 'row', marginTop: 22, padding: 4 }, segment: { alignItems: 'center', borderRadius: 10, flex: 1, justifyContent: 'center', minHeight: 40, paddingHorizontal: 3 }, segmentSelected: { backgroundColor: colors.forest }, segmentText: { color: colors.muted, fontSize: 11, fontWeight: '800' }, segmentTextSelected: { color: colors.warmWhite }, loading: { alignItems: 'center', paddingVertical: 44 }, loadingText: { color: colors.muted, marginTop: 12 }, errorCard: { backgroundColor: '#FCEDEB', borderColor: '#E9B7B0', borderRadius: 14, borderWidth: 1, marginTop: 18, padding: 14 }, errorText: { color: colors.red, fontWeight: '700' }, noticeCard: { backgroundColor: colors.lightGreen, borderColor: colors.border, borderRadius: 14, borderWidth: 1, marginTop: 18, padding: 14 }, noticeText: { color: colors.forest, fontWeight: '700', lineHeight: 20 }, emptyCard: { backgroundColor: colors.lightGreen, borderColor: colors.border, borderRadius: 18, borderWidth: 1, marginTop: 18, padding: 18 }, emptyTitle: { color: colors.forest, fontSize: 18, fontWeight: '900' }, emptyText: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 7 }, bookingCard: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 18, borderWidth: 1, marginTop: 14, padding: 16 }, bookingHeader: { alignItems: 'flex-start', flexDirection: 'row', justifyContent: 'space-between' }, bookingCopy: { flex: 1, paddingRight: 10 }, bookingName: { color: colors.forest, fontSize: 17, fontWeight: '900' }, bookingSite: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 4 }, statusBadge: { backgroundColor: colors.lightGreen, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 6 }, statusCancelled: { backgroundColor: '#FCEDEB' }, statusText: { color: colors.olive, fontSize: 11, fontWeight: '900' }, statusCancelledText: { color: colors.red }, bookingDate: { color: colors.forest, fontSize: 15, fontWeight: '800', marginTop: 15 }, bookingDetails: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 4 }, paymentNote: { color: colors.brown, fontSize: 12, fontWeight: '800', marginTop: 8 }, actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 }, secondaryAction: { alignItems: 'center', borderColor: colors.forest, borderRadius: 10, borderWidth: 1, justifyContent: 'center', minHeight: 40, paddingHorizontal: 11 }, secondaryActionText: { color: colors.forest, fontSize: 12, fontWeight: '900' }, cancelAction: { alignItems: 'center', borderColor: colors.red, borderRadius: 10, borderWidth: 1, justifyContent: 'center', minHeight: 40, paddingHorizontal: 11 }, cancelActionText: { color: colors.red, fontSize: 12, fontWeight: '900' }, actionDisabled: { opacity: 0.55 }, reviewAction: { alignItems: 'center', backgroundColor: colors.forest, borderRadius: 10, justifyContent: 'center', minHeight: 40, paddingHorizontal: 11 }, reviewActionText: { color: colors.warmWhite, fontSize: 12, fontWeight: '900' }, calendarCard: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 18, borderWidth: 1, marginTop: 20, padding: 14 }, monthHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 }, monthButton: { alignItems: 'center', borderColor: colors.border, borderRadius: 17, borderWidth: 1, height: 34, justifyContent: 'center', width: 34 }, monthButtonText: { color: colors.forest, fontSize: 19, fontWeight: '900' }, monthTitle: { color: colors.forest, fontSize: 17, fontWeight: '900' }, calendarGrid: { flexDirection: 'row', flexWrap: 'wrap' }, weekDay: { color: colors.muted, fontSize: 11, fontWeight: '900', marginBottom: 8, textAlign: 'center', width: '14.2857%' }, dayCell: { alignItems: 'center', borderRadius: 18, height: 42, justifyContent: 'center', marginBottom: 5, width: '14.2857%' }, bookedDay: { backgroundColor: colors.lightGreen }, selectedDay: { backgroundColor: colors.forest }, dayText: { color: colors.forest, fontSize: 13, fontWeight: '800' }, dayCount: { color: colors.brown, fontSize: 10, fontWeight: '900' }, selectedDayText: { color: colors.warmWhite }, dayDetail: { marginTop: 12 }, dayDetailTitle: { color: colors.forest, fontSize: 18, fontWeight: '900' }, modalBackdrop: { alignItems: 'center', backgroundColor: 'rgba(20, 38, 24, 0.52)', flex: 1, justifyContent: 'center', padding: 20 }, cancelModal: { backgroundColor: colors.warmWhite, borderRadius: 20, maxWidth: 440, padding: 22, width: '100%' }, cancelModalTitle: { color: colors.forest, fontSize: 21, fontWeight: '900' }, cancelModalText: { color: colors.muted, fontSize: 15, lineHeight: 22, marginTop: 9 }, cancelModalDetail: { color: colors.brown, fontSize: 13, fontWeight: '700', lineHeight: 19, marginTop: 9 }, cancelModalError: { color: colors.red, fontSize: 14, fontWeight: '700', lineHeight: 20, marginTop: 12 }, cancelModalActions: { flexDirection: 'row', gap: 10, marginTop: 22 }, keepReservationButton: { alignItems: 'center', borderColor: colors.border, borderRadius: 12, borderWidth: 1, flex: 1, justifyContent: 'center', minHeight: 48, paddingHorizontal: 8 }, keepReservationText: { color: colors.forest, fontSize: 14, fontWeight: '900' }, confirmCancelButton: { alignItems: 'center', backgroundColor: colors.red, borderRadius: 12, flex: 1, justifyContent: 'center', minHeight: 48, paddingHorizontal: 8 }, confirmCancelText: { color: colors.warmWhite, fontSize: 14, fontWeight: '900' },
 });

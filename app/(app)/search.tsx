@@ -1,3 +1,4 @@
+import * as Location from 'expo-location';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -41,7 +42,7 @@ const amenityFilters = [
   { code: 'picnic_table', label: 'Picnic table' },
   { code: 'restroom', label: 'Restroom' },
   { code: 'parking', label: 'Parking' },
-  { code: 'cell_service', label: 'Cell service' },
+  { code: 'poop_bags', label: '💩 Poop bags' },
   { code: 'wheelchair_accessible', label: 'Wheelchair accessible' },
 ] as const;
 
@@ -61,7 +62,7 @@ const propertyFeatureFilters = [
 export default function SearchScreen() {
   const { isMember, session } = useAuth();
   const [query, setQuery] = useState('');
-  const [radiusMiles, setRadiusMiles] = useState('');
+  const [isLocating, setIsLocating] = useState(false);
   const [properties, setProperties] = useState<DiscoverProperty[]>([]);
   const [favoritePropertyIds, setFavoritePropertyIds] = useState<string[]>([]);
   const [favoriteSavingId, setFavoriteSavingId] = useState<string | null>(null);
@@ -75,7 +76,6 @@ export default function SearchScreen() {
   const [minimumAcreage, setMinimumAcreage] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [canAccessHostDashboard, setCanAccessHostDashboard] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(
     null
   );
@@ -245,29 +245,6 @@ export default function SearchScreen() {
   }, [memberId]);
 
   useEffect(() => {
-    const checkHostAccess = async () => {
-      if (!session?.user.id) {
-        setCanAccessHostDashboard(false);
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from('host_profiles')
-        .select('user_id')
-        .eq('user_id', session.user.id)
-        .maybeSingle();
-
-      if (!error) {
-        setCanAccessHostDashboard(Boolean(data));
-      } else {
-        setCanAccessHostDashboard(false);
-      }
-    };
-
-    void checkHostAccess();
-  }, [session?.user.id]);
-
-  useEffect(() => {
     const initialize = async () => {
       try {
         setIsLoading(true);
@@ -293,11 +270,44 @@ export default function SearchScreen() {
     }
   };
 
-  const handleUseCurrentLocation = () => {
-    Alert.alert(
-      'Location access',
-      'Current-location searching will be connected when we add maps and device location.'
-    );
+  const handleUseCurrentLocation = async () => {
+    if (isLocating) return;
+
+    try {
+      setIsLocating(true);
+      const { status } = await Location.requestForegroundPermissionsAsync();
+
+      if (status !== 'granted') {
+        Alert.alert(
+          'Location permission needed',
+          'Allow location access to search for private spaces in your city or ZIP code.'
+        );
+        return;
+      }
+
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      const [address] = await Location.reverseGeocodeAsync(location.coords);
+      const searchTerm = address?.postalCode ?? address?.city;
+
+      if (!searchTerm) {
+        Alert.alert(
+          'Location unavailable',
+          'We could not determine a city or ZIP code from your location. Try searching by city or ZIP code instead.'
+        );
+        return;
+      }
+
+      setQuery(searchTerm);
+    } catch {
+      Alert.alert(
+        'Unable to use your location',
+        'Try again in a moment, or search by city or ZIP code instead.'
+      );
+    } finally {
+      setIsLocating(false);
+    }
   };
 
   const activeFilterCount =
@@ -439,7 +449,7 @@ export default function SearchScreen() {
           ]}
         >
           {favoriteSavingId === item.id ? (
-            <ActivityIndicator color={isFavorite ? colors.warmWhite : colors.brown} size="small" />
+            <ActivityIndicator color={isFavorite ? colors.red : colors.brown} size="small" />
           ) : (
             <Text style={[styles.favoriteIcon, isFavorite && styles.favoriteIconSelected]}>
               {isFavorite ? '♥' : '♡'}
@@ -510,7 +520,7 @@ export default function SearchScreen() {
           </View>
 
           <View style={{ alignItems: 'flex-start', marginTop: 8 }}>
-            <Text style={{ color: colors.brown, fontSize: 14, fontWeight: '900' }}>🦴 {Number(item.average_rating).toFixed(1)} guest rating</Text>
+            <Text style={{ color: colors.brown, fontSize: 14, fontWeight: '900' }}>★ {Number(item.average_rating).toFixed(1)} guest rating</Text>
           </View>
 
           <Text
@@ -574,16 +584,6 @@ export default function SearchScreen() {
         keyboardShouldPersistTaps="handled"
         ListHeaderComponent={
           <>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => router.back()}
-              style={styles.backButton}
-            >
-              <Text style={styles.backButtonText}>
-                ← Member Dashboard
-              </Text>
-            </Pressable>
-
             <Image source={require('../../assets/images/k9-8.png')} style={styles.discoverHeaderImage} />
 
             <Text style={styles.title}>
@@ -594,16 +594,6 @@ export default function SearchScreen() {
               Search for peaceful outdoor properties where your
               family and dog can enjoy exclusive access.
             </Text>
-
-            {canAccessHostDashboard ? (
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => router.push('/host-dashboard' as never)}
-                style={styles.hostReturnLink}
-              >
-                <Text style={styles.hostReturnLinkText}>Return to Host Dashboard</Text>
-              </Pressable>
-            ) : null}
 
             <View style={styles.searchPanel}>
               <Text style={styles.inputLabel}>
@@ -624,28 +614,16 @@ export default function SearchScreen() {
 
               <Pressable
                 accessibilityRole="button"
-                onPress={handleUseCurrentLocation}
-                style={styles.locationButton}
+                accessibilityState={{ busy: isLocating }}
+                disabled={isLocating}
+                onPress={() => void handleUseCurrentLocation()}
+                style={[styles.locationButton, isLocating && styles.locationButtonDisabled]}
               >
                 <Text style={styles.locationButtonText}>
                   ◎ Use my current location
                 </Text>
               </Pressable>
 
-              <Text style={styles.radiusLabel}>
-                Search radius (miles)
-              </Text>
-
-              <TextInput
-                accessibilityLabel="Search radius in miles"
-                keyboardType="number-pad"
-                maxLength={3}
-                onChangeText={setRadiusMiles}
-                placeholder="Enter miles"
-                placeholderTextColor="#8A877D"
-                style={styles.radiusInput}
-                value={radiusMiles}
-              />
             </View>
 
             <View style={styles.resultsHeading}>
@@ -880,7 +858,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     minHeight: 44,
     justifyContent: 'center',
-    marginBottom: 6,
+    marginBottom: 12,
   },
 
   backButtonText: {
@@ -956,29 +934,14 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
 
+  locationButtonDisabled: {
+    opacity: 0.6,
+  },
+
   locationButtonText: {
     color: colors.brown,
     fontSize: 14,
     fontWeight: '800',
-  },
-
-  radiusLabel: {
-    color: colors.forest,
-    fontSize: 14,
-    fontWeight: '800',
-    marginTop: 10,
-    marginBottom: 10,
-  },
-
-  radiusInput: {
-    minHeight: 48,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    backgroundColor: colors.cream,
-    color: colors.forest,
-    fontSize: 16,
-    paddingHorizontal: 15,
   },
 
   resultsHeading: {
@@ -1206,7 +1169,7 @@ const styles = StyleSheet.create({
   },
 
   favoriteIconSelected: {
-    color: colors.brown,
+    color: colors.red,
   },
 
   photoCounterText: {

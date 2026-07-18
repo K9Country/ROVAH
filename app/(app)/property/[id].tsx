@@ -31,13 +31,14 @@ import type { BookingReview } from '../../../types/review';
 type ListingImage = PropertyImage & { signed_url?: string };
 type BookingBlock = { start_at: string; end_at: string };
 type SlotPickerKind = 'start' | 'end' | null;
+type TimeSlotOption = { time: Date; isAvailable: boolean };
 
 const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 const amenityLabels: Record<string, string> = {
   water: 'Water bowl', shade: 'Shade', picnic_table: 'Picnic table', restroom: 'Restroom',
   parking: 'Parking', tennis_ball: 'Tennis ball', frisbee: 'Frisbee',
-  agility_equipment: 'Agility equipment', swimming_pool: 'Swimming pool', agility_course: 'Agility course', hiking_trails: 'Hiking trails', lake_access: 'Lake access', cell_service: 'Cell service',
+  agility_equipment: 'Agility equipment', swimming_pool: 'Swimming pool', agility_course: 'Agility course', hiking_trails: 'Hiking trails', lake_access: 'Lake access', poop_bags: '💩 Poop bags',
   wheelchair_accessible: 'Wheelchair accessible',
 };
 
@@ -118,9 +119,23 @@ export default function PropertyDetailsScreen() {
   const [endTime, setEndTime] = useState<Date | null>(null);
   const [dogCount, setDogCount] = useState(1);
   const [slotPicker, setSlotPicker] = useState<SlotPickerKind>(null);
+  const [currentTime, setCurrentTime] = useState(() => new Date());
   const [isBooking, setIsBooking] = useState(false);
   const [needsGuestProfile, setNeedsGuestProfile] = useState(false);
   const recordedViewPropertyId = useRef<string | null>(null);
+
+  useEffect(() => {
+    const refreshCurrentTime = setInterval(() => setCurrentTime(new Date()), 30_000);
+    return () => clearInterval(refreshCurrentTime);
+  }, []);
+
+  useEffect(() => {
+    if (startTime && startTime.getTime() <= currentTime.getTime()) {
+      setStartTime(null);
+      setEndTime(null);
+      setSlotPicker(null);
+    }
+  }, [currentTime, startTime]);
 
   const loadListing = useCallback(async () => {
     if (!id) {
@@ -249,44 +264,45 @@ export default function PropertyDetailsScreen() {
     return availability.find((day) => day.day_of_week === date.getDay()) ?? null;
   }, [availability, dateAvailability]);
 
-  const getAvailableStartSlots = useCallback((date: Date) => {
+  const getStartSlotOptions = useCallback((date: Date): TimeSlotOption[] => {
     if (property?.is_temporarily_closed) return [];
-    const today = startOfDay(new Date());
+    const today = startOfDay(currentTime);
     if (startOfDay(date) < today) return [];
     const dayAvailability = getDateAvailability(date);
     if (!dayAvailability) return [];
 
     const opening = timesOnDate(date, dayAvailability.start_time);
     const closing = timesOnDate(date, dayAvailability.end_time);
-    const slots: Date[] = [];
+    const slots: TimeSlotOption[] = [];
     for (let slot = new Date(opening); slot.getTime() + 3_600_000 <= closing.getTime(); slot = new Date(slot.getTime() + 1_800_000)) {
       const slotEnd = new Date(slot.getTime() + 3_600_000);
-      if (!blocksTime(slot, slotEnd)) slots.push(slot);
+      slots.push({ time: slot, isAvailable: slot.getTime() > currentTime.getTime() && !blocksTime(slot, slotEnd) });
     }
     return slots;
-  }, [blocksTime, getDateAvailability, property?.is_temporarily_closed]);
+  }, [blocksTime, currentTime, getDateAvailability, property?.is_temporarily_closed]);
 
-  const getAvailableEndSlots = useCallback((date: Date, selectedStart: Date) => {
+  const getEndSlotOptions = useCallback((date: Date, selectedStart: Date): TimeSlotOption[] => {
     const dayAvailability = getDateAvailability(date);
     if (!dayAvailability) return [];
     const closing = timesOnDate(date, dayAvailability.end_time);
-    const slots: Date[] = [];
+    const slots: TimeSlotOption[] = [];
     for (let slot = new Date(selectedStart.getTime() + 3_600_000); slot <= closing; slot = new Date(slot.getTime() + 1_800_000)) {
-      if (!blocksTime(selectedStart, slot)) slots.push(slot);
-      else break;
+      slots.push({ time: slot, isAvailable: !blocksTime(selectedStart, slot) });
     }
     return slots;
   }, [blocksTime, getDateAvailability]);
 
-  const availableStartSlots = useMemo(() => bookingDate ? getAvailableStartSlots(bookingDate) : [], [bookingDate, getAvailableStartSlots]);
-  const availableEndSlots = useMemo(() => bookingDate && startTime ? getAvailableEndSlots(bookingDate, startTime) : [], [bookingDate, getAvailableEndSlots, startTime]);
+  const startSlotOptions = useMemo(() => bookingDate ? getStartSlotOptions(bookingDate) : [], [bookingDate, getStartSlotOptions]);
+  const endSlotOptions = useMemo(() => bookingDate && startTime ? getEndSlotOptions(bookingDate, startTime) : [], [bookingDate, getEndSlotOptions, startTime]);
+  const availableStartSlots = useMemo(() => startSlotOptions.filter((slot) => slot.isAvailable).map((slot) => slot.time), [startSlotOptions]);
+  const availableEndSlots = useMemo(() => endSlotOptions.filter((slot) => slot.isAvailable).map((slot) => slot.time), [endSlotOptions]);
   const visitHours = startTime && endTime ? Math.max(0, (endTime.getTime() - startTime.getTime()) / 3_600_000) : 0;
   const additionalDogRate = property ? Number(property.price_per_hour) * 0.5 : 0;
   const estimatedTotal = property ? visitHours * (Number(property.price_per_hour) + Math.max(0, dogCount - 1) * additionalDogRate) : 0;
   const calendarDates = useMemo(() => datesInCalendarMonth(calendarMonth), [calendarMonth]);
 
   const chooseDate = (date: Date) => {
-    if (getAvailableStartSlots(date).length === 0) return;
+    if (!getStartSlotOptions(date).some((slot) => slot.isAvailable)) return;
     setBookingDate(startOfDay(date));
     setStartTime(null);
     setEndTime(null);
@@ -431,26 +447,15 @@ export default function PropertyDetailsScreen() {
   const siteRating = hostReviews.length > 0
     ? hostReviews.reduce((total, review) => total + review.bone_rating, 0) / hostReviews.length
     : null;
-  const slotOptions = slotPicker === 'start' ? availableStartSlots : availableEndSlots;
+  const slotOptions = slotPicker === 'start' ? startSlotOptions : endSlotOptions;
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}><Text style={styles.backButtonText}>← Find a private space</Text></Pressable>
         {coverImage?.signed_url ? <Image source={{ uri: coverImage.signed_url }} style={styles.coverImage} /> : <View style={styles.coverPlaceholder}><Text style={styles.coverPlaceholderText}>Property photo</Text></View>}
         {images.length > 1 ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photoStrip}>{images.map((image, index) => image.signed_url ? <Pressable accessibilityLabel={`Show property photo ${index + 1}`} accessibilityRole="button" key={image.id} onPress={() => setSelectedImageId(image.id)} style={[styles.thumbnailButton, image.id === coverImage?.id && styles.thumbnailButtonSelected]}><Image source={{ uri: image.signed_url }} style={styles.thumbnail} /></Pressable> : null)}</ScrollView> : null}
-        <Text style={styles.title}>{property.name}</Text><Text style={styles.location}>{location}</Text><Pressable accessibilityRole="button" onPress={() => setShowReviews(true)} style={{ alignItems: 'flex-start', marginTop: 8 }}><Text style={{ color: colors.brown, fontSize: 15, fontWeight: '900' }}>{siteRating === null ? 'No guest ratings yet' : `🦴 ${siteRating.toFixed(1)} guest rating`}</Text><Text style={{ color: colors.brown, fontSize: 12, fontWeight: '700', marginTop: 4, textDecorationLine: 'underline' }}>View reviews</Text></Pressable>
+        <Text style={styles.title}>{property.name}</Text><Text style={styles.location}>{location}</Text><Pressable accessibilityRole="button" onPress={() => setShowReviews(true)} style={{ alignItems: 'flex-start', marginTop: 8 }}><Text style={{ color: colors.brown, fontSize: 15, fontWeight: '900' }}>{siteRating === null ? 'No guest ratings yet' : `★ ${siteRating.toFixed(1)} guest rating`}</Text><Text style={{ color: colors.brown, fontSize: 12, fontWeight: '700', marginTop: 4, textDecorationLine: 'underline' }}>View reviews</Text></Pressable>
         <Text style={styles.price}>${Number(property.price_per_hour).toFixed(0)} <Text style={styles.priceUnit}>per hour</Text></Text><Text style={styles.description}>{property.short_description}</Text>
-
-        <Pressable
-          accessibilityLabel={`Open ${property.name} in Google Maps`}
-          accessibilityRole="link"
-          onPress={openGoogleMaps}
-          style={styles.mapsButton}
-        >
-          <Text style={styles.mapsButtonText}>Open in Google Maps</Text>
-          <Text style={styles.mapsButtonIcon}>↗</Text>
-        </Pressable>
 
         {property.is_published ? (
           <Pressable
@@ -460,7 +465,13 @@ export default function PropertyDetailsScreen() {
             style={styles.shareButton}
           >
             <Text style={styles.shareButtonText}>Share this site</Text>
-            <Text style={styles.shareButtonIcon}>↗</Text>
+            <View pointerEvents="none" style={styles.shareButtonIcon}>
+              <View style={[styles.shareIconLine, styles.shareIconLineTop]} />
+              <View style={[styles.shareIconLine, styles.shareIconLineBottom]} />
+              <View style={[styles.shareIconDot, styles.shareIconDotOrigin]} />
+              <View style={[styles.shareIconDot, styles.shareIconDotTop]} />
+              <View style={[styles.shareIconDot, styles.shareIconDotBottom]} />
+            </View>
           </Pressable>
         ) : null}
 
@@ -475,9 +486,22 @@ export default function PropertyDetailsScreen() {
         </Pressable>
 
         <Section title="Site Details"><InfoRow label="Parking" value={details.parking_instructions || 'Details will be provided before booking.'} /><InfoRow label="Gate access" value={details.gate_access_instructions || 'Details will be provided before booking.'} /><InfoRow label="Arrival" value={details.arrival_instructions || 'Details will be provided before booking.'} /><InfoRow label="Property rules" value={details.property_rules || 'No additional rules have been listed.'} last /></Section>
-        <Modal animationType="slide" onRequestClose={() => setShowReviews(false)} transparent visible={showReviews}><View style={styles.reviewModalBackdrop}><View style={styles.reviewModal}><Text style={styles.reviewerName}>Site reviews</Text>{hostReviews.length > 0 ? hostReviews.map((review) => <Pressable accessibilityRole="button" key={review.id} onPress={() => { setShowReviews(false); setSelectedReview(review); }} style={{ backgroundColor: colors.cream, borderColor: colors.border, borderRadius: 14, borderWidth: 1, marginTop: 10, padding: 14 }}><Text style={styles.reviewerName}>{reviewerNames[review.reviewer_id] ?? 'K9 Country guest'}</Text><Text style={styles.hostReviewDate}>{new Date(review.created_at).toLocaleDateString()} · {review.bone_rating.toFixed(1)} rating</Text></Pressable>) : <Text style={styles.emptyText}>No public site reviews have been shared yet.</Text>}<Pressable onPress={() => setShowReviews(false)} style={styles.closeReviewButton}><Text style={styles.closeReviewText}>Close</Text></Pressable></View></View></Modal>
-        <Modal animationType="slide" onRequestClose={() => setSelectedReview(null)} transparent visible={selectedReview !== null}><View style={styles.reviewModalBackdrop}><View style={styles.reviewModal}><Text style={styles.reviewerName}>{selectedReview ? reviewerNames[selectedReview.reviewer_id] ?? 'K9 Country guest' : ''}</Text><Text style={styles.hostReviewDate}>{selectedReview ? `${selectedReview.bone_rating.toFixed(1)} rating · ${new Date(selectedReview.created_at).toLocaleDateString()}` : ''}</Text><Text style={styles.fullReviewText}>{selectedReview?.review_text || 'No written note shared.'}</Text><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 16 }}>{(selectedReview?.photo_urls ?? []).map((uri) => <Image key={uri} source={{ uri }} style={{ borderRadius: 10, height: 100, width: 100 }} />)}</View><Pressable onPress={() => setSelectedReview(null)} style={styles.closeReviewButton}><Text style={styles.closeReviewText}>Close</Text></Pressable></View></View></Modal>
+        <Modal animationType="slide" onRequestClose={() => setShowReviews(false)} transparent visible={showReviews}><View style={styles.reviewModalBackdrop}><View style={styles.reviewModal}><Text style={styles.reviewerName}>Site reviews</Text>{hostReviews.length > 0 ? hostReviews.map((review) => <Pressable accessibilityRole="button" key={review.id} onPress={() => { setShowReviews(false); setSelectedReview(review); }} style={{ backgroundColor: colors.cream, borderColor: colors.border, borderRadius: 14, borderWidth: 1, marginTop: 10, padding: 14 }}><Text style={styles.reviewerName}>{reviewerNames[review.reviewer_id] ?? 'K9 Country guest'}</Text><Text style={styles.hostReviewDate}>{new Date(review.created_at).toLocaleDateString()} · ★ {review.bone_rating.toFixed(1)}</Text></Pressable>) : <Text style={styles.emptyText}>No public site reviews have been shared yet.</Text>}<Pressable onPress={() => setShowReviews(false)} style={styles.closeReviewButton}><Text style={styles.closeReviewText}>Close</Text></Pressable></View></View></Modal>
+        <Modal animationType="slide" onRequestClose={() => setSelectedReview(null)} transparent visible={selectedReview !== null}><View style={styles.reviewModalBackdrop}><View style={styles.reviewModal}><Text style={styles.reviewerName}>{selectedReview ? reviewerNames[selectedReview.reviewer_id] ?? 'K9 Country guest' : ''}</Text><Text style={styles.hostReviewDate}>{selectedReview ? `★ ${selectedReview.bone_rating.toFixed(1)} · ${new Date(selectedReview.created_at).toLocaleDateString()}` : ''}</Text>{selectedReview ? <ReviewAnswers review={selectedReview} /> : null}<Text style={styles.fullReviewText}>{selectedReview?.review_text || 'No additional comments shared.'}</Text><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 16 }}>{(selectedReview?.photo_urls ?? []).map((uri) => <Image key={uri} source={{ uri }} style={{ borderRadius: 10, height: 100, width: 100 }} />)}</View><Pressable onPress={() => setSelectedReview(null)} style={styles.closeReviewButton}><Text style={styles.closeReviewText}>Close</Text></Pressable></View></View></Modal>
         <Section title="Amenities">{amenities.length > 0 ? <View style={styles.amenityGrid}>{amenities.map((amenity) => <View key={amenity} style={styles.amenityPill}><Text style={styles.amenityText}>{amenityLabels[amenity] ?? amenity}</Text></View>)}</View> : <Text style={styles.emptyText}>No amenities have been listed yet.</Text>}</Section>
+        <Pressable
+          accessibilityHint="Opens this location in Google Maps"
+          accessibilityLabel={`Open ${property.name} in Google Maps`}
+          accessibilityRole="link"
+          onPress={openGoogleMaps}
+          style={styles.mapPlaceholder}
+        >
+          <View style={styles.mapPlaceholderGrid}>
+            <View style={styles.mapPlaceholderPin}><Text style={styles.mapPlaceholderPinText}>K9</Text></View>
+            <Text style={styles.mapPlaceholderTitle}>Google Map preview</Text>
+            <Text style={styles.mapPlaceholderText}>Map preview coming soon. Tap to open this location in Google Maps.</Text>
+          </View>
+        </Pressable>
         <View style={styles.bookingCard}>
           <Text style={styles.bookingEyebrow}>START YOUR BOOKING</Text><Text style={styles.bookingTitle}>Reserve this private space</Text><Text style={styles.bookingText}>Green dates have at least one available one-hour visit. Red dates are closed or fully booked.</Text>
           {needsGuestProfile ? <Pressable accessibilityRole="button" onPress={() => router.push(`/profile?returnTo=/property/${property.id}` as never)} style={styles.profileRequiredCard}><Text style={styles.profileRequiredTitle}>Complete your guest profile before reserving</Text><Text style={styles.profileRequiredText}>Add your private contact and dog details once, then return here to finish this reservation.</Text><Text style={styles.profileRequiredLink}>Complete guest profile →</Text></Pressable> : null}
@@ -486,7 +510,7 @@ export default function PropertyDetailsScreen() {
           <View style={styles.weekdayRow}>{['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => <Text key={`${day}-${index}`} style={styles.weekdayLabel}>{day}</Text>)}</View>
           <View style={styles.calendarGrid}>{calendarDates.map((date) => {
             const inCurrentMonth = date.getMonth() === calendarMonth.getMonth();
-            const available = inCurrentMonth && getAvailableStartSlots(date).length > 0;
+            const available = inCurrentMonth && getStartSlotOptions(date).some((slot) => slot.isAvailable);
             const selected = bookingDate && dateKey(date) === dateKey(bookingDate);
             return <Pressable key={dateKey(date)} disabled={!available} onPress={() => chooseDate(date)} style={[styles.calendarDay, available ? styles.calendarDayAvailable : styles.calendarDayUnavailable, selected && styles.calendarDaySelected, !inCurrentMonth && styles.calendarDayOutsideMonth]}><Text style={[styles.calendarDayText, !available && styles.calendarDayTextUnavailable, selected && styles.calendarDayTextSelected]}>{date.getDate()}</Text></Pressable>;
           })}</View>
@@ -508,8 +532,8 @@ export default function PropertyDetailsScreen() {
         <Pressable onPress={() => setSlotPicker(null)} style={styles.modalBackdrop}>
           <Pressable onPress={() => undefined} style={styles.slotSheet}>
             <Text style={styles.slotSheetTitle}>{slotPicker === 'start' ? 'Choose a start time' : 'Choose an end time'}</Text>
-            <Text style={styles.slotSheetText}>Only available 30-minute times are shown.</Text>
-            <ScrollView contentContainerStyle={styles.slotList}>{slotOptions.map((slot) => <Pressable key={slot.toISOString()} onPress={() => slotPicker === 'start' ? chooseStartTime(slot) : chooseEndTime(slot)} style={styles.slotButton}><Text style={styles.slotButtonText}>{formatMilitaryTime(slot)}</Text></Pressable>)}</ScrollView>
+            <Text style={styles.slotSheetText}>Available times are selectable. Pink times are unavailable.</Text>
+            <ScrollView contentContainerStyle={styles.slotList}>{slotOptions.map((slot) => <Pressable accessibilityRole="button" accessibilityState={{ disabled: !slot.isAvailable }} disabled={!slot.isAvailable} key={slot.time.toISOString()} onPress={() => slotPicker === 'start' ? chooseStartTime(slot.time) : chooseEndTime(slot.time)} style={[styles.slotButton, !slot.isAvailable && styles.slotButtonUnavailable]}><Text style={[styles.slotButtonText, !slot.isAvailable && styles.slotButtonTextUnavailable]}>{formatMilitaryTime(slot.time)}</Text></Pressable>)}</ScrollView>
             <Pressable onPress={() => setSlotPicker(null)} style={styles.cancelButton}><Text style={styles.cancelButtonText}>Cancel</Text></Pressable>
           </Pressable>
         </Pressable>
@@ -518,12 +542,22 @@ export default function PropertyDetailsScreen() {
   );
 }
 
+function ReviewAnswers({ review }: { review: BookingReview }) {
+  const answer = (value: 'yes' | 'no' | 'not_sure' | null) => value === 'yes' ? 'Yes' : value === 'no' ? 'No' : 'Not answered';
+  return <View style={{ gap: 7, marginTop: 16 }}>
+    <Text style={styles.hostReviewDate}>Clean and well maintained: {answer(review.cleanliness)}</Text>
+    {review.property_matches_listing ? <Text style={styles.hostReviewDate}>Matched the listing and photos: {answer(review.property_matches_listing)}</Text> : null}
+    <Text style={styles.hostReviewDate}>Safe and secure for a dog: {answer(review.fence_security)}</Text>
+    {review.would_book_again ? <Text style={styles.hostReviewDate}>Would book again: {answer(review.would_book_again)}</Text> : null}
+  </View>;
+}
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) { return <View style={styles.section}><Text style={styles.sectionTitle}>{title}</Text>{children}</View>; }
 function InfoRow({ label, value, last = false }: { label: string; value: string; last?: boolean }) { return <View style={[styles.infoRow, !last && styles.infoRowDivider]}><Text style={styles.infoLabel}>{label}</Text><Text style={styles.infoValue}>{value}</Text></View>; }
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: colors.cream }, container: { padding: 20, paddingBottom: 42 }, centeredState: { alignItems: 'center', flex: 1, justifyContent: 'center', padding: 28 }, stateTitle: { color: colors.forest, fontSize: 24, fontWeight: '900', textAlign: 'center' }, stateText: { color: colors.muted, fontSize: 15, lineHeight: 22, marginTop: 12, textAlign: 'center' }, backToSearchButton: { backgroundColor: colors.forest, borderRadius: 13, marginTop: 22, minHeight: 50, paddingHorizontal: 20, justifyContent: 'center' }, backToSearchText: { color: colors.warmWhite, fontSize: 15, fontWeight: '900' }, backButton: { alignSelf: 'flex-start', minHeight: 42, justifyContent: 'center', marginBottom: 10 }, backButtonText: { color: colors.forest, fontSize: 16, fontWeight: '900' }, coverImage: { borderRadius: 20, height: 260, width: '100%' }, coverPlaceholder: { alignItems: 'center', backgroundColor: colors.lightGreen, borderRadius: 20, height: 260, justifyContent: 'center' }, coverPlaceholderText: { color: colors.muted, fontSize: 15, fontWeight: '800' }, photoStrip: { gap: 10, marginTop: 10 }, thumbnailButton: { borderColor: 'transparent', borderRadius: 12, borderWidth: 3, overflow: 'hidden' }, thumbnailButtonSelected: { borderColor: colors.forest }, thumbnail: { height: 70, width: 92 }, eyebrow: { color: colors.brown, fontSize: 11, fontWeight: '900', letterSpacing: 1.3, marginTop: 22 }, title: { color: colors.forest, fontSize: 30, fontWeight: '900', marginTop: 6 }, location: { color: colors.muted, fontSize: 16, marginTop: 5 }, price: { color: colors.forest, fontSize: 25, fontWeight: '900', marginTop: 15 }, priceUnit: { color: colors.muted, fontSize: 14, fontWeight: '700' }, description: { color: colors.muted, fontSize: 16, lineHeight: 24, marginBottom: 14, marginTop: 14 }, mapsButton: { alignItems: 'center', backgroundColor: colors.forest, borderRadius: 14, flexDirection: 'row', justifyContent: 'center', marginBottom: 10, minHeight: 52 }, mapsButtonText: { color: colors.warmWhite, fontSize: 16, fontWeight: '900' }, mapsButtonIcon: { color: colors.warmWhite, fontSize: 20, marginLeft: 8 }, shareButton: { alignItems: 'center', backgroundColor: colors.warmWhite, borderColor: colors.brown, borderRadius: 14, borderWidth: 1, flexDirection: 'row', justifyContent: 'center', marginBottom: 10, minHeight: 52 }, shareButtonText: { color: colors.brown, fontSize: 16, fontWeight: '900' }, shareButtonIcon: { color: colors.brown, fontSize: 20, marginLeft: 8 }, messageHostButton: { alignItems: 'center', backgroundColor: colors.warmWhite, borderColor: colors.brown, borderRadius: 14, borderWidth: 1, flexDirection: 'row', justifyContent: 'center', marginBottom: 22, minHeight: 52 }, messageHostButtonText: { color: colors.brown, fontSize: 16, fontWeight: '900' }, messageHostButtonIcon: { fontSize: 18, marginLeft: 8 }, section: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 18, borderWidth: 1, marginBottom: 14, padding: 17 }, sectionTitle: { color: colors.forest, fontSize: 19, fontWeight: '900', marginBottom: 12 }, infoRow: { paddingVertical: 11 }, infoRowDivider: { borderBottomColor: colors.border, borderBottomWidth: 1 }, infoLabel: { color: colors.forest, fontSize: 14, fontWeight: '900' }, infoValue: { color: colors.muted, fontSize: 14, lineHeight: 20, marginTop: 4 }, amenityGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, amenityPill: { backgroundColor: colors.lightGreen, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8 }, amenityText: { color: colors.olive, fontSize: 13, fontWeight: '800' }, emptyText: { color: colors.muted, fontSize: 14, lineHeight: 21 }, rulesText: { color: colors.muted, fontSize: 15, lineHeight: 23 }, reviewIntro: { color: colors.muted, fontSize: 14, lineHeight: 20, marginBottom: 4 }, hostReview: { borderTopColor: colors.border, borderTopWidth: 1, marginTop: 12, paddingTop: 12 }, hostReviewBones: { fontSize: 20, letterSpacing: 1 }, emptyBones: { opacity: 0.18 }, hostReviewDate: { color: colors.brown, fontSize: 12, fontWeight: '800', marginTop: 7 }, hostReviewText: { color: colors.forest, fontSize: 14, lineHeight: 21, marginTop: 6 }, hostReviewEmpty: { color: colors.muted, fontSize: 13, fontStyle: 'italic', marginTop: 6 },
+  safeArea: { flex: 1, backgroundColor: colors.cream }, container: { padding: 20, paddingBottom: 42 }, centeredState: { alignItems: 'center', flex: 1, justifyContent: 'center', padding: 28 }, stateTitle: { color: colors.forest, fontSize: 24, fontWeight: '900', textAlign: 'center' }, stateText: { color: colors.muted, fontSize: 15, lineHeight: 22, marginTop: 12, textAlign: 'center' }, backToSearchButton: { backgroundColor: colors.forest, borderRadius: 13, marginTop: 22, minHeight: 50, paddingHorizontal: 20, justifyContent: 'center' }, backToSearchText: { color: colors.warmWhite, fontSize: 15, fontWeight: '900' }, backButton: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center', marginBottom: 12 }, backButtonText: { color: colors.forest, fontSize: 16, fontWeight: '900' }, coverImage: { borderRadius: 20, height: 260, width: '100%' }, coverPlaceholder: { alignItems: 'center', backgroundColor: colors.lightGreen, borderRadius: 20, height: 260, justifyContent: 'center' }, coverPlaceholderText: { color: colors.muted, fontSize: 15, fontWeight: '800' }, photoStrip: { gap: 10, marginTop: 10 }, thumbnailButton: { borderColor: 'transparent', borderRadius: 12, borderWidth: 3, overflow: 'hidden' }, thumbnailButtonSelected: { borderColor: colors.forest }, thumbnail: { height: 70, width: 92 }, eyebrow: { color: colors.brown, fontSize: 11, fontWeight: '900', letterSpacing: 1.3, marginTop: 22 }, title: { color: colors.forest, fontSize: 30, fontWeight: '900', marginTop: 6 }, location: { color: colors.muted, fontSize: 16, marginTop: 5 }, price: { color: colors.forest, fontSize: 25, fontWeight: '900', marginTop: 15 }, priceUnit: { color: colors.muted, fontSize: 14, fontWeight: '700' }, description: { color: colors.muted, fontSize: 16, lineHeight: 24, marginBottom: 14, marginTop: 14 }, shareButton: { alignItems: 'center', backgroundColor: colors.warmWhite, borderColor: colors.brown, borderRadius: 14, borderWidth: 1, flexDirection: 'row', justifyContent: 'center', marginBottom: 10, minHeight: 52 }, shareButtonText: { color: colors.brown, fontSize: 16, fontWeight: '900' }, shareButtonIcon: { height: 22, marginLeft: 10, position: 'relative', width: 22 }, shareIconLine: { backgroundColor: colors.brown, height: 2, left: 5, position: 'absolute', width: 13 }, shareIconLineTop: { top: 7, transform: [{ rotate: '-27deg' }] }, shareIconLineBottom: { top: 14, transform: [{ rotate: '27deg' }] }, shareIconDot: { backgroundColor: colors.brown, borderRadius: 4, height: 7, position: 'absolute', width: 7 }, shareIconDotOrigin: { left: 0, top: 8 }, shareIconDotTop: { right: 0, top: 1 }, shareIconDotBottom: { bottom: 1, right: 0 }, messageHostButton: { alignItems: 'center', backgroundColor: colors.warmWhite, borderColor: colors.brown, borderRadius: 14, borderWidth: 1, flexDirection: 'row', justifyContent: 'center', marginBottom: 22, minHeight: 52 }, messageHostButtonText: { color: colors.brown, fontSize: 16, fontWeight: '900' }, messageHostButtonIcon: { fontSize: 18, marginLeft: 8 }, section: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 18, borderWidth: 1, marginBottom: 14, padding: 17 }, sectionTitle: { color: colors.forest, fontSize: 19, fontWeight: '900', marginBottom: 12 }, infoRow: { paddingVertical: 11 }, infoRowDivider: { borderBottomColor: colors.border, borderBottomWidth: 1 }, infoLabel: { color: colors.forest, fontSize: 14, fontWeight: '900' }, infoValue: { color: colors.muted, fontSize: 14, lineHeight: 20, marginTop: 4 }, amenityGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, amenityPill: { backgroundColor: colors.lightGreen, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8 }, amenityText: { color: colors.olive, fontSize: 13, fontWeight: '800' }, mapPlaceholder: { backgroundColor: '#E6EDE2', borderColor: '#C4D2B6', borderRadius: 18, borderWidth: 1, marginBottom: 14, minHeight: 168, overflow: 'hidden' }, mapPlaceholderGrid: { alignItems: 'center', borderColor: 'rgba(44, 79, 51, 0.18)', borderRadius: 18, borderStyle: 'dashed', borderWidth: 1, flex: 1, justifyContent: 'center', margin: 12, padding: 18 }, mapPlaceholderPin: { alignItems: 'center', backgroundColor: colors.forest, borderRadius: 22, height: 44, justifyContent: 'center', marginBottom: 10, width: 44 }, mapPlaceholderPinText: { color: colors.warmWhite, fontSize: 13, fontWeight: '900' }, mapPlaceholderTitle: { color: colors.forest, fontSize: 18, fontWeight: '900' }, mapPlaceholderText: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 6, textAlign: 'center' }, emptyText: { color: colors.muted, fontSize: 14, lineHeight: 21 }, rulesText: { color: colors.muted, fontSize: 15, lineHeight: 23 }, reviewIntro: { color: colors.muted, fontSize: 14, lineHeight: 20, marginBottom: 4 }, hostReview: { borderTopColor: colors.border, borderTopWidth: 1, marginTop: 12, paddingTop: 12 }, hostReviewBones: { fontSize: 20, letterSpacing: 1 }, emptyBones: { opacity: 0.18 }, hostReviewDate: { color: colors.brown, fontSize: 12, fontWeight: '800', marginTop: 7 }, hostReviewText: { color: colors.forest, fontSize: 14, lineHeight: 21, marginTop: 6 }, hostReviewEmpty: { color: colors.muted, fontSize: 13, fontStyle: 'italic', marginTop: 6 },
   bookingCard: { backgroundColor: colors.lightGreen, borderColor: '#CBD1BD', borderRadius: 20, borderWidth: 1, marginTop: 6, padding: 18 }, bookingEyebrow: { color: colors.brown, fontSize: 11, fontWeight: '900', letterSpacing: 1.2 }, bookingTitle: { color: colors.forest, fontSize: 22, fontWeight: '900', marginTop: 6 }, bookingText: { color: colors.muted, fontSize: 14, lineHeight: 21, marginBottom: 18, marginTop: 7 }, profileRequiredCard: { backgroundColor: colors.warmWhite, borderColor: colors.brown, borderRadius: 14, borderWidth: 1, marginBottom: 16, padding: 14 }, profileRequiredTitle: { color: colors.forest, fontSize: 15, fontWeight: '900' }, profileRequiredText: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 5 }, profileRequiredLink: { color: colors.brown, fontSize: 14, fontWeight: '900', marginTop: 10, textDecorationLine: 'underline' }, calendarHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }, monthButton: { alignItems: 'center', backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 16, borderWidth: 1, height: 32, justifyContent: 'center', width: 32 }, monthButtonText: { color: colors.forest, fontSize: 27, fontWeight: '700', lineHeight: 30 }, monthTitle: { color: colors.forest, fontSize: 16, fontWeight: '900' }, weekdayRow: { flexDirection: 'row', marginBottom: 5 }, weekdayLabel: { color: colors.muted, flex: 1, fontSize: 11, fontWeight: '900', textAlign: 'center' }, calendarGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 4 }, calendarDay: { alignItems: 'center', borderRadius: 16, height: 34, justifyContent: 'center', width: '13.2%' }, calendarDayAvailable: { backgroundColor: '#BFD8B9' }, calendarDayUnavailable: { backgroundColor: '#F0C5C0' }, calendarDaySelected: { backgroundColor: colors.forest, borderColor: colors.warmWhite, borderWidth: 2 }, calendarDayOutsideMonth: { opacity: 0.35 }, calendarDayText: { color: colors.forest, fontSize: 13, fontVariant: ['tabular-nums'], fontWeight: '900' }, calendarDayTextUnavailable: { color: '#95423A' }, calendarDayTextSelected: { color: colors.warmWhite }, selectedDateText: { color: colors.forest, fontSize: 14, fontWeight: '900', marginTop: 14, textAlign: 'center' }, fieldLabel: { color: colors.forest, fontSize: 14, fontWeight: '900', marginBottom: 7, marginTop: 14 }, selectorButton: { alignItems: 'center', backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 12, borderWidth: 1, flexDirection: 'row', justifyContent: 'space-between', minHeight: 50, paddingHorizontal: 14 }, selectorDisabled: { backgroundColor: '#ECE6D9', opacity: 0.7 }, selectorButtonText: { color: colors.forest, fontSize: 16, fontVariant: ['tabular-nums'], fontWeight: '900' }, selectorHint: { color: colors.brown, fontSize: 20, fontWeight: '900' }, minimumText: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 8 }, dogCountRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'center', marginTop: 2 }, dogCountButton: { alignItems: 'center', backgroundColor: colors.forest, borderRadius: 12, height: 44, justifyContent: 'center', width: 48 }, dogCountButtonDisabled: { backgroundColor: '#9A968C' }, dogCountButtonText: { color: colors.warmWhite, fontSize: 24, fontWeight: '900' }, dogCountValue: { color: colors.forest, fontSize: 22, fontVariant: ['tabular-nums'], fontWeight: '900', minWidth: 60, textAlign: 'center' }, dogFeeText: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 10, textAlign: 'center' }, estimateRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginTop: 18 }, estimateLabel: { color: colors.muted, fontSize: 14, fontWeight: '800' }, estimateValue: { color: colors.forest, fontSize: 21, fontWeight: '900' }, bookingButton: { alignItems: 'center', backgroundColor: colors.brown, borderRadius: 14, justifyContent: 'center', marginTop: 18, minHeight: 54 }, bookingButtonText: { color: colors.warmWhite, fontSize: 16, fontWeight: '900' }, buttonDisabled: { opacity: 0.55 },
   reviewerName: { color: colors.forest, fontSize: 16, fontWeight: '900' }, reviewModalBackdrop: { alignItems: 'center', backgroundColor: 'rgba(0, 0, 0, 0.42)', flex: 1, justifyContent: 'center', padding: 24 }, reviewModal: { backgroundColor: colors.warmWhite, borderRadius: 20, maxWidth: 440, padding: 22, width: '100%' }, fullReviewText: { color: colors.forest, fontSize: 16, lineHeight: 23, marginTop: 16 }, closeReviewButton: { alignItems: 'center', backgroundColor: colors.forest, borderRadius: 12, justifyContent: 'center', marginTop: 22, minHeight: 48 }, closeReviewText: { color: colors.warmWhite, fontWeight: '900' },
   temporarilyClosedText: { backgroundColor: '#F0C5C0', borderColor: '#D88A80', borderRadius: 10, borderWidth: 1, color: '#95423A', fontSize: 13, fontWeight: '800', lineHeight: 19, marginBottom: 14, padding: 11, textAlign: 'center' },
-  modalBackdrop: { backgroundColor: 'rgba(0, 0, 0, 0.42)', flex: 1, justifyContent: 'flex-end' }, slotSheet: { backgroundColor: colors.cream, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '72%', padding: 22 }, slotSheetTitle: { color: colors.forest, fontSize: 22, fontWeight: '900' }, slotSheetText: { color: colors.muted, fontSize: 14, marginTop: 5 }, slotList: { gap: 9, paddingBottom: 12, paddingTop: 18 }, slotButton: { alignItems: 'center', backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 12, borderWidth: 1, minHeight: 48, justifyContent: 'center' }, slotButtonText: { color: colors.forest, fontSize: 16, fontVariant: ['tabular-nums'], fontWeight: '900' }, cancelButton: { alignItems: 'center', justifyContent: 'center', minHeight: 48 }, cancelButtonText: { color: colors.brown, fontSize: 16, fontWeight: '900' },
+  modalBackdrop: { backgroundColor: 'rgba(0, 0, 0, 0.42)', flex: 1, justifyContent: 'flex-end' }, slotSheet: { backgroundColor: colors.cream, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '72%', padding: 22 }, slotSheetTitle: { color: colors.forest, fontSize: 22, fontWeight: '900' }, slotSheetText: { color: colors.muted, fontSize: 14, marginTop: 5 }, slotList: { gap: 9, paddingBottom: 12, paddingTop: 18 }, slotButton: { alignItems: 'center', backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 12, borderWidth: 1, minHeight: 48, justifyContent: 'center' }, slotButtonUnavailable: { backgroundColor: '#F0C5C0', borderColor: '#D88A80', opacity: 0.72 }, slotButtonText: { color: colors.forest, fontSize: 16, fontVariant: ['tabular-nums'], fontWeight: '900' }, slotButtonTextUnavailable: { color: '#95423A' }, cancelButton: { alignItems: 'center', justifyContent: 'center', minHeight: 48 }, cancelButtonText: { color: colors.brown, fontSize: 16, fontWeight: '900' },
 });

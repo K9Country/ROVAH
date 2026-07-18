@@ -166,10 +166,6 @@ export default function MessagesScreen() {
           />
         }
       >
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
-          <Text style={styles.backButtonText}>{'<'} Member Dashboard</Text>
-        </Pressable>
-
         <Text style={styles.title}>Messages</Text>
 
         {conversations.length === 0 ? (
@@ -216,10 +212,10 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.cream },
   container: { flexGrow: 1, padding: 20 },
   centered: { alignItems: 'center', flex: 1, justifyContent: 'center' },
-  backButton: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' },
+  backButton: { alignSelf: 'flex-start', marginBottom: 12, minHeight: 44, justifyContent: 'center' },
   backButtonText: { color: colors.forest, fontSize: 16, fontWeight: '800' },
-  eyebrow: { color: colors.brown, fontSize: 12, fontWeight: '900', letterSpacing: 1.3, marginTop: 10 },
-  title: { color: colors.forest, fontFamily: typography.display, fontSize: 30, fontWeight: '900', marginTop: 8 },
+  eyebrow: { color: colors.brown, fontSize: 12, fontWeight: '900', letterSpacing: 1.3, marginTop: 0 },
+  title: { color: colors.forest, fontFamily: typography.display, fontSize: 30, fontWeight: '900', marginTop: 0 },
   description: { color: colors.muted, fontSize: 16, lineHeight: 23, marginTop: 10 },
   emptyCard: { backgroundColor: colors.lightGreen, borderColor: colors.border, borderRadius: 18, borderWidth: 1, marginTop: 24, padding: 18, ...shadows.card },
   emptyTitle: { color: colors.forest, fontSize: 18, fontWeight: '900' },
