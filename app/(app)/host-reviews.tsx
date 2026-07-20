@@ -199,10 +199,10 @@ export default function HostReviewsScreen() {
           {selectedPropertyLabel ? `${selectedPropertyLabel} reviews` : 'Site reviews'}
         </Text>
         <Text style={styles.description}>
-          Each review belongs to the specific site a guest visited. Use the feedback to improve that site’s safety, cleanliness, and guest experience.
+          Each review belongs to the specific site a guest visited. Use the reviews to improve that site’s safety, cleanliness, and guest experience.
         </Text>
         <View style={styles.trackPicker}>
-          <TrackButton label="Site feedback" selected={activeTrack === 'site_feedback'} onPress={() => setActiveTrack('site_feedback')} />
+          <TrackButton label="Site reviews" selected={activeTrack === 'site_feedback'} onPress={() => setActiveTrack('site_feedback')} />
           <TrackButton label="Guest records" selected={activeTrack === 'guest_records'} onPress={() => setActiveTrack('guest_records')} />
         </View>
 

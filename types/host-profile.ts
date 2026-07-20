@@ -16,6 +16,10 @@ export type HostProfile = {
   phone: string | null;
   city: string | null;
   state: string | null;
+  home_address: string | null;
+  home_city: string | null;
+  home_state: string | null;
+  home_postal_code: string | null;
   primary_site_address: string | null;
   primary_site_city: string | null;
   primary_site_state: string | null;

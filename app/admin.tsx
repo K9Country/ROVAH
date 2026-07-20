@@ -1,3 +1,4 @@
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -20,19 +21,60 @@ type ReviewProperty = {
   price_per_hour: number;
   acreage: number | null;
   is_fully_fenced: boolean;
+  fence_height_feet: number | null;
   instant_book: boolean;
+  is_temporarily_closed: boolean;
   is_published: boolean;
   approval_status: ApprovalStatus;
   review_notes: string | null;
   created_at: string;
 };
 
-type HostSummary = { user_id: string; full_name: string; email: string | null; city: string | null; state: string | null };
+type HostSummary = {
+  user_id: string;
+  full_name: string;
+  email: string | null;
+  phone: string | null;
+  home_address: string | null;
+  home_city: string | null;
+  home_state: string | null;
+  home_postal_code: string | null;
+  primary_site_address: string | null;
+  primary_site_city: string | null;
+  primary_site_state: string | null;
+  primary_site_postal_code: string | null;
+  controls_property: boolean;
+  accepted_host_terms_at: string | null;
+  onboarding_completed_at: string | null;
+  identity_verification_status: string;
+  profile_image_path: string | null;
+};
+
+type PropertyDraftDetails = {
+  property_id: string;
+  parking_instructions: string;
+  gate_access_instructions: string;
+  arrival_instructions: string;
+  property_rules: string;
+  availability_notes: string;
+};
+
+type PropertyImage = { id: string; property_id: string; storage_path: string; alt_text: string; display_order: number; is_cover: boolean; signedUrl?: string };
+type PropertyReviewDetails = {
+  details: PropertyDraftDetails | null;
+  amenities: string[];
+  images: PropertyImage[];
+};
+
+const amenityLabels: Record<string, string> = {
+  water: 'Water bowl', shade: 'Shade', picnic_table: 'Picnic table', restroom: 'Restroom', parking: 'Parking', tennis_ball: 'Tennis ball', frisbee: 'Frisbee', agility_equipment: 'Agility equipment', swimming_pool: 'Swimming pool', agility_course: 'Agility course', hiking_trails: 'Hiking trails', lake_access: 'Lake access', poop_bags: '💩 Poop bags', wheelchair_accessible: 'Wheelchair accessible',
+};
 
 export default function AdministratorScreen() {
   const { session } = useAuth();
   const [properties, setProperties] = useState<ReviewProperty[]>([]);
   const [hosts, setHosts] = useState<Record<string, HostSummary>>({});
+  const [reviewDetailsByProperty, setReviewDetailsByProperty] = useState<Record<string, PropertyReviewDetails>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isAdministrator, setIsAdministrator] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -62,13 +104,17 @@ export default function AdministratorScreen() {
     }
 
     setIsAdministrator(true);
-    const [propertiesResult, hostsResult] = await Promise.all([
-      supabase.from('properties').select('*').order('created_at', { ascending: true }),
-      supabase.from('host_profiles').select('user_id, full_name, email, city, state'),
+    const [propertiesResult, hostsResult, detailsResult, amenitiesResult, imagesResult] = await Promise.all([
+      supabase.from('properties').select('*').neq('approval_status', 'draft').order('created_at', { ascending: true }),
+      supabase.from('host_profiles').select('user_id, full_name, email, phone, home_address, home_city, home_state, home_postal_code, primary_site_address, primary_site_city, primary_site_state, primary_site_postal_code, controls_property, accepted_host_terms_at, onboarding_completed_at, identity_verification_status, profile_image_path'),
+      supabase.from('property_draft_details').select('property_id, parking_instructions, gate_access_instructions, arrival_instructions, property_rules, availability_notes'),
+      supabase.from('property_amenities').select('property_id, amenity_code'),
+      supabase.from('property_images').select('id, property_id, storage_path, alt_text, display_order, is_cover').order('display_order'),
     ]);
 
-    if (propertiesResult.error || hostsResult.error) {
-      setErrorMessage(propertiesResult.error?.message ?? hostsResult.error?.message ?? 'Unable to load the review queue.');
+    const reviewDataError = [propertiesResult.error, hostsResult.error, detailsResult.error, amenitiesResult.error, imagesResult.error].find(Boolean);
+    if (reviewDataError) {
+      setErrorMessage(reviewDataError.message ?? 'Unable to load the review queue.');
       setIsLoading(false);
       return;
     }
@@ -79,6 +125,25 @@ export default function AdministratorScreen() {
     );
     setProperties(nextProperties);
     setHosts(nextHosts);
+    const imageRows = (imagesResult.data ?? []) as PropertyImage[];
+    const { data: signedImages, error: signedImageError } = imageRows.length
+      ? await supabase.storage.from('property-images').createSignedUrls(imageRows.map((image) => image.storage_path), 3600)
+      : { data: [], error: null };
+    if (signedImageError) {
+      setErrorMessage(signedImageError.message);
+      setIsLoading(false);
+      return;
+    }
+    const signedUrlByPath = new Map((signedImages ?? []).map((image) => [image.path, image.signedUrl]));
+    const nextReviewDetails: Record<string, PropertyReviewDetails> = {};
+    for (const property of nextProperties) {
+      nextReviewDetails[property.id] = {
+        details: ((detailsResult.data ?? []) as PropertyDraftDetails[]).find((detail) => detail.property_id === property.id) ?? null,
+        amenities: ((amenitiesResult.data ?? []) as { property_id: string; amenity_code: string }[]).filter((item) => item.property_id === property.id).map((item) => item.amenity_code),
+        images: imageRows.filter((image) => image.property_id === property.id).map((image) => ({ ...image, signedUrl: signedUrlByPath.get(image.storage_path) ?? undefined })),
+      };
+    }
+    setReviewDetailsByProperty(nextReviewDetails);
     setNotesByProperty(Object.fromEntries(nextProperties.map((property) => [property.id, property.review_notes ?? ''])));
     setIsLoading(false);
   }, [session?.user.id]);
@@ -91,26 +156,6 @@ export default function AdministratorScreen() {
     () => properties.filter((property) => filter === 'all' || property.approval_status === filter),
     [filter, properties]
   );
-
-  const decideProperty = async (property: ReviewProperty, decision: Extract<ApprovalStatus, 'approved' | 'declined'>) => {
-    if (!session?.user.id || savingPropertyId) return;
-
-    const action = decision === 'approved' ? 'approve' : 'decline';
-    Alert.alert(
-      `${decision === 'approved' ? 'Approve' : 'Decline'} ${property.name}?`,
-      decision === 'approved'
-        ? 'The site will become visible to guests in search.'
-        : 'The site will be hidden from guest search until it is reviewed again.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: decision === 'approved' ? 'Approve site' : 'Decline site',
-          style: decision === 'declined' ? 'destructive' : 'default',
-          onPress: () => void saveDecision(property, decision, action),
-        },
-      ]
-    );
-  };
 
   const saveDecision = async (property: ReviewProperty, decision: Extract<ApprovalStatus, 'approved' | 'declined'>, action: string) => {
     try {
@@ -178,19 +223,48 @@ export default function AdministratorScreen() {
 
         {visibleProperties.map((property) => {
           const host = property.host_id ? hosts[property.host_id] : undefined;
+          const reviewDetails = reviewDetailsByProperty[property.id];
           const saving = savingPropertyId === property.id;
           return (
             <View key={property.id} style={styles.card}>
               <View style={styles.cardHeading}><View style={styles.cardTitleArea}><Text style={styles.cardTitle}>{property.name}</Text><Text style={styles.hostText}>Hosted by {host?.full_name ?? 'Unknown host'}{host?.email ? ` · ${host.email}` : ''}</Text></View><Text style={[styles.status, property.approval_status === 'approved' ? styles.approved : property.approval_status === 'declined' ? styles.declined : styles.pending]}>{property.approval_status}</Text></View>
+              <View style={styles.reviewReminder}><Text style={styles.reviewReminderTitle}>Required administrator review</Text><Text style={styles.reviewReminderText}>Review the complete host record, site information, photos, arrival details, rules, and amenities below before approving or declining this site.</Text></View>
+              <ReviewSection title="Host record — private administrator view">
+                <View style={styles.hostReviewHeader}>
+                  {host?.profile_image_path ? <Image contentFit="cover" source={{ uri: supabase.storage.from('host-profile-images').getPublicUrl(host.profile_image_path).data.publicUrl }} style={styles.hostPhoto} /> : <View style={styles.hostPhotoMissing}><Text style={styles.hostPhotoMissingText}>No photo</Text></View>}
+                  <View style={styles.hostReviewHeaderCopy}><Text style={styles.hostReviewName}>{host?.full_name ?? 'Unknown host'}</Text><Text style={styles.hostReviewEmail}>{host?.email ?? 'No email provided'}</Text></View>
+                </View>
+                <ReviewRow label="Phone" value={host?.phone ?? 'Not provided'} />
+                <ReviewRow label="Home address" value={formatAddress(host?.home_address, host?.home_city, host?.home_state, host?.home_postal_code)} />
+                <ReviewRow label="First private-space address" value={formatAddress(host?.primary_site_address, host?.primary_site_city, host?.primary_site_state, host?.primary_site_postal_code)} />
+                <ReviewRow label="Property permission confirmed" value={host?.controls_property ? 'Yes' : 'No'} />
+                <ReviewRow label="Host requirements accepted" value={host?.accepted_host_terms_at ? 'Yes' : 'No'} />
+                <ReviewRow label="Identity verification" value={formatStatus(host?.identity_verification_status)} />
+              </ReviewSection>
+              <ReviewSection title="Site overview">
               <Text style={styles.location}>{property.site_address}, {property.city}, {property.state}</Text>
               <Text style={styles.detail}>{property.acreage ?? '—'} acres · ${property.price_per_hour}/hour · {property.is_fully_fenced ? 'Fully fenced' : 'Not listed as fully fenced'} · {property.instant_book ? 'Instant book' : 'Request to book'}</Text>
               <Text style={styles.description}>{property.short_description}</Text>
+                <ReviewRow label="Fence height" value={property.fence_height_feet ? `${property.fence_height_feet} ft` : 'Not provided'} />
+                <ReviewRow label="Temporary closure" value={property.is_temporarily_closed ? 'Yes' : 'No'} />
+              </ReviewSection>
+              <ReviewSection title={`Property photos (${reviewDetails?.images.length ?? 0})`}>
+                {reviewDetails?.images.length ? <View style={styles.photoGrid}>{reviewDetails.images.map((image) => image.signedUrl ? <Image key={image.id} accessibilityLabel={image.alt_text || 'Property photo'} contentFit="cover" source={{ uri: image.signedUrl }} style={styles.propertyPhoto} /> : null)}</View> : <Text style={styles.missingReviewText}>No property photos uploaded.</Text>}
+              </ReviewSection>
+              <ReviewSection title="Arrival details and rules">
+                <ReviewLongText label="Parking instructions" value={reviewDetails?.details?.parking_instructions} />
+                <ReviewLongText label="Gate access" value={reviewDetails?.details?.gate_access_instructions} />
+                <ReviewLongText label="Arrival instructions" value={reviewDetails?.details?.arrival_instructions} />
+                <ReviewLongText label="Property rules" value={reviewDetails?.details?.property_rules} />
+                <ReviewLongText label="Availability notes" value={reviewDetails?.details?.availability_notes} />
+              </ReviewSection>
+              <ReviewSection title="Amenities"><Text style={styles.amenityReviewText}>{reviewDetails?.amenities.length ? reviewDetails.amenities.map((amenity) => amenityLabels[amenity] ?? amenity).join(' · ') : 'No amenities selected.'}</Text></ReviewSection>
               <Text style={styles.noteLabel}>Administrator notes for the host</Text>
               <TextInput editable={property.approval_status === 'pending'} multiline onChangeText={(value) => setNotesByProperty((current) => ({ ...current, [property.id]: value }))} placeholder="Optional notes or requested changes" placeholderTextColor="#8A877D" style={[styles.notesInput, property.approval_status !== 'pending' && styles.readOnlyInput]} value={notesByProperty[property.id] ?? ''} />
               {property.approval_status === 'pending' ? (
                 <View style={styles.actionRow}>
-                  <Pressable disabled={saving} onPress={() => void decideProperty(property, 'declined')} style={[styles.declineButton, saving && styles.disabled]}>{saving ? <ActivityIndicator color="#A7463B" /> : <Text style={styles.declineText}>Decline</Text>}</Pressable>
-                  <Pressable disabled={saving} onPress={() => void decideProperty(property, 'approved')} style={[styles.approveButton, saving && styles.disabled]}>{saving ? <ActivityIndicator color={colors.warmWhite} /> : <Text style={styles.approveText}>Approve & publish</Text>}</Pressable>
+                  <Pressable disabled={saving} onPress={() => void saveDecision(property, 'declined', 'decline')} style={[styles.declineButton, saving && styles.disabled]}>{saving ? <ActivityIndicator color="#A7463B" /> : <Text style={styles.declineText}>Decline</Text>}</Pressable>
+                  <Pressable disabled={saving} onPress={() => void saveDecision(property, 'approved', 'approve')} style={[styles.approveButton, saving && styles.disabled]}>{saving ? <ActivityIndicator color={colors.warmWhite} /> : <Text style={styles.approveText}>Approve & publish</Text>}</Pressable>
                 </View>
               ) : <Text style={styles.finalDecisionText}>This site has already received its final review decision.</Text>}
             </View>
@@ -199,6 +273,26 @@ export default function AdministratorScreen() {
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+function formatAddress(address?: string | null, city?: string | null, state?: string | null, postalCode?: string | null) {
+  return [address, [city, state].filter(Boolean).join(', '), postalCode].filter(Boolean).join(' · ') || 'Not provided';
+}
+
+function formatStatus(value?: string | null) {
+  return value ? value.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()) : 'Not started';
+}
+
+function ReviewSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return <View style={styles.reviewSection}><Text style={styles.reviewSectionTitle}>{title}</Text>{children}</View>;
+}
+
+function ReviewRow({ label, value }: { label: string; value: string }) {
+  return <View style={styles.reviewRow}><Text style={styles.reviewRowLabel}>{label}</Text><Text style={styles.reviewRowValue}>{value}</Text></View>;
+}
+
+function ReviewLongText({ label, value }: { label: string; value?: string | null }) {
+  return <View style={styles.reviewLongText}><Text style={styles.reviewRowLabel}>{label}</Text><Text style={styles.reviewLongTextValue}>{value?.trim() || 'Not provided'}</Text></View>;
 }
 
 const styles = StyleSheet.create({
@@ -225,6 +319,27 @@ const styles = StyleSheet.create({
   pending: { backgroundColor: '#FFF0D1', color: '#8A4F17' },
   approved: { backgroundColor: '#E4F4E8', color: '#237A45' },
   declined: { backgroundColor: '#FDEBE9', color: '#A7463B' },
+  reviewReminder: { backgroundColor: '#FFF0D1', borderColor: '#E8C779', borderRadius: 12, borderWidth: 1, marginTop: 15, padding: 12 },
+  reviewReminderTitle: { color: '#8A4F17', fontSize: 13, fontWeight: '900' },
+  reviewReminderText: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 4 },
+  reviewSection: { borderTopColor: colors.border, borderTopWidth: 1, marginTop: 16, paddingTop: 16 },
+  reviewSectionTitle: { color: colors.forest, fontSize: 16, fontWeight: '900', marginBottom: 10 },
+  hostReviewHeader: { alignItems: 'center', flexDirection: 'row', gap: 11, marginBottom: 6 },
+  hostPhoto: { borderRadius: 28, height: 56, width: 56 },
+  hostPhotoMissing: { alignItems: 'center', backgroundColor: '#E8E3D8', borderRadius: 28, height: 56, justifyContent: 'center', width: 56 },
+  hostPhotoMissingText: { color: colors.muted, fontSize: 11, fontWeight: '800' },
+  hostReviewHeaderCopy: { flex: 1 },
+  hostReviewName: { color: colors.forest, fontSize: 16, fontWeight: '900' },
+  hostReviewEmail: { color: colors.muted, fontSize: 13, marginTop: 3 },
+  reviewRow: { borderTopColor: '#E9E4D9', borderTopWidth: 1, paddingVertical: 9 },
+  reviewRowLabel: { color: colors.forest, fontSize: 12, fontWeight: '900' },
+  reviewRowValue: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 3 },
+  reviewLongText: { borderTopColor: '#E9E4D9', borderTopWidth: 1, paddingVertical: 10 },
+  reviewLongTextValue: { color: colors.muted, fontSize: 13, lineHeight: 20, marginTop: 4 },
+  photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 9 },
+  propertyPhoto: { borderRadius: 10, height: 92, width: 92 },
+  missingReviewText: { color: '#A7463B', fontSize: 13, fontWeight: '800' },
+  amenityReviewText: { color: colors.muted, fontSize: 13, lineHeight: 20 },
   location: { color: colors.forest, fontSize: 14, fontWeight: '800', marginTop: 14 },
   detail: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 5 },
   noteLabel: { color: colors.forest, fontSize: 13, fontWeight: '900', marginTop: 17 },

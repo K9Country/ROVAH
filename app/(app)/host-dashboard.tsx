@@ -1,4 +1,3 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -26,7 +25,7 @@ import type { Property } from '../../types/property';
 
 type HostDashboardData = {
   profile: HostProfile | null;
-  properties: Property[];
+  properties: (Property & { booking_count: number; booking_total: number })[];
 };
 
 function isJwtIssuedInFutureError(error: { message?: string } | null) {
@@ -104,7 +103,7 @@ export default function HostDashboardScreen() {
     const { data: bookingsData, error: bookingsError } = propertyIds.length
       ? await supabase
           .from('bookings')
-          .select('property_id')
+          .select('property_id, total_amount')
           .eq('status', 'confirmed')
           .in('property_id', propertyIds)
       : { data: [], error: null };
@@ -115,19 +114,21 @@ export default function HostDashboardScreen() {
       return;
     }
 
-    const bookingCountsByProperty = (bookingsData ?? []).reduce<Record<string, number>>((counts, booking) => {
+    const bookingTotalsByProperty = (bookingsData ?? []).reduce<Record<string, { count: number; total: number }>>((totals, booking) => {
       if (!booking.property_id) {
-        return counts;
+        return totals;
       }
 
-      counts[booking.property_id] = (counts[booking.property_id] ?? 0) + 1;
-      return counts;
+      const current = totals[booking.property_id] ?? { count: 0, total: 0 };
+      totals[booking.property_id] = { count: current.count + 1, total: current.total + Number(booking.total_amount ?? 0) };
+      return totals;
     }, {});
 
     const propertiesWithBookingCounts = properties.map((property) => ({
       ...property,
-      booking_count: bookingCountsByProperty[property.id] ?? 0,
-    })) as Property[];
+      booking_count: bookingTotalsByProperty[property.id]?.count ?? 0,
+      booking_total: bookingTotalsByProperty[property.id]?.total ?? 0,
+    }));
 
     setDashboardData({
       profile: profileResult.data as HostProfile | null,
@@ -168,13 +169,12 @@ export default function HostDashboardScreen() {
       setIsSigningOut(true);
 
       const { error } = await supabase.auth.signOut();
-      await AsyncStorage.removeItem('@k9-country/host-mode');
-
       if (error) {
         Alert.alert('Unable to sign out', error.message);
         return;
       }
 
+      router.dismissAll();
       router.replace('/');
     } catch {
       Alert.alert(
@@ -413,10 +413,19 @@ export default function HostDashboardScreen() {
                 />
                 <PropertyTool
                   icon={'\u{2B50}'}
-                  label="Site Feedback"
+                  label="Site Reviews"
                   onPress={() => router.push(`/host-reviews?propertyId=${property.id}&propertyName=${encodeURIComponent(property.name)}` as never)}
                 />
               </View>
+              <Pressable
+                accessibilityLabel={`Message visitors of ${property.name}`}
+                accessibilityRole="button"
+                onPress={() => router.push(`/host-guest-message?propertyId=${property.id}&propertyName=${encodeURIComponent(property.name)}` as never)}
+                style={({ pressed }) => [styles.messageGuestsButton, pressed && styles.buttonPressed]}
+              >
+                <Text style={styles.messageGuestsButtonIcon}>📣</Text>
+                <Text style={styles.messageGuestsButtonText}>Broadcast Message</Text>
+              </Pressable>
               {property.is_published ? (
                 <Pressable
                   accessibilityLabel={`Share ${property.name}`}
@@ -424,8 +433,14 @@ export default function HostDashboardScreen() {
                   onPress={() => void shareThisSite(property)}
                   style={({ pressed }) => [styles.sharePropertyButton, pressed && styles.buttonPressed]}
                 >
-                  <Text style={styles.sharePropertyIcon}>↗</Text>
                   <Text style={styles.sharePropertyText}>Share this site</Text>
+                  <View pointerEvents="none" style={styles.sharePropertyIcon}>
+                    <View style={[styles.shareIconLine, styles.shareIconLineTop]} />
+                    <View style={[styles.shareIconLine, styles.shareIconLineBottom]} />
+                    <View style={[styles.shareIconDot, styles.shareIconDotOrigin]} />
+                    <View style={[styles.shareIconDot, styles.shareIconDotTop]} />
+                    <View style={[styles.shareIconDot, styles.shareIconDotBottom]} />
+                  </View>
                 </Pressable>
               ) : null}
             </View>
@@ -459,12 +474,13 @@ export default function HostDashboardScreen() {
           dashboardData.properties.map((property) => {
             const viewCount = property.view_count ?? 0;
             const bookingCount = property.booking_count ?? 0;
+            const averageHostEarnings = bookingCount ? (property.booking_total * 0.85) / bookingCount : 0;
             const conversionText = viewCount > 0
               ? `${Math.round((bookingCount / viewCount) * 100)}% of clicks became bookings`
               : 'Clicks will appear here once guests open your listing';
 
             return (
-              <View key={`analytics-${property.id}`} style={styles.propertyAnalyticsCard}>
+              <Pressable accessibilityRole="button" key={`analytics-${property.id}`} onPress={() => router.push(`/host-analytics?propertyId=${property.id}&propertyName=${encodeURIComponent(property.name)}` as never)} style={({ pressed }) => [styles.propertyAnalyticsCard, pressed && styles.buttonPressed]}>
                 <Text style={styles.propertyAnalyticsName}>{property.name}</Text>
                 <View style={styles.propertyAnalyticsRow}>
                   <View style={styles.analyticsMetricBlock}>
@@ -475,9 +491,14 @@ export default function HostDashboardScreen() {
                     <Text style={styles.analyticsMetricValue}>{bookingCount}</Text>
                     <Text style={styles.analyticsMetricLabel}>Bookings</Text>
                   </View>
+                  <View style={styles.analyticsMetricBlock}>
+                    <Text style={styles.analyticsMetricValue}>${averageHostEarnings.toFixed(0)}</Text>
+                    <Text style={styles.analyticsMetricLabel}>Avg. host earnings</Text>
+                  </View>
                 </View>
                 <Text style={styles.analyticsHint}>{conversionText}</Text>
-              </View>
+                <Text style={styles.analyticsAction}>View detailed analytics</Text>
+              </Pressable>
             );
           })
         )}
@@ -511,6 +532,24 @@ export default function HostDashboardScreen() {
         >
           <Text style={styles.trustSafetyLinkTitle}>Trust & Safety</Text>
           <Text style={styles.trustSafetyLinkText}>How K9 Country helps keep every visit safe</Text>
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="link"
+          onPress={() => router.push('/pricing' as never)}
+          style={[styles.trustSafetyLink, styles.pricingLink]}
+        >
+          <Text style={styles.trustSafetyLinkTitle}>Pricing</Text>
+          <Text style={styles.trustSafetyLinkText}>Simple, fair, transparent pricing for members and hosts</Text>
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="link"
+          onPress={() => router.push('/privacy' as never)}
+          style={[styles.trustSafetyLink, styles.privacyLink]}
+        >
+          <Text style={styles.trustSafetyLinkTitle}>Privacy Policy</Text>
+          <Text style={styles.trustSafetyLinkText}>How K9 Country collects, uses, and protects your information</Text>
         </Pressable>
 
       </ScrollView>
@@ -585,9 +624,19 @@ const styles = StyleSheet.create({
   propertyTool: { alignItems: 'center', flex: 1, justifyContent: 'center', minHeight: 78, paddingHorizontal: 3 },
   propertyToolIcon: { fontSize: 20 },
   propertyToolLabel: { color: colors.forest, fontSize: 11, fontWeight: '800', marginTop: 6, textAlign: 'center' },
-  sharePropertyButton: { alignItems: 'center', borderTopColor: colors.border, borderTopWidth: 1, flexDirection: 'row', justifyContent: 'center', minHeight: 48 },
-  sharePropertyIcon: { color: colors.brown, fontSize: 18, marginRight: 7 },
-  sharePropertyText: { color: colors.brown, fontSize: 14, fontWeight: '900' },
+  messageGuestsButton: { alignItems: 'center', borderColor: colors.forest, borderRadius: 14, borderWidth: 1, flexDirection: 'row', justifyContent: 'center', marginHorizontal: 15, marginTop: 12, minHeight: 52 },
+  messageGuestsButtonIcon: { fontSize: 18, marginRight: 8 },
+  messageGuestsButtonText: { color: colors.forest, fontSize: 14, fontWeight: '900' },
+  sharePropertyButton: { alignItems: 'center', backgroundColor: colors.forest, borderColor: colors.forest, borderRadius: 14, borderWidth: 1, flexDirection: 'row', justifyContent: 'center', marginBottom: 15, marginHorizontal: 15, marginTop: 12, minHeight: 52 },
+  sharePropertyIcon: { height: 22, marginLeft: 10, position: 'relative', width: 22 },
+  shareIconLine: { backgroundColor: colors.warmWhite, height: 2, left: 5, position: 'absolute', width: 13 },
+  shareIconLineTop: { top: 7, transform: [{ rotate: '-27deg' }] },
+  shareIconLineBottom: { top: 14, transform: [{ rotate: '27deg' }] },
+  shareIconDot: { backgroundColor: colors.warmWhite, borderRadius: 4, height: 7, position: 'absolute', width: 7 },
+  shareIconDotOrigin: { left: 0, top: 8 },
+  shareIconDotTop: { right: 0, top: 1 },
+  shareIconDotBottom: { bottom: 1, right: 0 },
+  sharePropertyText: { color: colors.warmWhite, fontSize: 14, fontWeight: '900' },
   earningsCard: { alignItems: 'center', backgroundColor: colors.lightGreen, borderColor: '#CBD1BD', borderRadius: 18, borderWidth: 1, flexDirection: 'row', justifyContent: 'space-between', padding: 18 },
   earningsLabel: { color: colors.brown, fontSize: 11, fontWeight: '900', letterSpacing: 1.1 },
   earningsValue: { color: colors.forest, fontSize: 28, fontWeight: '900', marginTop: 5 },
@@ -602,6 +651,7 @@ const styles = StyleSheet.create({
   analyticsMetricValue: { color: colors.forest, fontSize: 22, fontWeight: '900' },
   analyticsMetricLabel: { color: colors.muted, fontSize: 12, fontWeight: '700', marginTop: 4 },
   analyticsHint: { color: colors.olive, fontSize: 13, lineHeight: 18, marginTop: 10, fontWeight: '700' },
+  analyticsAction: { color: colors.brown, fontSize: 13, fontWeight: '900', marginTop: 12, textDecorationLine: 'underline' },
   propertyMetric: { flex: 1 },
   propertyMetricValue: { color: colors.forest, fontSize: 17, fontWeight: '900' },
   propertyMetricLabel: { color: colors.muted, fontSize: 11, fontWeight: '800', marginTop: 3 },
@@ -609,7 +659,9 @@ const styles = StyleSheet.create({
   liveBadgeText: { color: colors.olive, fontSize: 12, fontWeight: '900' },
   mainEntryLink: { alignItems: 'center', justifyContent: 'center', marginTop: 28, minHeight: 46 },
   mainEntryLinkText: { color: colors.brown, fontSize: 14, fontWeight: '900', textDecorationLine: 'underline' },
-  trustSafetyLink: { alignItems: 'center', marginTop: 24, paddingHorizontal: 20, paddingVertical: 12 },
+  trustSafetyLink: { alignItems: 'center', marginTop: 28, paddingHorizontal: 20, paddingVertical: 12 },
+  pricingLink: { marginTop: 6 },
+  privacyLink: { marginTop: 6 },
   trustSafetyLinkTitle: { color: colors.forest, fontSize: 15, fontWeight: '900', textDecorationLine: 'underline' },
   trustSafetyLinkText: { color: colors.muted, fontSize: 12, marginTop: 4, textAlign: 'center' },
   accountSection: { alignItems: 'center', marginTop: 30 },

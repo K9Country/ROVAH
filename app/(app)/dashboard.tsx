@@ -1,4 +1,3 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -59,10 +58,16 @@ const dashboardActions: DashboardAction[] = [
     route: '/messages',
   },
   {
-    title: 'Profile & Settings',
+    title: 'Parent Profile',
     description: 'Manage your account and preferences.',
     icon: '⚙',
     route: '/profile',
+  },
+  {
+    title: 'Dog Profiles',
+    description: 'Add and manage profiles for your dogs.',
+    icon: '🐾',
+    route: '/dog-profiles',
   },
 ];
  
@@ -224,13 +229,12 @@ export default function DashboardScreen() {
       setIsSigningOut(true);
  
       const { error } = await supabase.auth.signOut();
-      await AsyncStorage.removeItem('@k9-country/host-mode');
- 
       if (error) {
         Alert.alert('Unable to sign out', error.message);
         return;
       }
  
+      router.dismissAll();
       router.replace('/');
     } catch {
       Alert.alert(
@@ -302,6 +306,13 @@ export default function DashboardScreen() {
                 <UnreadMessageIcon
                   hasUnread={hasUnreadMessages}
                   style={styles.actionMessageIcon}
+                />
+              ) : action.title === 'Dog Profiles' ? (
+                <Image
+                  accessibilityLabel="Dog Profiles"
+                  resizeMode="contain"
+                  source={require('../../assets/images/member-sign-in-paw.png')}
+                  style={styles.dogProfilesActionPaw}
                 />
               ) : (
                 <Text style={[styles.actionIcon, action.title === 'Favorites' && styles.favoriteActionIcon]}>{action.icon}</Text>
@@ -405,13 +416,6 @@ export default function DashboardScreen() {
           </View>
         </View>
 
-        <View style={styles.trustSafetyArtwork}>
-          <Image
-            accessibilityLabel="K9 Country fence"
-            source={require('../../assets/images/k9-13.png')}
-            style={styles.trustSafetyArtworkImage}
-          />
-        </View>
         <Pressable accessibilityRole="link" onPress={() => router.push('/trust-safety' as never)} style={styles.trustSafetyLink}>
           <Text style={styles.trustSafetyLinkTitle}>Trust & Safety</Text>
           <Text style={styles.trustSafetyLinkText}>How K9 Country helps keep every visit safe</Text>
@@ -521,8 +525,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textDecorationLine: 'underline',
   },
-  trustSafetyArtwork: { marginHorizontal: -20, marginTop: 24 },
-  trustSafetyArtworkImage: { height: 48, resizeMode: 'contain', width: '100%' },
   trustSafetyLink: { alignItems: 'center', marginTop: 30, paddingHorizontal: 20, paddingVertical: 12 },
   pricingLink: { marginTop: 6 },
   privacyLink: { marginTop: 6 },
@@ -563,6 +565,11 @@ const styles = StyleSheet.create({
   actionIcon: {
     fontSize: 26,
     marginBottom: 8,
+  },
+  dogProfilesActionPaw: {
+    height: 30,
+    marginBottom: 8,
+    width: 30,
   },
   favoriteActionIcon: {
     color: colors.red,

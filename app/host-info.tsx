@@ -1,15 +1,22 @@
 import { router } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors } from '../constants/theme';
 import { useAuth } from '../services/auth-context';
 
 export default function HostInfoScreen() {
-  const { isHost, setActiveMode } = useAuth();
+  const { isHost, session } = useAuth();
 
   const startHosting = async () => {
-    await setActiveMode('host');
+    if (session && !isHost) {
+      Alert.alert(
+        'Member account signed in',
+        'Sign out first, then return to the welcome page and use the Host Sign In or host account option.'
+      );
+      return;
+    }
+
     router.push((isHost ? '/host-dashboard' : '/sign-up?intent=host') as never);
   };
 

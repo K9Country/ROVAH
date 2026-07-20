@@ -10,6 +10,8 @@ const hostOnlyRoutes = new Set([
   '/create-property',
   '/host-calendar',
   '/host-dashboard',
+  '/host-analytics',
+  '/host-guest-message',
   '/host-guests',
   '/host-messages',
   '/host-payments',
@@ -20,6 +22,7 @@ const hostOnlyRoutes = new Set([
 
 const memberOnlyRoutes = new Set([
   '/dashboard',
+  '/dog-profiles',
   '/favorites',
   '/host-profile',
   '/messages',
@@ -36,12 +39,16 @@ export default function AppLayout() {
   const pathname = usePathname();
   const routeRoot = `/${pathname.split('/').filter(Boolean)[0] ?? ''}`;
   const needsHostAccess = hostOnlyRoutes.has(routeRoot);
-  const needsMemberAccess = memberOnlyRoutes.has(routeRoot);
+  // Hosts and members share the conversation screen, but hosts can reach it
+  // only from Host Messages with a conversation ID. All other member routes
+  // remain unavailable to hosts.
+  const isHostConversationRoute = routeRoot === '/messages' && isHost;
+  const needsMemberAccess = memberOnlyRoutes.has(routeRoot) && !isHostConversationRoute;
 
   useEffect(() => {
     if (isLoading) return;
 
-    if (!isMember) {
+    if (!isMember && !isHost) {
       router.replace('/' as never);
       return;
     }
@@ -58,7 +65,7 @@ export default function AppLayout() {
 
   if (
     isLoading ||
-    !isMember ||
+    (!isMember && !isHost) ||
     (needsHostAccess && !isHost) ||
     (needsMemberAccess && isHost)
   ) {

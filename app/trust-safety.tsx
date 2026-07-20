@@ -125,7 +125,7 @@ function Checklist({ items }: { items: string[] }) {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: colors.cream },
+  safeArea: { flex: 1, backgroundColor: colors.cream, userSelect: 'none' },
   container: { padding: 20, paddingBottom: 44 },
   backButton: { alignSelf: 'flex-start', justifyContent: 'center', minHeight: 44, marginBottom: 8 },
   backButtonText: { color: colors.forest, fontSize: 16, fontWeight: '800' },

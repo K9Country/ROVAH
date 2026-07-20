@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../../constants/theme';
 import { getAuthEmailRedirectUrl } from '../../lib/auth-redirect';
+import { formatUsPhoneNumber, hasValidUsPhoneNumber, phoneNumberHelpText } from '../../lib/phone-number';
 import { supabase } from '../../lib/supabase';
 
 function getSignupErrorMessage(error: unknown) {
@@ -41,6 +42,10 @@ function showExistingAccountMessage(intent?: string) {
     'An account already uses this email address. Please sign in to continue.'
   );
 }
+
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
  
 export default function SignUpScreen() {
   const { intent, email: initialEmail } = useLocalSearchParams<{
@@ -49,9 +54,26 @@ export default function SignUpScreen() {
   }>();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [siteAddress, setSiteAddress] = useState('');
+  const [city, setCity] = useState('');
+  const [state, setState] = useState('');
+  const [postalCode, setPostalCode] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<{
+    firstName?: string;
+    lastName?: string;
+    phone?: string;
+    siteAddress?: string;
+    city?: string;
+    state?: string;
+    postalCode?: string;
+    email?: string;
+    password?: string;
+    confirmPassword?: string;
+  }>({});
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -64,11 +86,75 @@ export default function SignUpScreen() {
     }
   }, [initialEmail]);
 
+  const handleEmailChange = (value: string) => {
+    setEmail(value);
+    setFieldErrors((current) => ({
+      ...current,
+      email: value.trim() && !isValidEmail(value.trim())
+        ? 'Enter a valid email address.'
+        : undefined,
+    }));
+  };
+
+  const handlePasswordChange = (value: string) => {
+    setPassword(value);
+    setFieldErrors((current) => ({
+      ...current,
+      password: value && value.length < 12
+        ? 'Use at least 12 characters.'
+        : undefined,
+      confirmPassword: confirmPassword && confirmPassword !== value
+        ? 'Passwords do not match.'
+        : undefined,
+    }));
+  };
+
+  const handleConfirmPasswordChange = (value: string) => {
+    setConfirmPassword(value);
+    setFieldErrors((current) => ({
+      ...current,
+      confirmPassword: value && value !== password
+        ? 'Passwords do not match.'
+        : undefined,
+    }));
+  };
+
   const handleSignUp = async () => {
     const normalizedFirstName = firstName.trim();
     const normalizedLastName = lastName.trim();
     const normalizedName = `${normalizedFirstName} ${normalizedLastName}`.trim();
     const normalizedEmail = email.trim().toLowerCase();
+    const normalizedPhone = phone.trim();
+    const normalizedSiteAddress = siteAddress.trim();
+    const normalizedCity = city.trim();
+    const normalizedState = state.trim().toUpperCase();
+    const normalizedPostalCode = postalCode.trim();
+    const hostValidationErrors: typeof fieldErrors = {};
+
+    if (intent === 'host') {
+      if (!normalizedFirstName) hostValidationErrors.firstName = 'Enter your first name.';
+      if (!normalizedLastName) hostValidationErrors.lastName = 'Enter your last name.';
+      if (!normalizedPhone) hostValidationErrors.phone = 'Enter a phone number.';
+      else if (!hasValidUsPhoneNumber(normalizedPhone)) hostValidationErrors.phone = phoneNumberHelpText;
+      if (!normalizedSiteAddress) hostValidationErrors.siteAddress = 'Enter your home street address.';
+      if (!normalizedCity) hostValidationErrors.city = 'Enter your home city.';
+      if (!normalizedState) hostValidationErrors.state = 'Enter your home state.';
+      if (!normalizedPostalCode) hostValidationErrors.postalCode = 'Enter the ZIP or postal code.';
+      if (Object.keys(hostValidationErrors).length) {
+        setFieldErrors((current) => ({ ...current, ...hostValidationErrors }));
+        Alert.alert('Complete your Hosting Profile', 'Enter your contact information and first-site address before creating your host account.');
+        return;
+      }
+    }
+
+    if (!normalizedEmail || !isValidEmail(normalizedEmail)) {
+      setFieldErrors((current) => ({
+        ...current,
+        email: !normalizedEmail ? 'Enter your email address.' : 'Enter a valid email address.',
+      }));
+      Alert.alert('Check your email address', 'Enter a valid email address before creating your account.');
+      return;
+    }
  
     if (
       !normalizedFirstName ||
@@ -85,6 +171,7 @@ export default function SignUpScreen() {
     }
  
     if (password.length < 12) {
+      setFieldErrors((current) => ({ ...current, password: 'Use at least 12 characters.' }));
       Alert.alert(
         'Password is too short',
         'Create a password containing at least 12 characters.'
@@ -93,6 +180,7 @@ export default function SignUpScreen() {
     }
  
     if (password !== confirmPassword) {
+      setFieldErrors((current) => ({ ...current, confirmPassword: 'Passwords do not match.' }));
       Alert.alert(
         'Passwords do not match',
         'Enter the same password in both password fields.'
@@ -112,6 +200,13 @@ export default function SignUpScreen() {
             first_name: normalizedFirstName,
             last_name: normalizedLastName,
             account_intent: intent === 'host' ? 'host' : 'guest',
+            ...(intent === 'host' ? {
+              host_phone: normalizedPhone,
+              host_home_address: normalizedSiteAddress,
+              host_home_city: normalizedCity,
+              host_home_state: normalizedState,
+              host_home_postal_code: normalizedPostalCode,
+            } : {}),
           },
           emailRedirectTo: getAuthEmailRedirectUrl(intent),
         },
@@ -176,30 +271,11 @@ export default function SignUpScreen() {
             </View>
           ) : null}
 
-          {intent === 'host' ? <Pressable
-            accessibilityRole="button"
-            onPress={() => router.replace('/')}
-            style={[styles.backButton, styles.hostBackButton]}
-          >
-            <Text style={[styles.backButtonText, intent === 'host' && styles.hostBackButtonText]}>{intent === 'host' ? '← Welcome Page' : '← Back'}</Text>
-          </Pressable> : null}
- 
-          {intent === 'host' ? (
-            <View style={styles.hostHeroBleed}>
-              <Image
-                accessibilityLabel="K9 Country host benefits"
-                contentFit="cover"
-                source={require('../../assets/images/k9-12.png')}
-                style={styles.hostHero}
-              />
-            </View>
-          ) : null}
-
           {intent === 'host' ? (
             <View style={styles.hostHeading}>
-              <Text style={styles.title}>Create your host account</Text>
+              <Text style={styles.title}>Start Your Hosting Profile</Text>
               <Text style={styles.description}>
-                Create your account, then tell us about the private space you want to share.
+                Create your secure host account and enter the first private space you plan to share.
               </Text>
             </View>
           ) : (
@@ -229,13 +305,14 @@ export default function SignUpScreen() {
                   accessibilityLabel="First name"
                   autoCapitalize="words"
                   autoComplete="name"
-                  onChangeText={setFirstName}
+                  onChangeText={(value) => { setFirstName(value); setFieldErrors((current) => ({ ...current, firstName: undefined })); }}
                   placeholder="First name"
                   placeholderTextColor="#8A877D"
                   returnKeyType="next"
                   style={styles.input}
                   value={firstName}
                 />
+                {fieldErrors.firstName ? <Text style={styles.fieldError}>{fieldErrors.firstName}</Text> : null}
               </View>
 
               <View style={styles.nameField}>
@@ -244,15 +321,50 @@ export default function SignUpScreen() {
                   accessibilityLabel="Last name"
                   autoCapitalize="words"
                   autoComplete="name"
-                  onChangeText={setLastName}
+                  onChangeText={(value) => { setLastName(value); setFieldErrors((current) => ({ ...current, lastName: undefined })); }}
                   placeholder="Last name"
                   placeholderTextColor="#8A877D"
                   returnKeyType="next"
                   style={styles.input}
                   value={lastName}
                 />
+                {fieldErrors.lastName ? <Text style={styles.fieldError}>{fieldErrors.lastName}</Text> : null}
               </View>
             </View>
+
+            {intent === 'host' ? <>
+              <View>
+                <Text style={styles.label}>Phone number</Text>
+                <TextInput accessibilityLabel="Phone number" autoComplete="tel" keyboardType="phone-pad" maxLength={12} onChangeText={(value) => { setPhone(formatUsPhoneNumber(value)); setFieldErrors((current) => ({ ...current, phone: undefined })); }} placeholder="248-555-1234" placeholderTextColor="#8A877D" returnKeyType="next" style={[styles.input, fieldErrors.phone && styles.inputError]} value={phone} />
+                {fieldErrors.phone ? <Text style={styles.fieldError}>{fieldErrors.phone}</Text> : null}
+              </View>
+              <View style={styles.siteLocationSection}>
+                <Text style={styles.siteLocationTitle}>Home address</Text>
+              </View>
+              <View>
+                <Text style={styles.label}>Street address</Text>
+                <TextInput accessibilityLabel="Home street address" autoCapitalize="words" autoComplete="street-address" onChangeText={(value) => { setSiteAddress(value); setFieldErrors((current) => ({ ...current, siteAddress: undefined })); }} placeholder="123 Country Lane" placeholderTextColor="#8A877D" returnKeyType="next" style={[styles.input, fieldErrors.siteAddress && styles.inputError]} value={siteAddress} />
+                {fieldErrors.siteAddress ? <Text style={styles.fieldError}>{fieldErrors.siteAddress}</Text> : null}
+              </View>
+              <View style={styles.locationRow}>
+                <View style={styles.cityField}>
+                  <Text style={styles.label}>City</Text>
+                  <TextInput accessibilityLabel="Home city" autoCapitalize="words" onChangeText={(value) => { setCity(value); setFieldErrors((current) => ({ ...current, city: undefined })); }} placeholder="Your city" placeholderTextColor="#8A877D" returnKeyType="next" style={[styles.input, fieldErrors.city && styles.inputError]} value={city} />
+                  {fieldErrors.city ? <Text style={styles.fieldError}>{fieldErrors.city}</Text> : null}
+                </View>
+                <View style={styles.stateField}>
+                  <Text style={styles.label}>State</Text>
+                  <TextInput accessibilityLabel="Home state" autoCapitalize="characters" maxLength={2} onChangeText={(value) => { setState(value); setFieldErrors((current) => ({ ...current, state: undefined })); }} placeholder="MI" placeholderTextColor="#8A877D" returnKeyType="next" style={[styles.input, fieldErrors.state && styles.inputError]} value={state} />
+                  {fieldErrors.state ? <Text style={styles.fieldError}>{fieldErrors.state}</Text> : null}
+                </View>
+              </View>
+              <View>
+                <Text style={styles.label}>ZIP or postal code</Text>
+                <TextInput accessibilityLabel="ZIP or postal code" autoCapitalize="characters" keyboardType="number-pad" onChangeText={(value) => { setPostalCode(value); setFieldErrors((current) => ({ ...current, postalCode: undefined })); }} placeholder="ZIP or postal code" placeholderTextColor="#8A877D" returnKeyType="next" style={[styles.input, fieldErrors.postalCode && styles.inputError]} value={postalCode} />
+                {fieldErrors.postalCode ? <Text style={styles.fieldError}>{fieldErrors.postalCode}</Text> : null}
+              </View>
+              <Text style={styles.accountDetailsTitle}>Account sign in</Text>
+            </> : null}
  
             <View>
               <Text style={styles.label}>Email address</Text>
@@ -263,13 +375,14 @@ export default function SignUpScreen() {
                 autoComplete="email"
                 autoCorrect={false}
                 keyboardType="email-address"
-                onChangeText={setEmail}
+                onChangeText={handleEmailChange}
                 placeholder="you@example.com"
                 placeholderTextColor="#8A877D"
                 returnKeyType="next"
-                style={styles.input}
+                style={[styles.input, fieldErrors.email && styles.inputError]}
                 value={email}
               />
+              {fieldErrors.email ? <Text style={styles.fieldError}>{fieldErrors.email}</Text> : null}
             </View>
  
             <View>
@@ -279,14 +392,15 @@ export default function SignUpScreen() {
                 accessibilityLabel="Password"
                 autoCapitalize="none"
                 autoComplete="new-password"
-                onChangeText={setPassword}
+                onChangeText={handlePasswordChange}
                 placeholder="At least 12 characters"
                 placeholderTextColor="#8A877D"
                 returnKeyType="next"
                 secureTextEntry={!isPasswordVisible}
-                style={styles.input}
+                style={[styles.input, fieldErrors.password && styles.inputError]}
                 value={password}
               />
+              {fieldErrors.password ? <Text style={styles.fieldError}>{fieldErrors.password}</Text> : null}
             </View>
  
             <View>
@@ -296,15 +410,16 @@ export default function SignUpScreen() {
                 accessibilityLabel="Confirm password"
                 autoCapitalize="none"
                 autoComplete="new-password"
-                onChangeText={setConfirmPassword}
+                onChangeText={handleConfirmPasswordChange}
                 onSubmitEditing={handleSignUp}
                 placeholder="Enter your password again"
                 placeholderTextColor="#8A877D"
                 returnKeyType="done"
                 secureTextEntry={!isPasswordVisible}
-                style={styles.input}
+                style={[styles.input, fieldErrors.confirmPassword && styles.inputError]}
                 value={confirmPassword}
               />
+              {fieldErrors.confirmPassword ? <Text style={styles.fieldError}>{fieldErrors.confirmPassword}</Text> : null}
 
               <Pressable
                 accessibilityLabel={
@@ -334,7 +449,7 @@ export default function SignUpScreen() {
                 <ActivityIndicator color="#FFFDF8" />
               ) : (
                 <Text style={styles.primaryButtonText}>
-                  {intent === 'host' ? 'Create Host Account' : 'Create Account'}
+                  {intent === 'host' ? 'Create Host Account & Verify Email' : 'Create Account'}
                 </Text>
               )}
             </Pressable>
@@ -366,14 +481,6 @@ export default function SignUpScreen() {
                 Already have an account? Sign In
               </Text>
             </Pressable>
-            {intent !== 'host' ? <View style={styles.memberFooterArtwork}>
-              <Image
-                accessibilityLabel="K9 Country fence"
-                contentFit="contain"
-                source={require('../../assets/images/k9-13.png')}
-                style={styles.memberFooterImage}
-              />
-            </View> : null}
             {intent !== 'host' ? <View style={styles.memberWelcomeCard}>
               <Text style={styles.memberWelcomeTitle}>You’re About to Join{`\n`}Something Special</Text>
               <Text style={styles.memberWelcomeText}>You believe your dog deserves room to run, the freedom to explore, and a safe place to simply be a dog.</Text>
@@ -422,31 +529,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 0,
     paddingBottom: 24,
-  },
- 
-  backButton: {
-    left: 16,
-    minHeight: 36,
-    position: 'absolute',
-    top: 48,
-    justifyContent: 'center',
-    zIndex: 1,
-  },
- 
-  backButtonText: {
-    color: colors.forest,
-    fontSize: 16,
-    fontWeight: '700',
-  },
-
-  hostBackButton: {
-    top: 12,
-  },
-
-  hostBackButtonText: {
-    color: colors.warmWhite,
-    textShadowColor: 'rgba(0, 0, 0, 0.45)',
-    textShadowRadius: 4,
   },
  
   logoBadge: {
@@ -500,16 +582,6 @@ const styles = StyleSheet.create({
 
   stepsBanner: {
     aspectRatio: 1.775,
-    width: '100%',
-  },
-
-  memberFooterArtwork: {
-    marginHorizontal: -24,
-    marginTop: 0,
-  },
-
-  memberFooterImage: {
-    aspectRatio: 8,
     width: '100%',
   },
 
@@ -650,6 +722,14 @@ const styles = StyleSheet.create({
   nameField: {
     flex: 1,
   },
+
+  siteLocationSection: { marginTop: 6 },
+  siteLocationTitle: { color: colors.forest, fontSize: 20, fontWeight: '900', marginBottom: 5 },
+  siteLocationDescription: { color: colors.muted, fontSize: 14, lineHeight: 20 },
+  locationRow: { flexDirection: 'row', gap: 12 },
+  cityField: { flex: 1 },
+  stateField: { width: 92 },
+  accountDetailsTitle: { color: colors.forest, fontSize: 20, fontWeight: '900', marginTop: 6 },
  
   label: {
     color: colors.forest,
@@ -690,6 +770,18 @@ const styles = StyleSheet.create({
  
   buttonDisabled: {
     opacity: 0.65,
+  },
+
+  inputError: {
+    borderColor: colors.red,
+  },
+
+  fieldError: {
+    color: colors.red,
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 18,
+    marginTop: 6,
   },
 
   verificationContainer: {

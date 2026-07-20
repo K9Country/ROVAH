@@ -19,7 +19,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ModeLabel } from '../../../components/mode-label';
 import { colors } from '../../../constants/theme';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../services/auth-context';
@@ -44,7 +43,7 @@ const amenityOptions = [
   { code: 'agility_course', label: 'Agility course', icon: 'Course' },
   { code: 'hiking_trails', label: 'Hiking trails', icon: 'Trail' },
   { code: 'lake_access', label: 'Lake access', icon: 'Lake' },
-  { code: 'poop_bags', label: '💩 Poop bags', icon: '💩' },
+  { code: 'poop_bags', label: 'Poop bags', icon: '💩' },
   { code: 'wheelchair_accessible', label: 'Wheelchair accessible', icon: 'Access' },
 ] as const;
 
@@ -409,7 +408,7 @@ export default function PropertyDraftScreen() {
     );
   };
 
-  const applyTemplateHours = () => {
+  const applyTemplateHours = async () => {
     if (!/^\d{2}:\d{2}$/.test(templateStartTime) || !/^\d{2}:\d{2}$/.test(templateEndTime) || templateStartTime >= templateEndTime) {
       Alert.alert('Check the hours', 'Enter an opening time that is earlier than the closing time.');
       return;
@@ -420,14 +419,14 @@ export default function PropertyDraftScreen() {
       return;
     }
 
-    setSchedule((current) =>
-      current.map((day) =>
-        selectedScheduleDays.includes(day.day_of_week)
-          ? { ...day, enabled: true, start_time: templateStartTime, end_time: templateEndTime }
-          : day
-      )
+    const nextSchedule = schedule.map((day) =>
+      selectedScheduleDays.includes(day.day_of_week)
+        ? { ...day, enabled: true, start_time: templateStartTime, end_time: templateEndTime }
+        : day
     );
+    setSchedule(nextSchedule);
     setHasUnsavedChanges(true);
+    await saveListing(false, nextSchedule);
   };
 
   const chooseTime = (time: string) => {
@@ -504,10 +503,10 @@ export default function PropertyDraftScreen() {
     setHasUnsavedChanges(true);
   };
 
-  const saveListing = async (submitForReview: boolean) => {
+  async function saveListing(submitForReview: boolean, scheduleToSave = schedule) {
     if (!id || !property || !session?.user.id) return;
     const wasPublished = property.is_published;
-    const openDays = schedule.filter((day) => day.enabled);
+    const openDays = scheduleToSave.filter((day) => day.enabled);
     const invalidDay = openDays.find(
       (day) =>
         !/^\d{2}:\d{2}$/.test(day.start_time) ||
@@ -515,37 +514,36 @@ export default function PropertyDraftScreen() {
         day.start_time >= day.end_time
     );
 
-    if (images.length === 0) {
+    if (submitForReview && images.length === 0) {
       Alert.alert('Add a property photo', 'Upload at least one photo before publishing your listing.');
       return;
     }
 
-    if (!property.site_address.trim()) {
+    if (submitForReview && !property.site_address.trim()) {
       Alert.alert('Add the site address', 'Add the exact street address so guests can open the correct location in Google Maps.');
       return;
     }
 
-    if (
+    if (submitForReview && (
       !details.parking_instructions.trim() ||
       !details.gate_access_instructions.trim() ||
-      !details.arrival_instructions.trim() ||
       !details.property_rules.trim()
-    ) {
+    )) {
       Alert.alert(
-        'Complete arrival details and rules',
-        'Add parking, gate access, arrival instructions, and guest rules before publishing.'
+        'Complete property details and rules',
+        'Add parking, gate access, and guest rules before publishing.'
       );
       return;
     }
 
-    if (selectedAmenities.length === 0) {
+    if (submitForReview && selectedAmenities.length === 0) {
       Alert.alert('Add amenities', 'Select at least one amenity for Know Before You Go.');
       return;
     }
 
     const primaryPhoto = images.find((image) => image.is_cover) ?? images[0];
 
-    if (invalidDay) {
+    if (submitForReview && invalidDay) {
       Alert.alert(
         'Check your schedule',
         'For an open day, choose an opening time that is earlier than the closing time.'
@@ -568,10 +566,12 @@ export default function PropertyDraftScreen() {
         .eq('property_id', id);
       if (amenitiesDeleteError) throw amenitiesDeleteError;
 
-      const { error: amenitiesInsertError } = await supabase.from('property_amenities').insert(
-        selectedAmenities.map((amenity_code) => ({ property_id: id, amenity_code }))
-      );
-      if (amenitiesInsertError) throw amenitiesInsertError;
+      if (selectedAmenities.length > 0) {
+        const { error: amenitiesInsertError } = await supabase.from('property_amenities').insert(
+          selectedAmenities.map((amenity_code) => ({ property_id: id, amenity_code }))
+        );
+        if (amenitiesInsertError) throw amenitiesInsertError;
+      }
 
       const { error: availabilityDeleteError } = await supabase
         .from('property_availability')
@@ -619,7 +619,7 @@ export default function PropertyDraftScreen() {
         .update({
           is_published: submitForReview ? false : property.is_published,
           approval_status: submitForReview ? 'pending' : property.approval_status,
-          hero_image_url: primaryPhoto.storage_path,
+          hero_image_url: primaryPhoto?.storage_path ?? property.hero_image_url,
           is_temporarily_closed: property.is_temporarily_closed,
           site_address: property.site_address.trim(),
         })
@@ -633,7 +633,7 @@ export default function PropertyDraftScreen() {
               ...current,
               is_published: submitForReview ? false : current.is_published,
               approval_status: submitForReview ? 'pending' : current.approval_status,
-              hero_image_url: primaryPhoto.storage_path,
+              hero_image_url: primaryPhoto?.storage_path ?? current.hero_image_url,
               site_address: current.site_address.trim(),
             }
           : current
@@ -642,6 +642,8 @@ export default function PropertyDraftScreen() {
 
       if (submitForReview && !wasPublished) {
         router.replace('/host-dashboard');
+      } else if (!submitForReview) {
+        Alert.alert('Draft saved', 'Your updates are saved privately. Submit the listing for review when you are ready.');
       }
     } catch (error) {
       Alert.alert(
@@ -651,7 +653,7 @@ export default function PropertyDraftScreen() {
     } finally {
       setIsPublishing(false);
     }
-  };
+  }
 
   const deleteListing = () => {
     if (!id || !property || !session?.user.id || isDeleting) return;
@@ -715,17 +717,16 @@ export default function PropertyDraftScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ModeLabel mode="Host" page={4} />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <Pressable onPress={leavePropertyDetails} style={styles.backButton}>
-            <Text style={styles.backButtonText}>{'<'} Hosting</Text>
+            <Text style={styles.backButtonText}>{'<'} Host Dashboard</Text>
           </Pressable>
           <Text style={styles.eyebrow}>PROPERTY DETAILS</Text>
           <Text style={styles.title}>{property.name}</Text>
           <Text style={styles.description}>Complete these details so guests know exactly what to expect before they arrive.</Text>
 
-          <Section title="Photos" subtitle={`${images.length} uploaded`} icon="Photos">
+          <Section title="Photos" subtitle={`${images.length} uploaded`} icon="Photos" requiredForReview>
             <View style={styles.imageGrid}>
               {images.map((image) => (
                 <View key={image.id} style={styles.imageTile}>
@@ -769,14 +770,17 @@ export default function PropertyDraftScreen() {
             </Pressable>
           </Section>
 
-          <Section title="Arrival details" subtitle="Parking, gate access, directions, and your exact map location" icon="Gate">
-            <DraftField label="Site street address" value={property.site_address} onChangeText={(value) => { setProperty((current) => current ? { ...current, site_address: value } : current); setHasUnsavedChanges(true); }} placeholder="123 Country Lane" />
-            <DraftField label="Parking instructions" value={details.parking_instructions} onChangeText={(value) => { setDetails((current) => ({ ...current, parking_instructions: value })); setHasUnsavedChanges(true); }} placeholder="Where should guests park?" multiline />
-            <DraftField label="Gate access" value={details.gate_access_instructions} onChangeText={(value) => { setDetails((current) => ({ ...current, gate_access_instructions: value })); setHasUnsavedChanges(true); }} placeholder="Which gate should guests use and how do they enter?" multiline />
-            <DraftField label="Arrival instructions" value={details.arrival_instructions} onChangeText={(value) => { setDetails((current) => ({ ...current, arrival_instructions: value })); setHasUnsavedChanges(true); }} placeholder="Anything guests should know when they arrive?" multiline />
+          <Section title="Arrival Details" subtitle="Parking, gate access, directions, and your exact map location" icon="Gate">
+            <DraftField label="Site street address" value={property.site_address} onChangeText={(value) => { setProperty((current) => current ? { ...current, site_address: value } : current); setHasUnsavedChanges(true); }} placeholder="123 Country Lane" requiredForReview />
+            <DraftField label="Parking instructions" value={details.parking_instructions} onChangeText={(value) => { setDetails((current) => ({ ...current, parking_instructions: value })); setHasUnsavedChanges(true); }} placeholder="Where should guests park?" requiredForReview multiline />
+            <DraftField label="Gate access" value={details.gate_access_instructions} onChangeText={(value) => { setDetails((current) => ({ ...current, gate_access_instructions: value })); setHasUnsavedChanges(true); }} placeholder="Which gate should guests use and how do they enter?" requiredForReview multiline />
           </Section>
 
-          <Section title="Amenities" subtitle="Used in Know Before You Go" icon="Amenities">
+          <Section title="Property Rules" subtitle="Set clear expectations before booking" icon="Rules">
+            <DraftField label="Rules for guests" value={details.property_rules} onChangeText={(value) => { setDetails((current) => ({ ...current, property_rules: value })); setHasUnsavedChanges(true); }} placeholder="Example: Close the gate behind you, keep dogs supervised, and remove all waste." requiredForReview multiline />
+          </Section>
+
+          <Section title="Amenities" subtitle="Used in Know Before You Go" icon="Amenities" requiredForReview>
             <View style={styles.amenityGrid}>
               {amenityOptions.map((amenity) => {
                 const selected = selectedAmenities.includes(amenity.code);
@@ -804,7 +808,7 @@ export default function PropertyDraftScreen() {
           >
             <View style={styles.quickHoursCard}>
               <Text style={styles.quickHoursTitle}>Apply hours</Text>
-              <Text style={styles.quickHoursText}>Select the days that should receive these hours. Use the daily toggles below to open or close a day.</Text>
+              <Text style={styles.quickHoursText}>Every day starts red and closed. Tap each day you want to open so it turns green, then apply the hours.</Text>
 
               <View style={styles.templateTimeRow}>
                 <View style={styles.templateTimeField}>
@@ -842,18 +846,17 @@ export default function PropertyDraftScreen() {
                       onPress={() => toggleScheduleDaySelection(index)}
                       style={[
                         styles.dayPickerButton,
-                        styles.dayPickerButtonOpen,
-                        selected && styles.dayPickerButtonSelected,
+                        selected ? styles.dayPickerButtonOpen : styles.dayPickerButtonClosed,
                       ]}
                     >
-                      <Text style={styles.dayPickerText}>{day.slice(0, 1)}</Text>
+                      <Text style={[styles.dayPickerText, !selected && styles.dayPickerTextClosed]}>{day.slice(0, 1)}</Text>
                     </Pressable>
                   );
                 })}
               </View>
 
-              <Pressable accessibilityRole="button" onPress={applyTemplateHours} style={styles.applyHoursButton}>
-                <Text style={styles.applyHoursButtonText}>Apply Hours</Text>
+              <Pressable accessibilityRole="button" disabled={isPublishing} onPress={() => void applyTemplateHours()} style={[styles.applyHoursButton, isPublishing && styles.disabled]}>
+                {isPublishing ? <ActivityIndicator color={colors.warmWhite} size="small" /> : <Text style={styles.applyHoursButtonText}>Apply & Save Hours</Text>}
               </Pressable>
             </View>
 
@@ -922,18 +925,20 @@ export default function PropertyDraftScreen() {
                   const inCurrentMonth = date.getMonth() === availabilityCalendarMonth.getMonth();
                   const selected = selectedCalendarDates.includes(key);
                   const isOpen = getCalendarDateOpen(date);
+                  const isPast = startOfDay(date).getTime() < startOfDay(new Date()).getTime();
 
                   return (
                     <Pressable
-                      accessibilityLabel={`${date.toDateString()} ${isOpen ? 'available' : 'unavailable'}`}
+                      accessibilityLabel={`${date.toDateString()} ${isPast ? 'past and unavailable' : isOpen ? 'available' : 'unavailable'}`}
                       accessibilityRole="button"
                       key={key}
-                      disabled={!inCurrentMonth}
+                      disabled={!inCurrentMonth || isPast}
                       onPress={() => toggleCalendarDateSelection(date)}
                       style={[
                         styles.calendarDay,
                         isOpen ? styles.calendarDayAvailable : styles.calendarDayUnavailable,
                         selected && styles.calendarDaySelected,
+                        isPast && styles.calendarDayPast,
                         !inCurrentMonth && styles.calendarDayOutsideMonth,
                       ]}
                     >
@@ -941,6 +946,7 @@ export default function PropertyDraftScreen() {
                         styles.calendarDayText,
                         !isOpen && styles.calendarDayTextUnavailable,
                         selected && styles.calendarDayTextSelected,
+                        isPast && styles.calendarDayTextPast,
                       ]}>
                         {date.getDate()}
                       </Text>
@@ -974,10 +980,6 @@ export default function PropertyDraftScreen() {
             </View>
           </Section>
 
-          <Section title="Property rules" subtitle="Set clear expectations before booking" icon="Rules">
-            <DraftField label="Rules for guests" value={details.property_rules} onChangeText={(value) => { setDetails((current) => ({ ...current, property_rules: value })); setHasUnsavedChanges(true); }} placeholder="Example: Close the gate behind you, keep dogs supervised, and remove all waste." multiline />
-          </Section>
-
           <View style={styles.bottomNotice}>
             <Text style={styles.bottomNoticeTitle}>
               {property.approval_status === 'approved'
@@ -1009,7 +1011,15 @@ export default function PropertyDraftScreen() {
                   <Text style={styles.reviewCompleteButtonText}>Approved</Text>
                 </Pressable>
               </>
-            ) : (
+            ) : <>
+              {property.approval_status !== 'pending' ? <Pressable
+                accessibilityRole="button"
+                disabled={isPublishing || !hasUnsavedChanges}
+                onPress={() => void saveListing(false)}
+                style={[styles.saveDraftButton, (isPublishing || !hasUnsavedChanges) && styles.disabled]}
+              >
+                {isPublishing ? <ActivityIndicator color={colors.forest} /> : <Text style={styles.saveDraftButtonText}>Save Draft</Text>}
+              </Pressable> : null}
               <Pressable
                 accessibilityRole="button"
                 disabled={isPublishing || property.approval_status === 'pending'}
@@ -1028,7 +1038,7 @@ export default function PropertyDraftScreen() {
                   </Text>
                 )}
               </Pressable>
-            )}
+            </>}
           </View>
 
           <View style={styles.deleteNotice}>
@@ -1102,12 +1112,12 @@ export default function PropertyDraftScreen() {
   );
 }
 
-function Section({ title, subtitle, children }: { title: string; subtitle: string; icon: string; children: React.ReactNode }) {
-  return <View style={styles.section}><Text style={styles.sectionTitle}>{title}</Text><Text style={styles.sectionSubtitle}>{subtitle}</Text><View style={styles.sectionContent}>{children}</View></View>;
+function Section({ title, subtitle, children, requiredForReview = false }: { title: string; subtitle: string; icon: string; children: React.ReactNode; requiredForReview?: boolean }) {
+  return <View style={styles.section}><Text style={styles.sectionTitle}>{title}</Text>{requiredForReview ? <Text style={styles.sectionRequiredText}>Required to submit for review</Text> : null}<Text style={styles.sectionSubtitle}>{subtitle}</Text><View style={styles.sectionContent}>{children}</View></View>;
 }
 
-function DraftField({ label, value, onChangeText, placeholder, multiline = false }: { label: string; value: string; onChangeText: (value: string) => void; placeholder: string; multiline?: boolean }) {
-  return <View style={styles.field}><Text style={styles.label}>{label}</Text><TextInput value={value} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor="#8A877D" multiline={multiline} numberOfLines={multiline ? 4 : 1} textAlignVertical={multiline ? 'top' : 'center'} style={[styles.input, multiline && styles.multilineInput]} /></View>;
+function DraftField({ label, value, onChangeText, placeholder, multiline = false, requiredForReview = false }: { label: string; value: string; onChangeText: (value: string) => void; placeholder: string; multiline?: boolean; requiredForReview?: boolean }) {
+  return <View style={styles.field}><Text style={styles.label}>{label}</Text>{requiredForReview ? <Text style={styles.reviewRequiredText}>Required to submit for review</Text> : null}<TextInput value={value} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor="#8A877D" multiline={multiline} numberOfLines={multiline ? 4 : 1} textAlignVertical={multiline ? 'top' : 'center'} style={[styles.input, multiline && styles.multilineInput]} /></View>;
 }
 
 function normalizeTime(time: string) {
@@ -1126,7 +1136,7 @@ function formatTimeLabel(time: string) {
 }
 
 function LoadingState({ message, actionLabel, onAction }: { message: string; actionLabel?: string; onAction?: () => void }) {
-  return <SafeAreaView style={styles.safeArea}><ModeLabel mode="Host" page={4} /><View style={styles.loading}><Text style={styles.loadingText}>{message}</Text>{onAction && actionLabel ? <Pressable onPress={onAction} style={styles.secondaryButton}><Text style={styles.secondaryButtonText}>{actionLabel}</Text></Pressable> : <ActivityIndicator color="#263A24" size="large" />}</View></SafeAreaView>;
+  return <SafeAreaView style={styles.safeArea}><View style={styles.loading}><Text style={styles.loadingText}>{message}</Text>{onAction && actionLabel ? <Pressable onPress={onAction} style={styles.secondaryButton}><Text style={styles.secondaryButtonText}>{actionLabel}</Text></Pressable> : <ActivityIndicator color="#263A24" size="large" />}</View></SafeAreaView>;
 }
 
 const styles = StyleSheet.create({
@@ -1142,6 +1152,7 @@ const styles = StyleSheet.create({
   description: { color: colors.muted, fontSize: 15, lineHeight: 22, marginTop: 10, marginBottom: 20 },
   section: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 20, borderWidth: 1, marginBottom: 16, padding: 18 },
   sectionTitle: { color: colors.forest, fontSize: 21, fontWeight: '900' },
+  sectionRequiredText: { color: colors.brown, fontSize: 11, fontWeight: '900', letterSpacing: 0.6, marginTop: 5 },
   sectionSubtitle: { color: colors.muted, fontSize: 13, marginTop: 4 },
   sectionContent: { marginTop: 18 },
   imageGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 14 },
@@ -1160,6 +1171,7 @@ const styles = StyleSheet.create({
   secondaryButtonText: { color: colors.forest, fontSize: 15, fontWeight: '900' },
   field: { marginBottom: 15 },
   label: { color: colors.forest, fontSize: 14, fontWeight: '800', marginBottom: 7 },
+  reviewRequiredText: { color: colors.brown, fontSize: 12, fontWeight: '800', marginBottom: 7, marginTop: -3 },
   input: { backgroundColor: colors.cream, borderColor: colors.border, borderRadius: 12, borderWidth: 1, color: colors.forest, fontSize: 15, minHeight: 52, paddingHorizontal: 14 },
   multilineInput: { minHeight: 200, paddingTop: 13 },
   disabled: { opacity: 0.6 },
@@ -1180,9 +1192,10 @@ const styles = StyleSheet.create({
   timeSelectorHint: { color: colors.brown, fontSize: 18, fontWeight: '900' },
   dayPickerRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 14 },
   dayPickerButton: { alignItems: 'center', borderRadius: 15, borderWidth: 1, height: 30, justifyContent: 'center', width: 30 },
+  dayPickerButtonClosed: { backgroundColor: '#F0C5C0', borderColor: '#D88A80' },
   dayPickerButtonOpen: { backgroundColor: '#BFD8B9', borderColor: '#7DA879' },
-  dayPickerButtonSelected: { borderColor: colors.forest, borderWidth: 3 },
   dayPickerText: { color: colors.forest, fontSize: 12, fontWeight: '900' },
+  dayPickerTextClosed: { color: '#95423A' },
   applyHoursButton: { alignItems: 'center', backgroundColor: colors.forest, borderRadius: 11, justifyContent: 'center', marginTop: 14, minHeight: 44 },
   applyHoursButtonText: { color: colors.warmWhite, fontSize: 14, fontWeight: '900' },
   scheduleRow: { borderTopColor: colors.border, borderTopWidth: 1, paddingVertical: 12 },
@@ -1207,10 +1220,12 @@ const styles = StyleSheet.create({
   calendarDayAvailable: { backgroundColor: '#BFD8B9' },
   calendarDayUnavailable: { backgroundColor: '#F0C5C0' },
   calendarDaySelected: { backgroundColor: colors.forest, borderColor: colors.warmWhite, borderWidth: 2 },
+  calendarDayPast: { backgroundColor: '#F0C5C0', borderColor: '#D88A80', borderWidth: 1, opacity: 0.82 },
   calendarDayOutsideMonth: { opacity: 0.35 },
   calendarDayText: { color: colors.forest, fontSize: 13, fontVariant: ['tabular-nums'], fontWeight: '900' },
   calendarDayTextUnavailable: { color: '#95423A' },
   calendarDayTextSelected: { color: colors.warmWhite },
+  calendarDayTextPast: { color: '#95423A' },
   calendarSelectionText: { color: colors.forest, fontSize: 13, fontWeight: '800', marginTop: 12, textAlign: 'center' },
   calendarActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
   markAvailableButton: { alignItems: 'center', backgroundColor: '#BFD8B9', borderColor: '#7DA879', borderRadius: 11, borderWidth: 1, flex: 1, justifyContent: 'center', minHeight: 44, paddingHorizontal: 8 },
@@ -1229,6 +1244,8 @@ const styles = StyleSheet.create({
   bottomNotice: { backgroundColor: colors.lightGreen, borderColor: '#CBD1BD', borderRadius: 16, borderWidth: 1, marginTop: 4, padding: 16 },
   bottomNoticeTitle: { color: colors.forest, fontSize: 16, fontWeight: '900' },
   bottomNoticeText: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 5 },
+  saveDraftButton: { alignItems: 'center', backgroundColor: colors.warmWhite, borderColor: colors.forest, borderRadius: 13, borderWidth: 1, justifyContent: 'center', marginTop: 16, minHeight: 52 },
+  saveDraftButtonText: { color: colors.forest, fontSize: 15, fontWeight: '900' },
   publishButton: { alignItems: 'center', backgroundColor: colors.forest, borderRadius: 13, justifyContent: 'center', marginTop: 16, minHeight: 52 },
   publishButtonText: { color: colors.warmWhite, fontSize: 15, fontWeight: '900' },
   reviewCompleteButton: { alignItems: 'center', backgroundColor: '#D7D3CA', borderRadius: 13, justifyContent: 'center', marginTop: 10, minHeight: 48 },

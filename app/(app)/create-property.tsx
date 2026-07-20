@@ -28,6 +28,29 @@ type HostAccess = {
   primary_site_postal_code: string | null;
 };
 
+type PreviousSite = {
+  id: string;
+  name: string;
+  short_description: string;
+  site_address: string;
+  city: string;
+  state: string;
+  postal_code: string;
+  price_per_hour: number;
+  acreage: number | null;
+  is_fully_fenced: boolean;
+  fence_height_feet: number | null;
+  instant_book: boolean;
+};
+
+type PreviousSiteDetails = {
+  parking_instructions: string;
+  gate_access_instructions: string;
+  arrival_instructions: string;
+  property_rules: string;
+  availability_notes: string;
+};
+
 type PropertyFieldName =
   | 'name'
   | 'shortDescription'
@@ -42,6 +65,9 @@ type PropertyFieldName =
 export default function CreatePropertyScreen() {
   const { session } = useAuth();
   const [hostAccess, setHostAccess] = useState<HostAccess | null>(null);
+  const [previousSites, setPreviousSites] = useState<PreviousSite[]>([]);
+  const [usePreviousSite, setUsePreviousSite] = useState(false);
+  const [selectedPreviousSiteId, setSelectedPreviousSiteId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<PropertyFieldName, string>>>({});
@@ -74,17 +100,25 @@ export default function CreatePropertyScreen() {
         return;
       }
 
-      const { data, error } = await supabase
-        .from('host_profiles')
-        .select('status, is_active, primary_site_address, primary_site_city, primary_site_state, primary_site_postal_code')
-        .eq('user_id', session.user.id)
-        .maybeSingle();
+      const [profileResult, previousSitesResult] = await Promise.all([
+        supabase
+          .from('host_profiles')
+          .select('status, is_active, primary_site_address, primary_site_city, primary_site_state, primary_site_postal_code')
+          .eq('user_id', session.user.id)
+          .maybeSingle(),
+        supabase
+          .from('properties')
+          .select('id, name, short_description, site_address, city, state, postal_code, price_per_hour, acreage, is_fully_fenced, fence_height_feet, instant_book')
+          .eq('host_id', session.user.id)
+          .order('created_at', { ascending: false }),
+      ]);
 
-      if (error) {
-        Alert.alert('Unable to load host profile', error.message);
+      if (profileResult.error) {
+        Alert.alert('Unable to load host profile', profileResult.error.message);
       } else {
-        const profile = data as HostAccess | null;
+        const profile = profileResult.data as HostAccess | null;
         setHostAccess(profile);
+        setPreviousSites((previousSitesResult.data ?? []) as PreviousSite[]);
 
         if (profile) {
           setSiteAddress(profile.primary_site_address ?? '');
@@ -99,6 +133,63 @@ export default function CreatePropertyScreen() {
 
     void loadHostAccess();
   }, [session?.user.id]);
+
+  const applyPreviousSite = (site: PreviousSite) => {
+    setSelectedPreviousSiteId(site.id);
+    setName(site.name);
+    setShortDescription(site.short_description);
+    setSiteAddress(site.site_address);
+    setCity(site.city);
+    setState(site.state);
+    setPostalCode(site.postal_code);
+    setPricePerHour(String(site.price_per_hour));
+    setAcreage(site.acreage === null ? '' : String(site.acreage));
+    setIsFullyFenced(site.is_fully_fenced);
+    setFenceHeightFeet(site.fence_height_feet === null ? '' : String(site.fence_height_feet));
+    setInstantBook(site.instant_book);
+    setFieldErrors({});
+  };
+
+  const copyPreviousSiteSetup = async (sourcePropertyId: string, newPropertyId: string) => {
+    const [detailsResult, amenitiesResult, availabilityResult] = await Promise.all([
+      supabase
+        .from('property_draft_details')
+        .select('parking_instructions, gate_access_instructions, arrival_instructions, property_rules, availability_notes')
+        .eq('property_id', sourcePropertyId)
+        .maybeSingle(),
+      supabase
+        .from('property_amenities')
+        .select('amenity_code')
+        .eq('property_id', sourcePropertyId),
+      supabase
+        .from('property_availability')
+        .select('day_of_week, start_time, end_time')
+        .eq('property_id', sourcePropertyId),
+    ]);
+
+    const readError = detailsResult.error ?? amenitiesResult.error ?? availabilityResult.error;
+    if (readError) throw readError;
+
+    const writes: PromiseLike<{ error: { message: string } | null }>[] = [];
+    const details = detailsResult.data as PreviousSiteDetails | null;
+    if (details) {
+      writes.push(supabase.from('property_draft_details').upsert({ property_id: newPropertyId, ...details }));
+    }
+
+    const amenities = (amenitiesResult.data ?? []) as { amenity_code: string }[];
+    if (amenities.length) {
+      writes.push(supabase.from('property_amenities').insert(amenities.map((amenity) => ({ property_id: newPropertyId, amenity_code: amenity.amenity_code }))));
+    }
+
+    const availability = (availabilityResult.data ?? []) as { day_of_week: number; start_time: string; end_time: string }[];
+    if (availability.length) {
+      writes.push(supabase.from('property_availability').insert(availability.map((slot) => ({ property_id: newPropertyId, ...slot }))));
+    }
+
+    const results = await Promise.all(writes);
+    const writeError = results.find((result) => result.error)?.error;
+    if (writeError) throw writeError;
+  };
 
   const validateForm = () => {
     const price = Number(pricePerHour);
@@ -182,6 +273,7 @@ export default function CreatePropertyScreen() {
           fence_height_feet: parsedFenceHeight,
           instant_book: instantBook,
           is_published: false,
+          approval_status: 'draft',
         })
         .select('id')
         .single();
@@ -189,6 +281,19 @@ export default function CreatePropertyScreen() {
       if (error) {
         Alert.alert('Unable to save property', error.message);
         return;
+      }
+
+      if (selectedPreviousSiteId) {
+        try {
+          await copyPreviousSiteSetup(selectedPreviousSiteId, data.id);
+        } catch (copyError) {
+          Alert.alert(
+            'Property created',
+            copyError instanceof Error
+              ? `The main details were saved, but some copied setup needs to be added manually: ${copyError.message}`
+              : 'The main details were saved, but some copied setup needs to be added manually.'
+          );
+        }
       }
 
       router.replace(`/property-draft/${data.id}` as never);
@@ -248,6 +353,30 @@ export default function CreatePropertyScreen() {
           <Text style={styles.description}>
             Start with the essentials. You will add photos, arrival instructions, amenities, rules, and availability next.
           </Text>
+
+          {previousSites.length > 0 ? (
+            <View style={styles.copyPreviousCard}>
+              <Pressable
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: usePreviousSite }}
+                onPress={() => {
+                  setUsePreviousSite((current) => !current);
+                  if (usePreviousSite) setSelectedPreviousSiteId(null);
+                }}
+                style={styles.copyPreviousToggle}
+              >
+                <View style={[styles.checkbox, usePreviousSite && styles.checkboxChecked]}>{usePreviousSite ? <Text style={styles.checkboxMark}>✓</Text> : null}</View>
+                <View style={styles.copyPreviousTextArea}>
+                  <Text style={styles.copyPreviousTitle}>Use a previous site as a starting point</Text>
+                  <Text style={styles.copyPreviousText}>Copy its details, amenities, instructions, and weekly availability. Images are never copied.</Text>
+                </View>
+              </Pressable>
+              {usePreviousSite ? <View style={styles.previousSiteList}>{previousSites.map((site) => {
+                const selected = selectedPreviousSiteId === site.id;
+                return <Pressable accessibilityRole="radio" accessibilityState={{ checked: selected }} key={site.id} onPress={() => applyPreviousSite(site)} style={[styles.previousSiteOption, selected && styles.previousSiteOptionSelected]}><View style={[styles.radio, selected && styles.radioSelected]}>{selected ? <View style={styles.radioDot} /> : null}</View><View style={styles.previousSiteOptionText}><Text style={styles.previousSiteName}>{site.name}</Text><Text style={styles.previousSiteLocation}>{site.city}, {site.state}</Text></View></Pressable>;
+              })}</View> : null}
+            </View>
+          ) : null}
 
           {Object.keys(fieldErrors).length > 0 ? (
             <View style={styles.validationBanner}>
@@ -476,6 +605,23 @@ const styles = StyleSheet.create({
   eyebrow: { color: colors.brown, fontSize: 12, fontWeight: '900', letterSpacing: 1.4, marginBottom: 7 },
   title: { color: colors.forest, fontSize: 30, fontWeight: '900', lineHeight: 36, marginBottom: 10 },
   description: { color: colors.muted, fontSize: 16, lineHeight: 23, marginBottom: 20 },
+  copyPreviousCard: { backgroundColor: colors.lightGreen, borderColor: '#CBD1BD', borderRadius: 18, borderWidth: 1, marginBottom: 18, padding: 15 },
+  copyPreviousToggle: { alignItems: 'center', flexDirection: 'row' },
+  checkbox: { alignItems: 'center', borderColor: colors.brown, borderRadius: 5, borderWidth: 2, height: 24, justifyContent: 'center', marginRight: 12, width: 24 },
+  checkboxChecked: { backgroundColor: colors.forest, borderColor: colors.forest },
+  checkboxMark: { color: colors.warmWhite, fontSize: 16, fontWeight: '900' },
+  copyPreviousTextArea: { flex: 1 },
+  copyPreviousTitle: { color: colors.forest, fontSize: 16, fontWeight: '900' },
+  copyPreviousText: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 3 },
+  previousSiteList: { gap: 9, marginTop: 15 },
+  previousSiteOption: { alignItems: 'center', backgroundColor: colors.warmWhite, borderColor: '#CBD1BD', borderRadius: 13, borderWidth: 1, flexDirection: 'row', minHeight: 58, padding: 12 },
+  previousSiteOptionSelected: { borderColor: colors.forest, borderWidth: 2 },
+  radio: { alignItems: 'center', borderColor: colors.brown, borderRadius: 10, borderWidth: 1, height: 20, justifyContent: 'center', marginRight: 11, width: 20 },
+  radioSelected: { borderColor: colors.forest, borderWidth: 2 },
+  radioDot: { backgroundColor: colors.forest, borderRadius: 5, height: 10, width: 10 },
+  previousSiteOptionText: { flex: 1 },
+  previousSiteName: { color: colors.forest, fontSize: 15, fontWeight: '900' },
+  previousSiteLocation: { color: colors.muted, fontSize: 13, marginTop: 2 },
   pendingNotice: { backgroundColor: colors.lightGreen, borderColor: '#CBD1BD', borderRadius: 16, borderWidth: 1, marginBottom: 18, padding: 16 },
   pendingTitle: { color: colors.forest, fontSize: 16, fontWeight: '900', marginBottom: 5 },
   pendingText: { color: colors.muted, fontSize: 14, lineHeight: 20 },

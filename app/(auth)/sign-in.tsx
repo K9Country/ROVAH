@@ -18,9 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
  
 import { colors } from '../../constants/theme';
 import { getAuthEmailRedirectUrl } from '../../lib/auth-redirect';
-import { hasCompletedMemberProfile } from '../../lib/member-profile';
 import { supabase } from '../../lib/supabase';
-import { useAuth } from '../../services/auth-context';
 
 const rememberedEmailKey = '@k9-country/remembered-email';
  
@@ -33,7 +31,6 @@ export default function SignInScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [isResendingVerification, setIsResendingVerification] = useState(false);
   const [signInError, setSignInError] = useState<string | null>(null);
-  const { setActiveMode } = useAuth();
 
   useEffect(() => {
     const loadRememberedEmail = async () => {
@@ -106,16 +103,19 @@ export default function SignInScreen() {
       }
 
       if (intent === 'host') {
-        await setActiveMode('host');
+        router.dismissAll();
         router.replace('/host-dashboard');
         return;
       }
 
-      await setActiveMode('guest');
-      const isProfileComplete = await hasCompletedMemberProfile(data.user.id);
-      router.replace(isProfileComplete ? '/dashboard' : '/profile?onboarding=true');
-    } catch {
-      showSignInError('We could not sign you in. Please try again.');
+      // Do not make further Supabase calls in the immediate password-sign-in
+      // path. Auth has already succeeded; the protected routes perform the
+      // member profile and dog-profile checks once the session is settled.
+      router.dismissAll();
+      router.replace('/dashboard');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+      showSignInError(message || 'We could not sign you in. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -324,14 +324,6 @@ export default function SignInScreen() {
                   <Text style={styles.resendVerificationText}>Resend verification email</Text>
                 )}
               </Pressable>
-              {intent !== 'host' ? <View style={styles.memberFooterArtwork}>
-                <Image
-                  accessibilityLabel="K9 Country fence"
-                  contentFit="contain"
-                  source={require('../../assets/images/k9-13.png')}
-                  style={styles.memberFooterImage}
-                />
-              </View> : null}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -540,16 +532,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
     textDecorationLine: 'underline',
-  },
-
-  memberFooterArtwork: {
-    marginHorizontal: -24,
-    marginTop: 14,
-  },
-
-  memberFooterImage: {
-    aspectRatio: 8,
-    width: '100%',
   },
 
   textButton: {

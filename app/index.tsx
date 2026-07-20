@@ -1,5 +1,6 @@
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
+import { useEffect } from 'react';
 import {
     Alert,
     Pressable,
@@ -15,16 +16,19 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../services/auth-context';
 
 export default function WelcomeScreen() {
-  const { isHost, isMember, setActiveMode } = useAuth();
+  const { isHost, isLoading, isMember, session } = useAuth();
+
+  useEffect(() => {
+    if (isLoading || !session) return;
+    router.replace((isHost ? '/host-dashboard' : '/dashboard') as never);
+  }, [isHost, isLoading, session]);
 
   const continueAsMember = async () => {
-    await setActiveMode('guest');
-    router.push((isMember ? '/dashboard' : '/sign-up?intent=guest') as never);
+    router.push('/sign-up?intent=guest' as never);
   };
 
   const continueAsHost = async () => {
-    await setActiveMode('host');
-    router.push((isHost ? '/host-dashboard' : '/sign-up?intent=host') as never);
+    router.push('/sign-up?intent=host' as never);
   };
 
   const signOutToSwitchProfile = async () => {
@@ -35,7 +39,7 @@ export default function WelcomeScreen() {
       return;
     }
 
-    await setActiveMode('guest');
+    router.dismissAll();
     router.replace('/');
   };
 
@@ -45,78 +49,67 @@ export default function WelcomeScreen() {
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.logoArea}>
+        <View style={styles.welcomeArtwork}>
           <Image
-            accessibilityLabel="K9 Country logo"
+            accessibilityLabel="K9 Country dog running in a private outdoor space"
             contentFit="contain"
-            source={require('../assets/images/k9.png')}
-            style={styles.logo}
+            source={require('../assets/images/welcome-hero.png')}
+            style={styles.welcomeArtworkImage}
           />
         </View>
 
         {!isMember ? <View style={styles.hostInvitationCard}>
-          <Text adjustsFontSizeToFit minimumFontScale={0.65} numberOfLines={1} style={styles.hostInvitationTitle}>TURN YOUR LAND INTO EXTRA INCOME</Text>
+          <Image
+      accessibilityLabel="Host invitation panel"
+      contentFit="contain"
+      source={require('../assets/images/host-entry-panel-transparent.png')}
+      style={styles.hostInvitationImage}
+          />
           <Pressable
+            accessibilityLabel="Join for Free as a host"
             accessibilityRole="button"
             onPress={() => void continueAsHost()}
             style={({ pressed }) => [
-              styles.hostInvitationButton,
+              styles.hostJoinHotspot,
               pressed && styles.buttonPressed,
             ]}
-          >
-            <Text style={styles.hostInvitationButtonText}>Join for Free</Text>
-          </Pressable>
+          />
           <Pressable
+            accessibilityLabel="Manage My Property"
             accessibilityRole="button"
             onPress={() => {
-              void setActiveMode('host').then(() => router.push('/sign-in?intent=host' as never));
+              router.push('/sign-in?intent=host' as never);
             }}
             style={({ pressed }) => [
-              styles.hostSignInButton,
+              styles.hostManageHotspot,
               pressed && styles.buttonPressed,
             ]}
-          >
-            <Text style={styles.hostSignInButtonText}>Host Sign In</Text>
-          </Pressable>
+          />
         </View> : null}
 
-        {!isMember ? (
-          <View style={styles.hostInvitationArtwork}>
-            <Image
-              accessibilityLabel="K9 Country fence"
-              contentFit="contain"
-              source={require('../assets/images/k9-13.png')}
-              style={styles.hostInvitationArtworkImage}
-            />
-          </View>
-        ) : null}
-
-        {!isMember ? <View style={styles.heroCard}>
-          <Text style={styles.heroTitle}>
-            Welcome to K9 Country
-          </Text>
- 
-          <Text style={styles.heroDescription}>
-            Where dogs and their families can enjoy private outdoor adventures without the crowds.{"\n\n"}
-            We’re adding new private properties across the country, welcoming new hosts, and helping more dogs discover safe places to run, explore, sniff, and simply be themselves.
-          </Text>
+        {!isMember ? <View style={styles.dividerRow}>
+          <View style={styles.divider} />
+          <Text style={styles.dividerText}>MEMBER</Text>
+          <View style={styles.divider} />
         </View> : null}
- 
+
+        {!isMember ? <Image
+          accessibilityLabel="Looking for a private place for your dog"
+          contentFit="contain"
+          source={require('../assets/images/member-private-place.png')}
+          style={styles.memberInvitationArtwork}
+        /> : null}
+
         <View style={styles.actionArea}>
           {isMember ? (
             <View style={styles.returningCard}>
               <Text style={styles.returningTitle}>Welcome back</Text>
-              <Pressable accessibilityRole="button" onPress={() => void (isHost ? continueAsHost() : continueAsMember())} style={styles.returningDashboardLink}>
+              <Pressable accessibilityRole="button" onPress={() => router.replace((isHost ? '/host-dashboard' : '/dashboard') as never)} style={styles.returningDashboardLink}>
                 <Text style={styles.returningDashboardLinkText}>{isHost ? 'Go to Host Dashboard' : 'Go to Member Dashboard'}</Text>
               </Pressable>
             </View>
           ) : (
           <>
-          <View style={styles.dividerRow}>
-            <View style={styles.divider} />
-            <Text style={styles.dividerText}>MEMBER</Text>
-            <View style={styles.divider} />
-          </View>
           <View style={styles.guestCard}>
             <Text style={styles.guestTitle}>I’m a Dog Owner</Text>
             <Text style={styles.guestDescription}>
@@ -136,20 +129,46 @@ export default function WelcomeScreen() {
               </Text>
             </Pressable>
 
+            <View style={styles.memberOrDivider}>
+              <View style={styles.memberOrLine} />
+              <Text style={styles.memberOrText}>OR</Text>
+              <View style={styles.memberOrLine} />
+            </View>
+
+            <Text style={styles.existingMemberPrompt}>Already have an account?</Text>
             <Pressable
               accessibilityRole="button"
               onPress={() => {
-                void setActiveMode('guest').then(() => router.push('/sign-in?intent=guest' as never));
+                router.push('/sign-in?intent=guest' as never);
               }}
               style={({ pressed }) => [
-                styles.textButton,
+                styles.memberSignInButton,
                 pressed && styles.buttonPressed,
               ]}
             >
-              <Text style={styles.textButtonText}>
-                Member Sign In
-              </Text>
+              <Image
+                accessibilityLabel="Paw print"
+                contentFit="contain"
+                source={require('../assets/images/member-sign-in-paw.png')}
+                style={styles.memberSignInPaw}
+              />
+              <Text style={styles.memberSignInText}>Member Sign In</Text>
             </Pressable>
+
+            <View style={styles.memberBenefits}>
+              <View style={styles.memberBenefit}>
+                <Text style={styles.memberBenefitGraphic}>🛡️</Text>
+                <Text style={styles.memberBenefitText}>Private & Secure{`\n`}Spaces</Text>
+              </View>
+              <View style={styles.memberBenefit}>
+                <Text style={styles.memberBenefitGraphic}>📅</Text>
+                <Text style={styles.memberBenefitText}>Easy Booking,{`\n`}Anytime</Text>
+              </View>
+              <View style={styles.memberBenefit}>
+                <Text style={styles.memberBenefitGraphic}>♡</Text>
+                <Text style={styles.memberBenefitText}>Happy Dogs,{`\n`}Happy Owners</Text>
+              </View>
+            </View>
           </View>
           </>
           )}
@@ -270,103 +289,33 @@ const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
     paddingHorizontal: 24,
-    paddingTop: 4,
+    paddingTop: 0,
     paddingBottom: 30,
   },
  
-  logoArea: {
-    alignItems: 'center',
-    marginBottom: 0,
+  welcomeArtwork: {
     marginHorizontal: -24,
+    marginTop: 0,
   },
  
-  logo: {
-    width: '108%',
-    aspectRatio: 1.5,
-  },
- 
-  heroCard: {
-    backgroundColor: colors.warmWhite,
-    borderRadius: 22,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 10,
-  },
-
-  hostInvitationCard: {
-    backgroundColor: colors.olive,
-    borderRadius: 22,
-    marginBottom: 20,
-    paddingHorizontal: 22,
-    paddingVertical: 13,
-  },
-
-  hostInvitationArtwork: {
-    alignSelf: 'stretch',
-    marginBottom: 20,
-    marginHorizontal: -24,
-  },
-
-  hostInvitationArtworkImage: {
-    aspectRatio: 8,
-    width: '100%',
-  },
-
-  hostInvitationTitle: {
-    color: colors.gold,
-    fontSize: 13.5,
-    fontWeight: '700',
-    letterSpacing: 0.2,
-    textAlign: 'center',
-  },
-
-  hostInvitationButton: {
-    alignItems: 'center',
-    backgroundColor: colors.cream,
-    borderRadius: 14,
-    justifyContent: 'center',
-    marginTop: 10,
-    minHeight: 44,
-    paddingHorizontal: 18,
-  },
-
-  hostInvitationButtonText: {
-    color: colors.forest,
-    fontSize: 16,
-    fontWeight: '900',
-  },
-
-  hostSignInButton: {
+  welcomeArtworkImage: {
     alignSelf: 'center',
-    justifyContent: 'center',
-    marginTop: 6,
-    minHeight: 36,
-    paddingHorizontal: 12,
+    aspectRatio: 2 / 3,
+    width: '108%',
+  },
+ 
+  hostInvitationCard: {
+    aspectRatio: 1.5,
+    marginBottom: 2,
+    marginHorizontal: -24,
+    marginTop: -245,
+    position: 'relative',
+    zIndex: 1,
   },
 
-  hostSignInButtonText: {
-    color: colors.warmWhite,
-    fontSize: 14,
-    fontWeight: '800',
-    textDecorationLine: 'underline',
-  },
- 
-  heroTitle: {
-    color: colors.forest,
-    fontSize: 23,
-    lineHeight: 28,
-    fontWeight: '800',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
- 
-  heroDescription: {
-    color: colors.muted,
-    fontSize: 14,
-    lineHeight: 21,
-    textAlign: 'center',
-  },
+  hostInvitationImage: { height: '100%', width: '100%' },
+  hostJoinHotspot: { bottom: '65%', left: '10%', position: 'absolute', right: '10%', top: '17%' },
+  hostManageHotspot: { bottom: '26%', left: '10%', position: 'absolute', right: '10%', top: '54%' },
  
   actionArea: {
     gap: 12,
@@ -420,21 +369,23 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: 22,
     borderWidth: 1,
-    padding: 20,
+    padding: 22,
   },
 
   guestTitle: {
     color: colors.forest,
-    fontSize: 21,
+    fontSize: 25,
     fontWeight: '800',
     marginBottom: 7,
+    textAlign: 'center',
   },
 
   guestDescription: {
     color: colors.muted,
     fontSize: 14,
     lineHeight: 21,
-    marginBottom: 16,
+    marginBottom: 20,
+    textAlign: 'center',
   },
  
   primaryButton: {
@@ -467,17 +418,83 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
  
-  textButton: {
-    minHeight: 48,
+  memberOrDivider: {
     alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 14,
+    marginTop: 24,
   },
- 
-  textButtonText: {
+
+  memberOrLine: {
+    backgroundColor: colors.border,
+    flex: 1,
+    height: 1,
+  },
+
+  memberOrText: {
+    color: colors.forest,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+
+  existingMemberPrompt: {
     color: colors.forest,
     fontSize: 15,
     fontWeight: '700',
-    textDecorationLine: 'underline',
+    marginBottom: 12,
+    marginTop: 20,
+    textAlign: 'center',
+  },
+
+  memberSignInButton: {
+    alignItems: 'center',
+    borderColor: colors.forest,
+    borderRadius: 14,
+    borderWidth: 2,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    minHeight: 56,
+    paddingHorizontal: 18,
+  },
+
+  memberSignInPaw: {
+    height: 28,
+    marginRight: 12,
+    width: 28,
+  },
+
+  memberSignInText: {
+    color: colors.forest,
+    fontSize: 17,
+    fontWeight: '800',
+  },
+
+  memberBenefits: {
+    borderTopColor: colors.border,
+    borderTopWidth: 1,
+    flexDirection: 'row',
+    marginTop: 26,
+    paddingTop: 20,
+  },
+
+  memberBenefit: {
+    alignItems: 'center',
+    flex: 1,
+    paddingHorizontal: 4,
+  },
+
+  memberBenefitGraphic: {
+    color: colors.forest,
+    fontSize: 31,
+    marginBottom: 8,
+  },
+
+  memberBenefitText: {
+    color: colors.forest,
+    fontSize: 11,
+    fontWeight: '700',
+    lineHeight: 15,
+    textAlign: 'center',
   },
 
   dogNeedsSection: {
@@ -608,7 +625,8 @@ const styles = StyleSheet.create({
   dividerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 10,
+    marginBottom: 10,
+    marginTop: 8,
   },
  
   divider: {
@@ -624,7 +642,13 @@ const styles = StyleSheet.create({
     letterSpacing: 1.3,
     marginHorizontal: 12,
   },
- 
+
+  memberInvitationArtwork: {
+    aspectRatio: 1.53,
+    marginBottom: 12,
+    width: '100%',
+  },
+
   trustSafetyLink: {
     alignItems: 'center',
     marginTop: 28,

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -32,6 +33,13 @@ type GuestBooking = {
   status: 'confirmed' | 'cancelled';
   payment_status: 'pending_configuration' | 'processing' | 'paid' | 'refunded' | 'failed' | 'cancelled';
   properties: BookingProperty | null;
+  dogs: BookingDog[];
+};
+
+type BookingDog = {
+  dog_profile_id: string | null;
+  name: string;
+  photo_url: string | null;
 };
 
 const cancellationWindowMs = 60 * 60 * 1000;
@@ -72,7 +80,7 @@ export default function ReservationsScreen() {
       return;
     }
 
-    const [bookingResult, reviewResult] = await Promise.all([
+    const [bookingResult, reviewResult, dogProfileResult] = await Promise.all([
       supabase
         .from('bookings')
         .select(
@@ -85,6 +93,10 @@ export default function ReservationsScreen() {
         .select('booking_id')
         .eq('reviewer_id', session.user.id)
         .eq('review_type', 'guest_to_host'),
+      supabase
+        .from('dog_profiles')
+        .select('id, photo_path')
+        .eq('user_id', session.user.id),
     ]);
 
     if (bookingResult.error) {
@@ -93,11 +105,44 @@ export default function ReservationsScreen() {
       return;
     }
 
+    const bookingIds = (bookingResult.data ?? []).map((booking) => booking.id);
+    const { data: bookingDogs, error: bookingDogsError } = bookingIds.length
+      ? await supabase
+        .from('booking_dogs')
+        .select('booking_id, dog_profile_id, name')
+        .in('booking_id', bookingIds)
+      : { data: [], error: null };
+
+    if (bookingDogsError) {
+      Alert.alert('Unable to load reservation dog details', bookingDogsError.message);
+    }
+
+    const dogPhotoUrls = new Map<string, string>();
+    await Promise.all((dogProfileResult.data ?? []).map(async (dog) => {
+      if (!dog.photo_path) return;
+      const { data: signedPhoto } = await supabase.storage
+        .from('dog-profile-images')
+        .createSignedUrl(dog.photo_path, 60 * 60);
+      if (signedPhoto?.signedUrl) dogPhotoUrls.set(dog.id, signedPhoto.signedUrl);
+    }));
+
+    const dogsByBookingId = new Map<string, BookingDog[]>();
+    (bookingDogs ?? []).forEach((dog) => {
+      const dogs = dogsByBookingId.get(dog.booking_id) ?? [];
+      dogs.push({
+        dog_profile_id: dog.dog_profile_id,
+        name: dog.name,
+        photo_url: dog.dog_profile_id ? dogPhotoUrls.get(dog.dog_profile_id) ?? null : null,
+      });
+      dogsByBookingId.set(dog.booking_id, dogs);
+    });
+
     const bookingRows = (bookingResult.data ?? []).map((booking) => ({
       ...booking,
       properties: Array.isArray(booking.properties)
         ? booking.properties[0] ?? null
         : booking.properties,
+      dogs: dogsByBookingId.get(booking.id) ?? [],
     }));
     setBookings(bookingRows as GuestBooking[]);
     setReviewedBookingIds(new Set((reviewResult.data ?? []).map((review) => review.booking_id)));
@@ -263,6 +308,18 @@ export default function ReservationsScreen() {
               : 'Payment setup pending — no money collected'}
         </Text>
 
+        {booking.dogs.length ? <View style={styles.dogsSection}>
+          <Text style={styles.dogsSectionTitle}>Dogs attending</Text>
+          <View style={styles.dogList}>
+            {booking.dogs.map((dog, index) => <View key={`${booking.id}-${dog.dog_profile_id ?? dog.name}-${index}`} style={styles.dogRow}>
+              {dog.photo_url ? <Image accessibilityLabel={`${dog.name}'s photo`} source={{ uri: dog.photo_url }} style={styles.dogPhoto} /> : <View style={styles.dogPhotoFallback}><Text style={styles.dogPhotoFallbackText}>{dog.name.slice(0, 1).toUpperCase()}</Text></View>}
+              <View style={styles.dogCopy}>
+                <Text style={styles.dogName}>{dog.name}</Text>
+              </View>
+            </View>)}
+          </View>
+        </View> : null}
+
         {(isUpcoming || isStarted) && booking.status === 'confirmed' ? (
           <>
             {isStarted ? <Text style={styles.visitStartedText}>Your visit is in progress.</Text> : cancellationAvailable ? (
@@ -423,6 +480,15 @@ const styles = StyleSheet.create({
   visitTime: { color: colors.brown, fontSize: 15, fontWeight: '800', marginTop: 4 },
   visitDetails: { color: colors.muted, fontSize: 14, marginTop: 7 },
   paymentStatusText: { color: colors.muted, fontSize: 12, fontStyle: 'italic', lineHeight: 18, marginTop: 5 },
+  dogsSection: { borderTopColor: colors.border, borderTopWidth: 1, marginTop: 16, paddingTop: 14 },
+  dogsSectionTitle: { color: colors.forest, fontSize: 14, fontWeight: '900', marginBottom: 10 },
+  dogList: { gap: 10 },
+  dogRow: { alignItems: 'center', backgroundColor: '#FFF7E9', borderColor: '#E7C79D', borderRadius: 14, borderWidth: 1, flexDirection: 'row', padding: 10 },
+  dogPhoto: { borderColor: colors.border, borderRadius: 22, borderWidth: 1, height: 44, marginRight: 10, width: 44 },
+  dogPhotoFallback: { alignItems: 'center', backgroundColor: colors.lightGreen, borderRadius: 22, height: 44, justifyContent: 'center', marginRight: 10, width: 44 },
+  dogPhotoFallbackText: { color: colors.forest, fontSize: 17, fontWeight: '900' },
+  dogCopy: { flex: 1 },
+  dogName: { color: colors.forest, fontSize: 15, fontWeight: '900' },
   cancelButton: { alignItems: 'center', backgroundColor: '#FFF1EE', borderColor: '#D88A80', borderRadius: 12, borderWidth: 1, justifyContent: 'center', marginTop: 18, minHeight: 48 },
   cancelButtonText: { color: '#95423A', fontSize: 15, fontWeight: '900' },
   cancelConfirmation: { backgroundColor: '#FFF1EE', borderColor: '#D88A80', borderRadius: 12, borderWidth: 1, marginTop: 18, padding: 14 },

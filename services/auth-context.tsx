@@ -1,190 +1,130 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Session } from '@supabase/supabase-js';
-import * as Linking from 'expo-linking';
 import {
-    createContext,
-    PropsWithChildren,
-    useCallback,
-    useContext,
-    useEffect,
-    useMemo,
-    useState,
+  createContext,
+  type PropsWithChildren,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
 } from 'react';
- 
+
+import { getAccountType, type AccountType } from '../lib/account-role';
 import { supabase } from '../lib/supabase';
- 
+
 type AuthContextValue = {
   session: Session | null;
   isLoading: boolean;
   isAnonymous: boolean;
   isMember: boolean;
   isHost: boolean;
-  setActiveMode: (mode: 'host' | 'guest') => Promise<void>;
+  setAccountTypeAfterSetup: (accountType: AccountType) => void;
 };
 
-const hostModeStorageKey = '@k9-country/host-mode';
- 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
- 
+
 export function AuthProvider({ children }: PropsWithChildren) {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isHost, setIsHost] = useState(false);
+  const [accountType, setAccountType] = useState<AccountType | null>(null);
+  const accountLookupVersion = useRef(0);
 
-  const setActiveMode = useCallback(async (mode: 'host' | 'guest') => {
-    await AsyncStorage.setItem(hostModeStorageKey, mode);
-    setIsHost(mode === 'host');
+  const setAccountTypeAfterSetup = useCallback((nextAccountType: AccountType) => {
+    // A newly completed email confirmation is authoritative. Ignore any
+    // earlier background lookup that started before the role was created.
+    accountLookupVersion.current += 1;
+    setAccountType(nextAccountType);
+    setIsLoading(false);
   }, []);
 
-  useEffect(() => {
-    const loadStoredHostMode = async () => {
-      try {
-        const storedValue = await AsyncStorage.getItem(hostModeStorageKey);
-        if (storedValue === 'host') {
-          setIsHost(true);
-        } else if (storedValue === 'guest') {
-          setIsHost(false);
-        } else {
-          setIsHost(false);
-        }
-      } catch (error) {
-        console.error('Unable to restore host mode:', error);
-      }
-    };
-
-    void loadStoredHostMode();
-  }, []);
- 
   useEffect(() => {
     let isMounted = true;
 
-    const refreshHostStatus = async (currentSession: Session | null) => {
-      if (!currentSession?.user?.id) {
-        if (isMounted) {
-          setIsHost(false);
+    const refreshAccountStatus = async (currentSession: Session | null) => {
+      const lookupVersion = accountLookupVersion.current + 1;
+      accountLookupVersion.current = lookupVersion;
+      const isAnonymous = Boolean(
+        (currentSession?.user as { is_anonymous?: boolean } | undefined)
+          ?.is_anonymous
+      );
+
+      if (!currentSession?.user?.id || isAnonymous) {
+        if (isMounted && accountLookupVersion.current === lookupVersion) {
+          setAccountType(null);
+          setIsLoading(false);
         }
         return;
       }
 
       try {
-        const storedValue = await AsyncStorage.getItem(hostModeStorageKey);
-        if (isMounted) {
-          setIsHost(storedValue === 'host');
+        if (isMounted) setIsLoading(true);
+        const nextAccountType = await Promise.race<AccountType | null>([
+          getAccountType(currentSession.user.id),
+          new Promise<null>((resolve) => {
+            setTimeout(() => resolve(null), 8_000);
+          }),
+        ]);
+        if (isMounted && accountLookupVersion.current === lookupVersion) {
+          setAccountType(nextAccountType);
         }
       } catch (error) {
-        console.error('Unable to read active app mode:', error);
-        if (isMounted) setIsHost(false);
+        console.error('Unable to read account type:', error);
+        if (isMounted && accountLookupVersion.current === lookupVersion) {
+          setAccountType(null);
+        }
+      } finally {
+        if (isMounted && accountLookupVersion.current === lookupVersion) {
+          setIsLoading(false);
+        }
       }
     };
 
-    const restoreSessionFromAuthUrl = async (url: string | null) => {
-      if (!url) {
-        return;
-      }
+    void supabase.auth.getSession().then(({ data, error }) => {
+      if (!isMounted) return;
+      if (error) console.error('Unable to restore session:', error.message);
+      setSession(data.session);
+      void refreshAccountStatus(data.session);
+    });
 
-      const parsedUrl = Linking.parse(url);
-      const code = parsedUrl.queryParams?.code;
-
-      try {
-        if (typeof code === 'string') {
-          const { error } = await supabase.auth.exchangeCodeForSession(code);
-
-          if (error) {
-            console.error('Unable to confirm email:', error.message);
-          }
-
-          return;
-        }
-
-        const fragment = url.split('#')[1];
-        const params = new URLSearchParams(fragment ?? '');
-        const accessToken = params.get('access_token');
-        const refreshToken = params.get('refresh_token');
-
-        if (accessToken && refreshToken) {
-          const { error } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken,
-          });
-
-          if (error) {
-            console.error('Unable to restore confirmed session:', error.message);
-          }
-        }
-      } catch (error) {
-        console.error('Unable to handle the email confirmation link:', error);
-      }
-    };
- 
-    supabase.auth
-      .getSession()
-      .then(({ data, error }) => {
-        if (!isMounted) {
-          return;
-        }
- 
-        if (error) {
-          console.error('Unable to restore session:', error.message);
-        }
- 
-        setSession(data.session);
-        void refreshHostStatus(data.session);
-        setIsLoading(false);
-      });
- 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
-      void refreshHostStatus(nextSession);
-      setIsLoading(false);
-    });
-
-    void Linking.getInitialURL().then(restoreSessionFromAuthUrl);
-
-    const linkingSubscription = Linking.addEventListener('url', ({ url }) => {
-      void restoreSessionFromAuthUrl(url);
+      // Supabase holds an internal auth lock while this callback runs. Start
+      // the role lookup immediately after it returns so sign-in cannot stall.
+      setIsLoading(true);
+      setTimeout(() => {
+        void refreshAccountStatus(nextSession);
+      }, 0);
     });
 
     return () => {
       isMounted = false;
       subscription.unsubscribe();
-      linkingSubscription.remove();
     };
   }, []);
- 
-  const value = useMemo(
-    () => {
-      const isAnonymous = Boolean(
-        (session?.user as { is_anonymous?: boolean } | undefined)
-          ?.is_anonymous
-      );
 
-      return {
-        session,
-        isLoading,
-        isAnonymous,
-        isMember: Boolean(session) && !isAnonymous,
-        isHost,
-        setActiveMode,
-      };
-    },
-    [session, isLoading, isHost, setActiveMode]
-  );
- 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  const value = useMemo(() => {
+    const isAnonymous = Boolean(
+      (session?.user as { is_anonymous?: boolean } | undefined)?.is_anonymous
+    );
+
+    return {
+      session,
+      isLoading,
+      isAnonymous,
+      isMember: accountType === 'member',
+      isHost: accountType === 'host',
+      setAccountTypeAfterSetup,
+    };
+  }, [accountType, isLoading, session, setAccountTypeAfterSetup]);
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
- 
+
 export function useAuth() {
   const context = useContext(AuthContext);
- 
-  if (!context) {
-    throw new Error('useAuth must be used inside AuthProvider.');
-  }
- 
+  if (!context) throw new Error('useAuth must be used inside AuthProvider.');
   return context;
 }

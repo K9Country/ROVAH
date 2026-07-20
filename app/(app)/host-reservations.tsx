@@ -30,6 +30,7 @@ type HostBooking = {
   payment_status: 'pending_configuration' | 'processing' | 'paid' | 'refunded' | 'failed' | 'cancelled';
   properties: { name: string; city: string; state: string } | null;
 };
+type BookingDog = { booking_id: string; id: string; name: string; breed: string; size: string; behavior_traits: string[] };
 
 const viewOptions: { key: ReservationView; label: string }[] = [
   { key: 'upcoming', label: 'Upcoming' },
@@ -62,6 +63,7 @@ export default function HostReservationsScreen() {
   const [visibleMonth, setVisibleMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const [bookings, setBookings] = useState<HostBooking[]>([]);
+  const [bookingDogs, setBookingDogs] = useState<Record<string, BookingDog[]>>({});
   const [guestNames, setGuestNames] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -76,6 +78,7 @@ export default function HostReservationsScreen() {
     if (!session?.user.id) {
       setBookings([]);
       setGuestNames({});
+      setBookingDogs({});
       return;
     }
 
@@ -97,6 +100,26 @@ export default function HostReservationsScreen() {
       properties: Array.isArray(booking.properties) ? booking.properties[0] ?? null : booking.properties,
     })) as HostBooking[];
     setBookings(rows);
+
+    const bookingIds = rows.map((booking) => booking.id);
+    if (bookingIds.length) {
+      const { data: dogRows, error: dogError } = await supabase
+        .from('booking_dogs')
+        .select('id, booking_id, name, breed, size, behavior_traits')
+        .in('booking_id', bookingIds);
+      if (dogError) {
+        setErrorMessage('We could not load the dog details for these reservations. Pull down to try again.');
+      } else {
+        const dogsByBooking = (dogRows ?? []).reduce<Record<string, BookingDog[]>>((result, dog) => {
+          const normalizedDog = { ...dog, behavior_traits: Array.isArray(dog.behavior_traits) ? dog.behavior_traits : [] } as BookingDog;
+          result[dog.booking_id] = [...(result[dog.booking_id] ?? []), normalizedDog];
+          return result;
+        }, {});
+        setBookingDogs(dogsByBooking);
+      }
+    } else {
+      setBookingDogs({});
+    }
 
     const guestIds = [...new Set(rows.map((booking) => booking.guest_id))];
     if (!guestIds.length) {
@@ -180,6 +203,7 @@ export default function HostReservationsScreen() {
   const renderBooking = (booking: HostBooking, showReview = false) => {
     const property = booking.properties;
     const guestName = guestNames[booking.guest_id] ?? 'Guest';
+    const dogs = bookingDogs[booking.id] ?? [];
     const canCancel = booking.status === 'confirmed' && new Date(booking.start_at) > now;
     return (
       <View key={booking.id} style={styles.bookingCard}>
@@ -194,6 +218,10 @@ export default function HostReservationsScreen() {
         </View>
         <Text style={styles.bookingDate}>{formatDate(booking.start_at)}</Text>
         <Text style={styles.bookingDetails}>{formatTime(booking.start_at)} – {formatTime(booking.end_at)} · {booking.dog_count} {booking.dog_count === 1 ? 'dog' : 'dogs'} · ${Number(booking.total_amount).toFixed(2)}</Text>
+        <View style={styles.dogsSection}>
+          <Text style={styles.dogsSectionTitle}>Dogs attending</Text>
+          {dogs.length ? dogs.map((dog) => <View key={dog.id} style={styles.dogDetailCard}><Text style={styles.dogDetailName}>{dog.name}</Text><Text style={styles.dogDetailText}>{[dog.breed, dog.size].filter(Boolean).join(' · ')}</Text>{dog.behavior_traits.length ? <View style={styles.behaviorTraitList}>{dog.behavior_traits.map((trait) => <View key={trait} style={styles.behaviorTrait}><Text style={styles.behaviorTraitText}>{trait}</Text></View>)}</View> : null}</View>) : <Text style={styles.noDogDetails}>No dog profile details were recorded for this reservation.</Text>}
+        </View>
         <Text style={styles.paymentNote}>{booking.payment_status === 'paid' ? 'Payment received' : 'Payment setup pending — no money collected'}</Text>
         <View style={styles.actions}>
           <Pressable onPress={() => router.push(`/host-guests/${booking.guest_id}?guestName=${encodeURIComponent(guestName)}` as never)} style={styles.secondaryAction}><Text style={styles.secondaryActionText}>Guest record</Text></Pressable>
@@ -262,4 +290,13 @@ export default function HostReservationsScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.cream }, container: { padding: 20, paddingBottom: 40 }, backButton: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' }, backButtonText: { color: colors.forest, fontSize: 16, fontWeight: '800' }, title: { color: colors.forest, fontSize: 30, fontWeight: '900' }, description: { color: colors.muted, fontSize: 16, lineHeight: 23, marginTop: 10 }, segmentedControl: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 14, borderWidth: 1, flexDirection: 'row', marginTop: 22, padding: 4 }, segment: { alignItems: 'center', borderRadius: 10, flex: 1, justifyContent: 'center', minHeight: 40, paddingHorizontal: 3 }, segmentSelected: { backgroundColor: colors.forest }, segmentText: { color: colors.muted, fontSize: 11, fontWeight: '800' }, segmentTextSelected: { color: colors.warmWhite }, loading: { alignItems: 'center', paddingVertical: 44 }, loadingText: { color: colors.muted, marginTop: 12 }, errorCard: { backgroundColor: '#FCEDEB', borderColor: '#E9B7B0', borderRadius: 14, borderWidth: 1, marginTop: 18, padding: 14 }, errorText: { color: colors.red, fontWeight: '700' }, noticeCard: { backgroundColor: colors.lightGreen, borderColor: colors.border, borderRadius: 14, borderWidth: 1, marginTop: 18, padding: 14 }, noticeText: { color: colors.forest, fontWeight: '700', lineHeight: 20 }, emptyCard: { backgroundColor: colors.lightGreen, borderColor: colors.border, borderRadius: 18, borderWidth: 1, marginTop: 18, padding: 18 }, emptyTitle: { color: colors.forest, fontSize: 18, fontWeight: '900' }, emptyText: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 7 }, bookingCard: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 18, borderWidth: 1, marginTop: 14, padding: 16 }, bookingHeader: { alignItems: 'flex-start', flexDirection: 'row', justifyContent: 'space-between' }, bookingCopy: { flex: 1, paddingRight: 10 }, bookingName: { color: colors.forest, fontSize: 17, fontWeight: '900' }, bookingSite: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 4 }, statusBadge: { backgroundColor: colors.lightGreen, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 6 }, statusCancelled: { backgroundColor: '#FCEDEB' }, statusText: { color: colors.olive, fontSize: 11, fontWeight: '900' }, statusCancelledText: { color: colors.red }, bookingDate: { color: colors.forest, fontSize: 15, fontWeight: '800', marginTop: 15 }, bookingDetails: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 4 }, paymentNote: { color: colors.brown, fontSize: 12, fontWeight: '800', marginTop: 8 }, actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 }, secondaryAction: { alignItems: 'center', borderColor: colors.forest, borderRadius: 10, borderWidth: 1, justifyContent: 'center', minHeight: 40, paddingHorizontal: 11 }, secondaryActionText: { color: colors.forest, fontSize: 12, fontWeight: '900' }, cancelAction: { alignItems: 'center', borderColor: colors.red, borderRadius: 10, borderWidth: 1, justifyContent: 'center', minHeight: 40, paddingHorizontal: 11 }, cancelActionText: { color: colors.red, fontSize: 12, fontWeight: '900' }, actionDisabled: { opacity: 0.55 }, reviewAction: { alignItems: 'center', backgroundColor: colors.forest, borderRadius: 10, justifyContent: 'center', minHeight: 40, paddingHorizontal: 11 }, reviewActionText: { color: colors.warmWhite, fontSize: 12, fontWeight: '900' }, calendarCard: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 18, borderWidth: 1, marginTop: 20, padding: 14 }, monthHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 }, monthButton: { alignItems: 'center', borderColor: colors.border, borderRadius: 17, borderWidth: 1, height: 34, justifyContent: 'center', width: 34 }, monthButtonText: { color: colors.forest, fontSize: 19, fontWeight: '900' }, monthTitle: { color: colors.forest, fontSize: 17, fontWeight: '900' }, calendarGrid: { flexDirection: 'row', flexWrap: 'wrap' }, weekDay: { color: colors.muted, fontSize: 11, fontWeight: '900', marginBottom: 8, textAlign: 'center', width: '14.2857%' }, dayCell: { alignItems: 'center', borderRadius: 18, height: 42, justifyContent: 'center', marginBottom: 5, width: '14.2857%' }, bookedDay: { backgroundColor: colors.lightGreen }, selectedDay: { backgroundColor: colors.forest }, dayText: { color: colors.forest, fontSize: 13, fontWeight: '800' }, dayCount: { color: colors.brown, fontSize: 10, fontWeight: '900' }, selectedDayText: { color: colors.warmWhite }, dayDetail: { marginTop: 12 }, dayDetailTitle: { color: colors.forest, fontSize: 18, fontWeight: '900' }, modalBackdrop: { alignItems: 'center', backgroundColor: 'rgba(20, 38, 24, 0.52)', flex: 1, justifyContent: 'center', padding: 20 }, cancelModal: { backgroundColor: colors.warmWhite, borderRadius: 20, maxWidth: 440, padding: 22, width: '100%' }, cancelModalTitle: { color: colors.forest, fontSize: 21, fontWeight: '900' }, cancelModalText: { color: colors.muted, fontSize: 15, lineHeight: 22, marginTop: 9 }, cancelModalDetail: { color: colors.brown, fontSize: 13, fontWeight: '700', lineHeight: 19, marginTop: 9 }, cancelModalError: { color: colors.red, fontSize: 14, fontWeight: '700', lineHeight: 20, marginTop: 12 }, cancelModalActions: { flexDirection: 'row', gap: 10, marginTop: 22 }, keepReservationButton: { alignItems: 'center', borderColor: colors.border, borderRadius: 12, borderWidth: 1, flex: 1, justifyContent: 'center', minHeight: 48, paddingHorizontal: 8 }, keepReservationText: { color: colors.forest, fontSize: 14, fontWeight: '900' }, confirmCancelButton: { alignItems: 'center', backgroundColor: colors.red, borderRadius: 12, flex: 1, justifyContent: 'center', minHeight: 48, paddingHorizontal: 8 }, confirmCancelText: { color: colors.warmWhite, fontSize: 14, fontWeight: '900' },
+  dogsSection: { borderTopColor: colors.border, borderTopWidth: 1, marginTop: 13, paddingTop: 12 },
+  dogsSectionTitle: { color: colors.forest, fontSize: 14, fontWeight: '900', marginBottom: 8 },
+  dogDetailCard: { backgroundColor: colors.cream, borderColor: colors.border, borderRadius: 12, borderWidth: 1, marginTop: 7, padding: 11 },
+  dogDetailName: { color: colors.forest, fontSize: 15, fontWeight: '900' },
+  dogDetailText: { color: colors.muted, fontSize: 13, marginTop: 3 },
+  behaviorTraitList: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
+  behaviorTrait: { backgroundColor: colors.lightGreen, borderRadius: 10, paddingHorizontal: 7, paddingVertical: 4 },
+  behaviorTraitText: { color: colors.forest, fontSize: 11, fontWeight: '800' },
+  noDogDetails: { color: colors.muted, fontSize: 13, fontStyle: 'italic', lineHeight: 19 },
 });

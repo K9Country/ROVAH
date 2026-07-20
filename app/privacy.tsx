@@ -36,6 +36,47 @@ function splitPolicy(value: string) {
   return { introduction, sections };
 }
 
+function PolicyBody({ body }: { body: string }) {
+  const blocks = body
+    .split(/\n{2,}/)
+    .map((block) => block.split('\n').map((line) => line.trim()).filter(Boolean))
+    .filter((block) => block.length > 0);
+
+  return (
+    <View style={styles.policyBody}>
+      {blocks.map((lines, blockIndex) => {
+        const isList = lines.filter((line) => line.endsWith(';')).length >= 2;
+
+        if (isList) {
+          return (
+            <View key={`list-${blockIndex}`} style={styles.bulletList}>
+              {lines.map((line) => (
+                <View key={line} style={styles.bulletItem}>
+                  <View style={styles.bullet} />
+                  <Text style={styles.bulletText}>{line.replace(/[;.]+$/, '')}</Text>
+                </View>
+              ))}
+            </View>
+          );
+        }
+
+        return (
+          <View key={`copy-${blockIndex}`} style={styles.copyBlock}>
+            {lines.map((line) => (
+              <Text
+                key={line}
+                style={/^[A-Z]\./.test(line) ? styles.subheading : styles.sectionBody}
+              >
+                {line}
+              </Text>
+            ))}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 export default function PrivacyScreen() {
   const [policy, setPolicy] = useState('');
   const [error, setError] = useState(false);
@@ -72,24 +113,24 @@ export default function PrivacyScreen() {
         {policy ? <>
           <View style={styles.introCard}>
             <Text style={styles.introLabel}>AT A GLANCE</Text>
-            <Text selectable style={styles.introText}>{introduction}</Text>
+            <Text style={styles.introText}>{introduction}</Text>
             <View style={styles.introDivider} />
             <Text style={styles.introFooter}>{sections.length} policy topics · Last updated July 18, 2026</Text>
           </View>
 
           <Text style={styles.sectionHeading}>Privacy Policy</Text>
-          <Text style={styles.sectionIntro}>Select and read each topic below. The complete policy is shown here in the app.</Text>
+          <Text style={styles.sectionIntro}>Review each topic below. Key information is organized into easy-to-scan sections.</Text>
           {sections.map((section, index) => <View key={section.number} style={[styles.sectionCard, index % 3 === 1 && styles.sectionCardWarm, index % 3 === 2 && styles.sectionCardGreen]}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionNumber}>{section.number.padStart(2, '0')}</Text>
-              <Text selectable style={styles.sectionTitle}>{section.title}</Text>
+              <Text style={styles.sectionTitle}>{section.title}</Text>
             </View>
-            <Text selectable style={styles.sectionBody}>{section.body}</Text>
+            <PolicyBody body={section.body} />
           </View>)}
 
           <View style={styles.contactCard}>
             <Text style={styles.contactTitle}>Questions about privacy?</Text>
-            <Text selectable style={styles.contactText}>Email Privacypolicy@k9country.net and our team will help with your privacy question or request.</Text>
+            <Text style={styles.contactText}>Email Privacypolicy@k9country.net and our team will help with your privacy question or request.</Text>
           </View>
         </> : null}
       </ScrollView>
@@ -98,7 +139,7 @@ export default function PrivacyScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: colors.cream },
+  safeArea: { flex: 1, backgroundColor: colors.cream, userSelect: 'none' },
   container: { padding: 20, paddingBottom: 44 },
   backButton: { alignSelf: 'flex-start', justifyContent: 'center', marginBottom: 8, minHeight: 44 },
   backButtonText: { color: colors.forest, fontSize: 16, fontWeight: '800' },
@@ -125,7 +166,14 @@ const styles = StyleSheet.create({
   sectionHeader: { alignItems: 'flex-start', flexDirection: 'row', marginBottom: 11 },
   sectionNumber: { color: colors.brown, fontSize: 12, fontWeight: '900', letterSpacing: 0.8, marginRight: 12, marginTop: 3 },
   sectionTitle: { color: colors.forest, flex: 1, fontSize: 18, fontWeight: '900', lineHeight: 23 },
+  policyBody: { gap: 14 },
+  copyBlock: { gap: 8 },
   sectionBody: { color: colors.muted, fontSize: 15, lineHeight: 23 },
+  subheading: { color: colors.forest, fontSize: 16, fontWeight: '900', lineHeight: 22 },
+  bulletList: { gap: 9 },
+  bulletItem: { alignItems: 'flex-start', flexDirection: 'row' },
+  bullet: { backgroundColor: colors.brown, borderRadius: 4, height: 8, marginRight: 11, marginTop: 7, width: 8 },
+  bulletText: { color: colors.muted, flex: 1, fontSize: 15, lineHeight: 22 },
   contactCard: { backgroundColor: colors.olive, borderRadius: 20, marginTop: 6, padding: 20 },
   contactTitle: { color: colors.gold, fontSize: 20, fontWeight: '900' },
   contactText: { color: '#F1F0DA', fontSize: 15, lineHeight: 22, marginTop: 8 },

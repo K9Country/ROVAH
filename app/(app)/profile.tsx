@@ -28,6 +28,7 @@ type ProfileForm = Omit<
 >;
 
 type ProfileFieldName = keyof ProfileForm;
+type DogSummary = { id: string; name: string };
 
 const emptyProfile: ProfileForm = {
   first_name: '',
@@ -68,10 +69,12 @@ export default function GuestProfileScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDeleteWarningOpen, setIsDeleteWarningOpen] = useState(false);
+  const [isDogProfileRequiredOpen, setIsDogProfileRequiredOpen] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<ProfileFieldName, string>>>({});
   const [profileImageUri, setProfileImageUri] = useState<string | null>(null);
+  const [dogProfiles, setDogProfiles] = useState<DogSummary[]>([]);
   const isOnboarding = onboarding === 'true' && !isComplete;
 
   useEffect(() => {
@@ -137,6 +140,14 @@ export default function GuestProfileScreen() {
         setProfileImageUri(null);
       }
 
+      const { data: savedDogs, error: savedDogsError } = await supabase
+        .from('dog_profiles')
+        .select('id, name')
+        .eq('user_id', session.user.id)
+        .order('created_at', { ascending: true });
+      if (savedDogsError) setStatusMessage('We could not load your dog profiles. Please try again.');
+      else setDogProfiles((savedDogs ?? []) as DogSummary[]);
+
       setIsLoading(false);
     };
 
@@ -162,6 +173,45 @@ export default function GuestProfileScreen() {
     if (!result.canceled) setProfileImageUri(result.assets[0].uri);
   };
 
+  const saveParentProfileDraftAndOpenDogs = async () => {
+    if (!session?.user.id) return;
+
+    try {
+      setIsSaving(true);
+      const { error } = await supabase.from('guest_profiles').upsert(
+        {
+          user_id: session.user.id,
+          full_name: `${profile.first_name.trim()} ${profile.last_name.trim()}`.trim(),
+          first_name: profile.first_name.trim(),
+          last_name: profile.last_name.trim(),
+          email: profile.email.trim().toLowerCase(),
+          phone: profile.phone.trim(),
+          address_line1: profile.address_line1.trim(),
+          address_line2: profile.address_line2.trim(),
+          city: profile.city.trim(),
+          state: profile.state.trim().toUpperCase(),
+          postal_code: profile.postal_code.trim(),
+          dog_count: 0,
+          dog_details: profile.dog_details.trim(),
+          profile_completed_at: null,
+        },
+        { onConflict: 'user_id' }
+      );
+
+      if (error) throw error;
+      setIsDogProfileRequiredOpen(false);
+      router.push('/dog-profiles?returnTo=parent' as never);
+    } catch (error) {
+      setStatusMessage(
+        error instanceof Error
+          ? error.message
+          : 'We could not save your Parent Profile draft. Please try again.'
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const saveProfile = async () => {
     if (!session?.user.id) {
       return;
@@ -182,6 +232,11 @@ export default function GuestProfileScreen() {
     if (Object.keys(validationErrors).length) {
       setFieldErrors(validationErrors);
       setStatusMessage('Please review the highlighted fields before saving your profile.');
+      return;
+    }
+
+    if (dogProfiles.length === 0) {
+      setIsDogProfileRequiredOpen(true);
       return;
     }
 
@@ -210,7 +265,7 @@ export default function GuestProfileScreen() {
           city: profile.city.trim(),
           state: profile.state.trim().toUpperCase(),
           postal_code: profile.postal_code.trim(),
-          dog_count: profile.dog_count,
+          dog_count: Math.max(1, dogProfiles.length),
           dog_details: profile.dog_details.trim(),
           ...(profileImagePath ? { profile_image_path: profileImagePath } : {}),
           profile_completed_at: new Date().toISOString(),
@@ -278,6 +333,7 @@ export default function GuestProfileScreen() {
         .remove([`${session.user.id}/profile.jpg`]);
 
       await supabase.auth.signOut();
+      router.dismissAll();
       router.replace('/');
     } catch (error) {
       setStatusMessage(
@@ -323,7 +379,7 @@ export default function GuestProfileScreen() {
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="always" showsVerticalScrollIndicator={false}>
           <View style={styles.profileHeader}>
             <View style={styles.profileHeaderCopy}>
-              <Text style={styles.title}>My Profile</Text>
+              <Text style={styles.title}>Parent Profile</Text>
               <Text style={styles.description}>{isOnboarding ? 'Complete your profile to continue to private spaces.' : 'Keep your reservation details accurate and safe.'}</Text>
             </View>
             <Pressable accessibilityLabel="Choose profile photo" accessibilityRole="button" onPress={() => void pickProfileImage()} style={styles.profilePhotoControl}>
@@ -361,14 +417,9 @@ export default function GuestProfileScreen() {
           </ProfileSection>
 
           <ProfileSection title="Your dogs">
-            <Text style={styles.privateNote}>The number saved here is used as the default when you start a booking. You can change it for a specific visit.</Text>
-            <Text style={styles.label}>How many dogs are in your household? <Text style={styles.required}>Required</Text></Text>
-            <View style={styles.dogCountRow}>
-              <Pressable accessibilityLabel="Remove one dog" disabled={profile.dog_count <= 1} onPress={() => updateProfile('dog_count', Math.max(1, profile.dog_count - 1))} style={[styles.countButton, profile.dog_count <= 1 && styles.countButtonDisabled]}><Text style={styles.countButtonText}>−</Text></Pressable>
-              <Text style={styles.dogCountText}>{profile.dog_count}</Text>
-              <Pressable accessibilityLabel="Add one dog" disabled={profile.dog_count >= 20} onPress={() => updateProfile('dog_count', Math.min(20, profile.dog_count + 1))} style={styles.countButton}><Text style={styles.countButtonText}>+</Text></Pressable>
-            </View>
-            <Field label="Dog names and important notes" value={profile.dog_details} onChangeText={(value) => updateProfile('dog_details', value)} placeholder="Optional: for example, Scout and Maple; both friendly with adults." multiline />
+            <Text style={styles.privateNote}>Your saved dog profiles appear here. Add and update their information from Dog Profiles.</Text>
+            {dogProfiles.length ? <View style={styles.dogList}>{dogProfiles.map((dog, index) => <View key={dog.id} style={styles.dogRow}><Text style={styles.dogNumber}>{index + 1}</Text><Text style={styles.dogName}>{dog.name}</Text></View>)}</View> : <Text style={styles.noDogsText}>No dog profiles yet. Complete your first dog’s profile to add it here.</Text>}
+            <Pressable accessibilityRole="button" onPress={() => router.push('/dog-profiles?returnTo=parent' as never)} style={styles.manageDogsButton}><Text style={styles.manageDogsButtonText}>Manage Dog Profiles</Text></Pressable>
           </ProfileSection>
 
           <View style={styles.messagingCard}>
@@ -379,7 +430,7 @@ export default function GuestProfileScreen() {
           {statusMessage ? <View style={styles.statusBanner}><Text style={styles.statusMessage}>{statusMessage}</Text></View> : null}
 
           <Pressable disabled={isSaving} onPress={saveProfile} style={[styles.primaryButton, isSaving && styles.primaryButtonDisabled]}>
-            {isSaving ? <ActivityIndicator color={colors.warmWhite} /> : <Text style={styles.primaryButtonText}>Save Private Profile</Text>}
+            {isSaving ? <ActivityIndicator color={colors.warmWhite} /> : <Text style={styles.primaryButtonText}>Save Parent Profile</Text>}
           </Pressable>
 
           <View style={styles.deleteSection}>
@@ -409,6 +460,17 @@ export default function GuestProfileScreen() {
             </Pressable>
             <Pressable accessibilityRole="button" disabled={isDeleting} onPress={() => setIsDeleteWarningOpen(false)} style={styles.cancelDeleteButton}>
               <Text style={styles.cancelDeleteButtonText}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+      <Modal animationType="fade" onRequestClose={() => setIsDogProfileRequiredOpen(false)} transparent visible={isDogProfileRequiredOpen}>
+        <View style={styles.deleteWarningBackdrop}>
+          <View accessibilityRole="alert" style={styles.deleteWarningModal}>
+            <Text style={styles.dogProfileRequiredTitle}>Complete your dog’s profile</Text>
+            <Text style={styles.deleteWarningText}>Before you can save your Parent Profile and reserve a private space, add at least one dog profile.</Text>
+            <Pressable accessibilityRole="button" disabled={isSaving} onPress={() => void saveParentProfileDraftAndOpenDogs()} style={[styles.manageDogProfileButton, isSaving && styles.primaryButtonDisabled]}>
+              {isSaving ? <ActivityIndicator color={colors.warmWhite} /> : <Text style={styles.confirmDeleteButtonText}>Manage Dog Profiles</Text>}
             </Pressable>
           </View>
         </View>
@@ -478,12 +540,14 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: 12 },
   nameField: { flex: 1 },
   cityField: { flex: 1 },
-  stateField: { width: 84 },
-  dogCountRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 17 },
-  countButton: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.forest, alignItems: 'center', justifyContent: 'center' },
-  countButtonDisabled: { opacity: 0.4 },
-  countButtonText: { color: colors.warmWhite, fontSize: 26, fontWeight: '800', lineHeight: 29 },
-  dogCountText: { width: 58, color: colors.forest, fontSize: 23, fontWeight: '900', textAlign: 'center' },
+  stateField: { width: 106 },
+  dogList: { gap: 9 },
+  dogRow: { alignItems: 'center', backgroundColor: colors.cream, borderColor: colors.border, borderRadius: 13, borderWidth: 1, flexDirection: 'row', minHeight: 48, paddingHorizontal: 12 },
+  dogNumber: { backgroundColor: colors.forest, borderRadius: 14, color: colors.warmWhite, fontSize: 13, fontWeight: '900', height: 28, lineHeight: 28, marginRight: 10, textAlign: 'center', width: 28 },
+  dogName: { color: colors.forest, fontSize: 16, fontWeight: '800' },
+  noDogsText: { color: colors.muted, fontSize: 14, lineHeight: 20 },
+  manageDogsButton: { alignItems: 'center', borderColor: colors.brown, borderRadius: 13, borderWidth: 1, justifyContent: 'center', marginTop: 15, minHeight: 50 },
+  manageDogsButtonText: { color: colors.brown, fontSize: 15, fontWeight: '900' },
   messagingCard: { paddingVertical: 3, marginTop: 3, marginBottom: 18 },
   messagingTitle: { color: colors.forest, fontSize: 17, fontWeight: '900', marginBottom: 6 },
   messagingText: { color: colors.muted, fontSize: 14, lineHeight: 21 },
@@ -500,8 +564,10 @@ const styles = StyleSheet.create({
   deleteWarningBackdrop: { alignItems: 'center', backgroundColor: 'rgba(20, 38, 24, 0.58)', flex: 1, justifyContent: 'center', padding: 24 },
   deleteWarningModal: { backgroundColor: colors.warmWhite, borderRadius: 20, maxWidth: 430, padding: 24, width: '100%' },
   deleteWarningTitle: { color: colors.red, fontSize: 23, fontWeight: '900', textAlign: 'center' },
+  dogProfileRequiredTitle: { color: colors.forest, fontSize: 23, fontWeight: '900', textAlign: 'center' },
   deleteWarningText: { color: colors.muted, fontSize: 15, lineHeight: 22, marginTop: 12, textAlign: 'center' },
   confirmDeleteButton: { alignItems: 'center', backgroundColor: colors.red, borderRadius: 13, justifyContent: 'center', marginTop: 22, minHeight: 52 },
+  manageDogProfileButton: { alignItems: 'center', backgroundColor: colors.brown, borderRadius: 13, justifyContent: 'center', marginTop: 22, minHeight: 52 },
   confirmDeleteButtonText: { color: colors.warmWhite, fontSize: 15, fontWeight: '900' },
   cancelDeleteButton: { alignItems: 'center', justifyContent: 'center', marginTop: 8, minHeight: 48 },
   cancelDeleteButtonText: { color: colors.forest, fontSize: 15, fontWeight: '900' },
