@@ -188,8 +188,8 @@ export default function HostDashboardScreen() {
 
   const shareThisSite = async (property: Property) => {
     const siteUrl = `https://k9-country.expo.app/property/${property.id}`;
-    const shareTitle = `${property.name} | K9 Country`;
-    const shareMessage = `Visit ${property.name}, a private K9 Country dog space in ${property.city}, ${property.state}: ${siteUrl}`;
+    const shareTitle = `${property.name} | ROVAH`;
+    const shareMessage = `Visit ${property.name}, a private ROVAH dog space in ${property.city}, ${property.state}: ${siteUrl}`;
 
     if (process.env.EXPO_OS === 'web') {
       if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
@@ -330,7 +330,7 @@ export default function HostDashboardScreen() {
               style={styles.profilePhotoFrame}
             >
               <Image
-                accessibilityLabel={profileImageUrl ? `${firstName}'s host photo` : 'Default K9 Country profile image'}
+                accessibilityLabel={profileImageUrl ? `${firstName}'s host photo` : 'Default ROVAH profile image'}
                 source={profileImageUrl ? { uri: profileImageUrl } : require('../../assets/images/k9-11.png')}
                 style={styles.profilePhoto}
               />
@@ -416,6 +416,11 @@ export default function HostDashboardScreen() {
                   label="Site Reviews"
                   onPress={() => router.push(`/host-reviews?propertyId=${property.id}&propertyName=${encodeURIComponent(property.name)}` as never)}
                 />
+                <PropertyTool
+                  icon={'\u{1F465}'}
+                  label="Guest Reviews"
+                  onPress={() => router.push(`/host-reviews?propertyId=${property.id}&propertyName=${encodeURIComponent(property.name)}&view=guest_records` as never)}
+                />
               </View>
               <Pressable
                 accessibilityLabel={`Message visitors of ${property.name}`}
@@ -426,6 +431,21 @@ export default function HostDashboardScreen() {
                 <Text style={styles.messageGuestsButtonIcon}>📣</Text>
                 <Text style={styles.messageGuestsButtonText}>Broadcast Message</Text>
               </Pressable>
+              {property.is_published ? (
+                <Pressable
+                  accessibilityLabel={`Promote ${property.name}`}
+                  accessibilityRole="button"
+                  onPress={() => router.push(`/local-promotions?propertyId=${property.id}` as never)}
+                  style={({ pressed }) => [styles.promotePropertyButton, pressed && styles.buttonPressed]}
+                >
+                  <Text style={styles.promotePropertyButtonIcon}>✦</Text>
+                  <View style={styles.promotePropertyCopy}>
+                    <Text style={styles.promotePropertyButtonText}>Promote Your Spot</Text>
+                    <Text style={styles.promotePropertyButtonDetail}>Reach nearby opted-in members for $2.00</Text>
+                  </View>
+                  <Text style={styles.promotePropertyArrow}>›</Text>
+                </Pressable>
+              ) : null}
               {property.is_published ? (
                 <Pressable
                   accessibilityLabel={`Share ${property.name}`}
@@ -474,7 +494,7 @@ export default function HostDashboardScreen() {
           dashboardData.properties.map((property) => {
             const viewCount = property.view_count ?? 0;
             const bookingCount = property.booking_count ?? 0;
-            const averageHostEarnings = bookingCount ? (property.booking_total * 0.85) / bookingCount : 0;
+            const averageHostEarnings = bookingCount ? (property.booking_total * 0.82) / bookingCount : 0;
             const conversionText = viewCount > 0
               ? `${Math.round((bookingCount / viewCount) * 100)}% of clicks became bookings`
               : 'Clicks will appear here once guests open your listing';
@@ -502,6 +522,60 @@ export default function HostDashboardScreen() {
             );
           })
         )}
+
+        <View style={styles.hostGuide}>
+          <Text style={styles.hostGuideTitle}>How to use your Host Dashboard</Text>
+          <Text style={styles.hostGuideIntro}>Use these steps to create, manage, and grow a private space guests feel confident booking.</Text>
+          <View style={styles.hostGuideStep}>
+            <Text style={styles.hostGuideNumber}>1</Text>
+            <View style={styles.hostGuideCopy}>
+              <Text style={styles.hostGuideStepTitle}>Set up your property</Text>
+              <Text style={styles.hostGuideStepText}>Add the property basics, at least one clear property photo, arrival details, rules, amenities, and availability.</Text>
+            </View>
+          </View>
+          <View style={styles.hostGuideStep}>
+            <Text style={styles.hostGuideNumber}>2</Text>
+            <View style={styles.hostGuideCopy}>
+              <Text style={styles.hostGuideStepTitle}>Submit for ROVAH review</Text>
+              <Text style={styles.hostGuideStepText}>When all required details are complete, submit your property for review. It becomes visible to members only after approval.</Text>
+            </View>
+          </View>
+          <View style={styles.hostGuideStep}>
+            <Text style={styles.hostGuideNumber}>3</Text>
+            <View style={styles.hostGuideCopy}>
+              <Text style={styles.hostGuideStepTitle}>Manage reservations and guests</Text>
+              <Text style={styles.hostGuideStepText}>Open any confirmed reservation to review the visiting dogs, message that guest, or cancel an upcoming reservation when needed.</Text>
+            </View>
+          </View>
+          <View style={styles.hostGuideStep}>
+            <Text style={styles.hostGuideNumber}>4</Text>
+            <View style={styles.hostGuideCopy}>
+              <Text style={styles.hostGuideStepTitle}>Keep your listing current</Text>
+              <Text style={styles.hostGuideStepText}>Update photos, hours, rules, amenities, standard rate, and any Subscription offer whenever your property changes.</Text>
+            </View>
+          </View>
+          <View style={styles.hostGuideStep}>
+            <Text style={styles.hostGuideNumber}>5</Text>
+            <View style={styles.hostGuideCopy}>
+              <Text style={styles.hostGuideStepTitle}>Send a gift in Messages</Text>
+              <Text style={styles.hostGuideStepText}>During a private conversation, use Gift to send a one-time Special Discount or Courtesy Visit for that specific site. The guest sees it immediately and can apply it to their next reservation.</Text>
+            </View>
+          </View>
+          <View style={styles.hostGuideStep}>
+            <Text style={styles.hostGuideNumber}>6</Text>
+            <View style={styles.hostGuideCopy}>
+              <Text style={styles.hostGuideStepTitle}>Use messages and analytics to improve</Text>
+              <Text style={styles.hostGuideStepText}>Reply to guest messages, send a site broadcast when appropriate, and review clicks, bookings, and average host earnings to improve your listing.</Text>
+            </View>
+          </View>
+          <View style={styles.hostGuideStep}>
+            <Text style={styles.hostGuideNumber}>7</Text>
+            <View style={styles.hostGuideCopy}>
+              <Text style={styles.hostGuideStepTitle}>Prepare a local promotion</Text>
+              <Text style={styles.hostGuideStepText}>Use Promote Your Spot to choose a published property, customize a message, preview it, and save a private draft. Secure Stripe payment, nearby-member matching, and delivery will be available here once promotion payments are connected.</Text>
+            </View>
+          </View>
+        </View>
 
         <View style={styles.accountSection}>
           <Text style={styles.accountLabel}>SIGNED IN AS</Text>
@@ -531,7 +605,7 @@ export default function HostDashboardScreen() {
           style={styles.trustSafetyLink}
         >
           <Text style={styles.trustSafetyLinkTitle}>Trust & Safety</Text>
-          <Text style={styles.trustSafetyLinkText}>How K9 Country helps keep every visit safe</Text>
+          <Text style={styles.trustSafetyLinkText}>How ROVAH helps keep every visit safe</Text>
         </Pressable>
 
         <Pressable
@@ -549,7 +623,7 @@ export default function HostDashboardScreen() {
           style={[styles.trustSafetyLink, styles.privacyLink]}
         >
           <Text style={styles.trustSafetyLinkTitle}>Privacy Policy</Text>
-          <Text style={styles.trustSafetyLinkText}>How K9 Country collects, uses, and protects your information</Text>
+          <Text style={styles.trustSafetyLinkText}>How ROVAH collects, uses, and protects your information</Text>
         </Pressable>
 
       </ScrollView>
@@ -624,9 +698,15 @@ const styles = StyleSheet.create({
   propertyTool: { alignItems: 'center', flex: 1, justifyContent: 'center', minHeight: 78, paddingHorizontal: 3 },
   propertyToolIcon: { fontSize: 20 },
   propertyToolLabel: { color: colors.forest, fontSize: 11, fontWeight: '800', marginTop: 6, textAlign: 'center' },
-  messageGuestsButton: { alignItems: 'center', borderColor: colors.forest, borderRadius: 14, borderWidth: 1, flexDirection: 'row', justifyContent: 'center', marginHorizontal: 15, marginTop: 12, minHeight: 52 },
+  messageGuestsButton: { alignItems: 'center', borderColor: colors.forest, borderRadius: 14, borderWidth: 1, flexDirection: 'row', justifyContent: 'center', marginBottom: 5, marginHorizontal: 15, marginTop: 7, minHeight: 52 },
   messageGuestsButtonIcon: { fontSize: 18, marginRight: 8 },
   messageGuestsButtonText: { color: colors.forest, fontSize: 14, fontWeight: '900' },
+  promotePropertyButton: { alignItems: 'center', backgroundColor: colors.lightGreen, borderColor: '#CBD1BD', borderRadius: 14, borderWidth: 1, flexDirection: 'row', marginHorizontal: 15, marginTop: 10, minHeight: 70, paddingHorizontal: 14 },
+  promotePropertyButtonIcon: { color: colors.brown, fontSize: 23, marginRight: 10 },
+  promotePropertyCopy: { flex: 1 },
+  promotePropertyButtonText: { color: colors.forest, fontSize: 15, fontWeight: '900' },
+  promotePropertyButtonDetail: { color: colors.muted, fontSize: 12, marginTop: 3 },
+  promotePropertyArrow: { color: colors.brown, fontSize: 28, fontWeight: '600' },
   sharePropertyButton: { alignItems: 'center', backgroundColor: colors.forest, borderColor: colors.forest, borderRadius: 14, borderWidth: 1, flexDirection: 'row', justifyContent: 'center', marginBottom: 15, marginHorizontal: 15, marginTop: 12, minHeight: 52 },
   sharePropertyIcon: { height: 22, marginLeft: 10, position: 'relative', width: 22 },
   shareIconLine: { backgroundColor: colors.warmWhite, height: 2, left: 5, position: 'absolute', width: 13 },
@@ -652,6 +732,14 @@ const styles = StyleSheet.create({
   analyticsMetricLabel: { color: colors.muted, fontSize: 12, fontWeight: '700', marginTop: 4 },
   analyticsHint: { color: colors.olive, fontSize: 13, lineHeight: 18, marginTop: 10, fontWeight: '700' },
   analyticsAction: { color: colors.brown, fontSize: 13, fontWeight: '900', marginTop: 12, textDecorationLine: 'underline' },
+  hostGuide: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 18, borderWidth: 1, marginTop: 18, padding: 17 },
+  hostGuideTitle: { color: colors.forest, fontSize: 19, fontWeight: '900' },
+  hostGuideIntro: { color: colors.muted, fontSize: 14, lineHeight: 20, marginTop: 5 },
+  hostGuideStep: { flexDirection: 'row', marginTop: 16 },
+  hostGuideNumber: { alignItems: 'center', backgroundColor: colors.lightGreen, borderColor: '#CBD1BD', borderRadius: 13, borderWidth: 1, color: colors.forest, fontSize: 13, fontWeight: '900', height: 26, lineHeight: 24, marginRight: 10, textAlign: 'center', width: 26 },
+  hostGuideCopy: { flex: 1 },
+  hostGuideStepTitle: { color: colors.forest, fontSize: 14, fontWeight: '900' },
+  hostGuideStepText: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 3 },
   propertyMetric: { flex: 1 },
   propertyMetricValue: { color: colors.forest, fontSize: 17, fontWeight: '900' },
   propertyMetricLabel: { color: colors.muted, fontSize: 11, fontWeight: '800', marginTop: 3 },

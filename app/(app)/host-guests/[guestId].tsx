@@ -66,10 +66,12 @@ function ReviewCard({
   review,
   title,
   propertyLabel,
+  hostOnly = false,
 }: {
   review: BookingReview;
   title: string;
   propertyLabel: string;
+  hostOnly?: boolean;
 }) {
   return (
     <View style={styles.reviewCard}>
@@ -91,21 +93,23 @@ function ReviewCard({
         <Text style={styles.reviewTextMuted}>No written note shared.</Text>
       )}
 
-      <View style={styles.detailRow}>
-        <Text style={styles.detailLabel}>Cleanliness</Text>
-        <Text style={styles.detailValue}>{formatAnswer(review.cleanliness)}</Text>
-      </View>
-      <View style={styles.detailRow}>
-        <Text style={styles.detailLabel}>Fence security</Text>
-        <Text style={styles.detailValue}>{formatAnswer(review.fence_security)}</Text>
-      </View>
-      <View style={styles.detailRow}>
-        <Text style={styles.detailLabel}>Nearby distractions</Text>
-        <Text style={styles.detailValue}>
-          {review.nearby_distractions.length ? review.nearby_distractions.join(', ') : 'None noted'}
-        </Text>
-      </View>
-      {review.unexpected_encounters ? (
+      {!hostOnly ? <>
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Cleanliness</Text>
+          <Text style={styles.detailValue}>{formatAnswer(review.cleanliness)}</Text>
+        </View>
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Fence security</Text>
+          <Text style={styles.detailValue}>{formatAnswer(review.fence_security)}</Text>
+        </View>
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Nearby distractions</Text>
+          <Text style={styles.detailValue}>
+            {review.nearby_distractions.length ? review.nearby_distractions.join(', ') : 'None noted'}
+          </Text>
+        </View>
+      </> : null}
+      {!hostOnly && review.unexpected_encounters ? (
         <View style={styles.notesBlock}>
           <Text style={styles.detailLabel}>Unexpected encounters</Text>
           <Text style={styles.notesText}>{review.unexpected_encounters}</Text>
@@ -249,7 +253,7 @@ export default function HostGuestProfileScreen() {
         <Text style={styles.eyebrow}>GUEST PROFILE</Text>
         <Text style={styles.title}>{displayName}</Text>
         <Text style={styles.description}>
-          Public profile for hosts. Reservation details at your properties remain visible here, along with the guest&apos;s review history.
+          Host-only guest record. You can see your reservations with this guest and factual host feedback after completed visits.
         </Text>
 
         {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
@@ -354,7 +358,8 @@ export default function HostGuestProfileScreen() {
                   key={review.id}
                   review={review}
                   title="Host review"
-                  propertyLabel={propertyLabel}
+                  propertyLabel={propertyLabel === 'Property details unavailable' ? 'Host-only feedback' : propertyLabel}
+                  hostOnly
                 />
               );
             })

@@ -203,7 +203,7 @@ export default function HostReviewsScreen() {
         </Text>
         <View style={styles.trackPicker}>
           <TrackButton label="Site reviews" selected={activeTrack === 'site_feedback'} onPress={() => setActiveTrack('site_feedback')} />
-          <TrackButton label="Guest records" selected={activeTrack === 'guest_records'} onPress={() => setActiveTrack('guest_records')} />
+          <TrackButton label="Guest Reviews" selected={activeTrack === 'guest_records'} onPress={() => setActiveTrack('guest_records')} />
         </View>
 
         {isLoading ? <View style={styles.loading}><ActivityIndicator color={colors.forest} /></View> : null}
@@ -285,9 +285,9 @@ export default function HostReviewsScreen() {
 
         {!isLoading && activeTrack === 'guest_records' ? (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Guest visit records</Text>
+            <Text style={styles.sectionTitle}>Guest reviews</Text>
             <Text style={styles.sectionDescription}>
-              Each completed visit stays attached to the guest and site. Review a guest once, then open their record to see their history across your sites.
+              Review each completed visit once, then view that guest’s host-only review history.
             </Text>
             {guestVisits.length === 0 ? (
               <EmptyCard title="No completed guest visits yet" text="Guest records will appear here after visits at your site are complete." />

@@ -16,7 +16,6 @@ type ReviewBooking = {
   end_at: string;
   properties: { host_id: string; name: string; city: string; state: string } | null;
 };
-type Answer = 'yes' | 'no' | 'not_sure';
 type BinaryAnswer = 'yes' | 'no';
 
 function getSaveErrorMessage(error: unknown) {
@@ -44,8 +43,6 @@ export default function ReviewScreen() {
   const [cleanliness, setCleanliness] = useState<BinaryAnswer | null>(null);
   const [matchesListing, setMatchesListing] = useState<BinaryAnswer | null>(null);
   const [wouldBookAgain, setWouldBookAgain] = useState<BinaryAnswer | null>(null);
-  const [guestCommunication, setGuestCommunication] = useState<Answer>('not_sure');
-  const [houseRulesFollowed, setHouseRulesFollowed] = useState<Answer>('not_sure');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isReviewSaved, setIsReviewSaved] = useState(false);
@@ -117,9 +114,9 @@ export default function ReviewScreen() {
         review_type: direction,
         bone_rating: rating,
         review_text: reviewText.trim(),
-        comment_visibility: 'public',
-        fence_security: isHostReview ? guestCommunication : fenceSecurity,
-        cleanliness: isHostReview ? houseRulesFollowed : cleanliness,
+        comment_visibility: isHostReview ? 'private' : 'public',
+        fence_security: isHostReview ? 'not_sure' : fenceSecurity,
+        cleanliness: isHostReview ? 'not_sure' : cleanliness,
         property_matches_listing: isHostReview ? null : matchesListing,
         would_book_again: isHostReview ? null : wouldBookAgain,
         nearby_distractions: [],
@@ -148,9 +145,9 @@ export default function ReviewScreen() {
   if (existingReview) return <SafeAreaView style={styles.safeArea}><View style={styles.centered}><Text style={styles.title}>Review submitted</Text><Text style={styles.doneText}>You have already shared feedback for this visit.</Text><Pressable onPress={() => router.replace(isHostReview ? '/host-dashboard' : '/dashboard')} style={styles.exitButton}><Text style={styles.exitText}>{isHostReview ? 'Host Dashboard' : 'Member Dashboard'}</Text></Pressable></View></SafeAreaView>;
   if (booking.status !== 'confirmed' || new Date(booking.end_at).getTime() > Date.now()) return <SafeAreaView style={styles.safeArea}><View style={styles.centered}><Text style={styles.title}>Review available after your visit</Text><Text style={styles.doneText}>You can share a review once this reservation has ended.</Text><Pressable onPress={() => router.replace(isHostReview ? '/host-dashboard' : '/reservations')} style={styles.exitButton}><Text style={styles.exitText}>{isHostReview ? 'Host Dashboard' : 'My Reservations'}</Text></Pressable></View></SafeAreaView>;
 
-  const title = isHostReview ? 'How was this guest visit?' : `How was ${booking.properties.name}?`;
+  const title = isHostReview ? 'Guest review' : `How was ${booking.properties.name}?`;
   const description = isHostReview
-    ? 'Rate the visit and share useful feedback about communication and care for the space.'
+    ? 'Share a factual rating and note about this completed visit. Only ROVAH hosts can view guest reviews.'
     : 'Your public site review helps other dog families find a safe, comfortable place to visit.';
 
   return (
@@ -168,14 +165,7 @@ export default function ReviewScreen() {
           </View>
           <Text style={styles.ratingText}>{rating === 0 ? 'Choose a rating' : `${rating} of 5 stars`}</Text>
 
-          {isHostReview ? (
-            <>
-              <Text style={styles.label}>Was communication clear and timely?</Text>
-              <AnswerPicker value={guestCommunication} onChange={setGuestCommunication} />
-              <Text style={styles.label}>Did they follow your site rules?</Text>
-              <AnswerPicker value={houseRulesFollowed} onChange={setHouseRulesFollowed} />
-            </>
-          ) : (
+          {!isHostReview ? (
             <>
               <Text style={styles.label}>Was the property clean and well maintained?</Text>
               <YesNoPicker value={cleanliness} onChange={setCleanliness} />
@@ -186,13 +176,13 @@ export default function ReviewScreen() {
               <Text style={styles.label}>Would you book this location again?</Text>
               <YesNoPicker value={wouldBookAgain} onChange={setWouldBookAgain} />
             </>
-          )}
+          ) : null}
 
-          <Text style={styles.label}>{isHostReview ? 'Written feedback (optional)' : 'Additional Comments (Optional)'}</Text>
-          <TextInput accessibilityLabel="Review write-up" maxLength={500} multiline onChangeText={setReviewText} placeholder={isHostReview ? 'What would help another host prepare for this guest?' : "Tell us anything else you'd like the host or K9 Country to know."} placeholderTextColor="#8A877D" style={styles.input} value={reviewText} />
+          <Text style={styles.label}>{isHostReview ? 'Written note (optional)' : 'Additional Comments (Optional)'}</Text>
+          <TextInput accessibilityLabel="Review write-up" maxLength={500} multiline onChangeText={setReviewText} placeholder={isHostReview ? 'Share respectful, factual details that may help another host.' : "Tell us anything else you'd like the host or ROVAH to know."} placeholderTextColor="#8A877D" style={styles.input} value={reviewText} />
           <Text style={styles.counter}>{reviewText.length}/500</Text>
 
-          <Text style={styles.visibilityNote}>{isHostReview ? 'This review is shared with verified K9 Country members.' : 'This review is public to verified K9 Country members.'}</Text>
+          <Text style={styles.visibilityNote}>{isHostReview ? 'Shared only with ROVAH hosts. Guests cannot view or change this review.' : 'This review is public to verified ROVAH members.'}</Text>
           {saveError ? <View accessibilityRole="alert" style={styles.saveError}><Text style={styles.saveErrorText}>{saveError}</Text></View> : null}
           <Pressable accessibilityRole="button" disabled={isSaving} onPress={() => void submitReview()} style={[styles.submitButton, isSaving && styles.disabled]}>{isSaving ? <ActivityIndicator color={colors.warmWhite} /> : <Text style={styles.submitText}>Share review</Text>}</Pressable>
         </View>
@@ -210,10 +200,6 @@ export default function ReviewScreen() {
       </Modal>
     </SafeAreaView>
   );
-}
-
-function AnswerPicker({ value, onChange }: { value: Answer; onChange: (value: Answer) => void }) {
-  return <View style={styles.choiceRow}>{(['yes', 'no', 'not_sure'] as const).map((option) => <Pressable accessibilityRole="button" key={option} onPress={() => onChange(option)} style={[styles.choice, value === option && styles.choiceSelected]}><Text style={[styles.choiceText, value === option && styles.choiceTextSelected]}>{option === 'not_sure' ? 'Not sure' : option === 'yes' ? 'Yes' : 'No'}</Text></Pressable>)}</View>;
 }
 
 function YesNoPicker({ value, onChange }: { value: BinaryAnswer | null; onChange: (value: BinaryAnswer) => void }) {
