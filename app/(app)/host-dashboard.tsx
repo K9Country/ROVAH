@@ -44,6 +44,7 @@ export default function HostDashboardScreen() {
   const [hasUnreadGuestMessages, setHasUnreadGuestMessages] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isAdministrator, setIsAdministrator] = useState(false);
+  const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
 
   const loadDashboard = useCallback(async () => {
     if (!session?.user.id) {
@@ -153,6 +154,14 @@ export default function HostDashboardScreen() {
     void loadDashboard();
   }, [loadDashboard]);
 
+  useEffect(() => {
+    setSelectedPropertyId((current) =>
+      current && dashboardData.properties.some((property) => property.id === current)
+        ? current
+        : dashboardData.properties[0]?.id ?? null
+    );
+  }, [dashboardData.properties]);
+
   const fullName =
     dashboardData.profile?.full_name ??
     session?.user.user_metadata?.full_name ??
@@ -163,6 +172,7 @@ export default function HostDashboardScreen() {
         .from('host-profile-images')
         .getPublicUrl(dashboardData.profile.profile_image_path).data.publicUrl
     : null;
+  const selectedProperty = dashboardData.properties.find((property) => property.id === selectedPropertyId) ?? null;
 
   const handleSignOut = async () => {
     try {
@@ -357,7 +367,7 @@ export default function HostDashboardScreen() {
         ) : null}
 
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitleNoMargin}>Your properties</Text>
+          <Text style={styles.sectionTitleNoMargin}>Your sites</Text>
           <Text style={styles.sectionCount}>{dashboardData.properties.length}</Text>
         </View>
 
@@ -369,7 +379,22 @@ export default function HostDashboardScreen() {
             </Text>
           </View>
         ) : (
-          dashboardData.properties.map((property) => (
+          <>
+            {dashboardData.properties.length > 1 ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.siteSwitcher}>
+                {dashboardData.properties.map((property) => (
+                  <Pressable
+                    accessibilityRole="button"
+                    key={`site-${property.id}`}
+                    onPress={() => setSelectedPropertyId(property.id)}
+                    style={[styles.siteSwitchButton, selectedProperty?.id === property.id && styles.siteSwitchButtonSelected]}
+                  >
+                    <Text numberOfLines={1} style={[styles.siteSwitchText, selectedProperty?.id === property.id && styles.siteSwitchTextSelected]}>{property.name}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            ) : null}
+          {dashboardData.properties.map((property) => property.id !== selectedProperty?.id ? null : (
             <View key={property.id} style={styles.propertyCard}>
               <Pressable
                 accessibilityRole="button"
@@ -394,6 +419,18 @@ export default function HostDashboardScreen() {
                 ) : null}
               </Pressable>
 
+              <View style={styles.dashboardSection}>
+                <Text style={styles.dashboardSectionEyebrow}>GROW YOUR SITE</Text>
+                <Text style={styles.dashboardSectionTitle}>Build a stronger listing for this exact site.</Text>
+                <DashboardAction icon="✦" label="Get Discovered" detail="Share a $2.00 site message with eligible new local members." onPress={() => router.push(`/local-promotions?propertyId=${property.id}` as never)} />
+                <DashboardAction icon="↻" label="Subscriptions" detail="Create, modify, or end repeat-visit packages for this site." onPress={() => router.push(`/subscriptions/${property.id}` as never)} />
+                <DashboardAction icon="★" label="Make Your Site Stand Out" detail="Keep the listing, photos, and guest feedback current." onPress={() => router.push(`/property-draft/${property.id}` as never)} />
+                <DashboardAction icon="↗" label="Bring Guests Back" detail="Share your site or send a site-only broadcast to connected guests." onPress={() => router.push(`/host-guest-message?propertyId=${property.id}&propertyName=${encodeURIComponent(property.name)}` as never)} />
+              </View>
+
+              <View style={styles.dashboardSection}>
+                <Text style={styles.dashboardSectionEyebrow}>MANAGE YOUR SITE</Text>
+                <Text style={styles.dashboardSectionTitle}>These tools stay connected to {property.name} only.</Text>
               <View style={styles.propertyTools}>
                 <PropertyTool
                   icon={'\u{1F4CB}'}
@@ -407,9 +444,9 @@ export default function HostDashboardScreen() {
                 />
                 <PropertyTool
                   icon={'\u{1F4AC}'}
-                  label="Guest Messages"
+                  label="Guests"
                   hasUnread={hasUnreadGuestMessages}
-                  onPress={() => router.push('/host-messages')}
+                  onPress={() => router.push(`/host-messages?propertyId=${property.id}` as never)}
                 />
                 <PropertyTool
                   icon={'\u{2B50}'}
@@ -431,7 +468,8 @@ export default function HostDashboardScreen() {
                 <Text style={styles.messageGuestsButtonIcon}>📣</Text>
                 <Text style={styles.messageGuestsButtonText}>Broadcast Message</Text>
               </Pressable>
-              {property.is_published ? (
+              </View>
+              {false && property.is_published ? (
                 <Pressable
                   accessibilityLabel={`Promote ${property.name}`}
                   accessibilityRole="button"
@@ -464,7 +502,8 @@ export default function HostDashboardScreen() {
                 </Pressable>
               ) : null}
             </View>
-          ))
+          ))}
+          </>
         )}
 
         <Text style={styles.sectionTitle}>Earnings</Text>
@@ -491,7 +530,7 @@ export default function HostDashboardScreen() {
             </Text>
           </View>
         ) : (
-          dashboardData.properties.map((property) => {
+          dashboardData.properties.filter((property) => property.id === selectedProperty?.id).map((property) => {
             const viewCount = property.view_count ?? 0;
             const bookingCount = property.booking_count ?? 0;
             const averageHostEarnings = bookingCount ? (property.booking_total * 0.82) / bookingCount : 0;
@@ -558,21 +597,21 @@ export default function HostDashboardScreen() {
             <Text style={styles.hostGuideNumber}>5</Text>
             <View style={styles.hostGuideCopy}>
               <Text style={styles.hostGuideStepTitle}>Send a gift in Messages</Text>
-              <Text style={styles.hostGuideStepText}>During a private conversation, use Gift to send a one-time Special Discount or Courtesy Visit for that specific site. The guest sees it immediately and can apply it to their next reservation.</Text>
+              <Text style={styles.hostGuideStepText}>During a private conversation, use Gift to send a one-time Special Discount or Courtesy Waiver for that specific site. The guest sees it immediately and can apply it to their next reservation.</Text>
             </View>
           </View>
           <View style={styles.hostGuideStep}>
             <Text style={styles.hostGuideNumber}>6</Text>
             <View style={styles.hostGuideCopy}>
               <Text style={styles.hostGuideStepTitle}>Use messages and analytics to improve</Text>
-              <Text style={styles.hostGuideStepText}>Reply to guest messages, send a site broadcast when appropriate, and review clicks, bookings, and average host earnings to improve your listing.</Text>
+              <Text style={styles.hostGuideStepText}>Reply to guest messages, send a broadcast only to guests connected to that site, and review clicks, bookings, and average host earnings to improve the listing.</Text>
             </View>
           </View>
           <View style={styles.hostGuideStep}>
             <Text style={styles.hostGuideNumber}>7</Text>
             <View style={styles.hostGuideCopy}>
-              <Text style={styles.hostGuideStepTitle}>Prepare a local promotion</Text>
-              <Text style={styles.hostGuideStepText}>Use Promote Your Spot to choose a published property, customize a message, preview it, and save a private draft. Secure Stripe payment, nearby-member matching, and delivery will be available here once promotion payments are connected.</Text>
+              <Text style={styles.hostGuideStepTitle}>Get discovered with a site promotion</Text>
+              <Text style={styles.hostGuideStepText}>Choose one published site, review the nearby opted-in audience count, then confirm the message and pay $2.00. It activates only after secure payment confirmation and stays inside the ROVAH app.</Text>
             </View>
           </View>
         </View>
@@ -648,12 +687,35 @@ function PropertyTool({
       onPress={onPress}
       style={({ pressed }) => [styles.propertyTool, pressed && styles.buttonPressed]}
     >
-      {label === 'Guest Messages' ? (
+      {label === 'Guest Messages' || label === 'Guests' ? (
         <UnreadMessageIcon hasUnread={hasUnread} size="small" />
       ) : (
         <Text style={styles.propertyToolIcon}>{icon}</Text>
       )}
       <Text style={styles.propertyToolLabel}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function DashboardAction({
+  icon,
+  label,
+  detail,
+  onPress,
+}: {
+  icon: string;
+  label: string;
+  detail: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.growthAction, pressed && styles.buttonPressed]}>
+      <Text style={styles.growthActionIcon}>{icon}</Text>
+      <View style={styles.growthActionCopy}>
+        <Text style={styles.growthActionLabel}>{label}</Text>
+        <Text style={styles.growthActionDetail}>{detail}</Text>
+      </View>
+      <Text style={styles.growthActionArrow}>›</Text>
     </Pressable>
   );
 }
@@ -684,6 +746,11 @@ const styles = StyleSheet.create({
   sectionTitle: { color: colors.forest, fontSize: 21, fontWeight: '900', marginTop: 28, marginBottom: 12 },
   sectionTitleNoMargin: { color: colors.forest, fontSize: 21, fontWeight: '900' },
   sectionCount: { backgroundColor: colors.lightGreen, borderRadius: 14, color: colors.olive, fontSize: 13, fontWeight: '900', minWidth: 29, overflow: 'hidden', paddingHorizontal: 9, paddingVertical: 5, textAlign: 'center' },
+  siteSwitcher: { gap: 8, paddingBottom: 12 },
+  siteSwitchButton: { backgroundColor: colors.cream, borderColor: colors.border, borderRadius: 999, borderWidth: 1, maxWidth: 180, minHeight: 40, justifyContent: 'center', paddingHorizontal: 14 },
+  siteSwitchButtonSelected: { backgroundColor: colors.forest, borderColor: colors.forest },
+  siteSwitchText: { color: colors.forest, fontSize: 13, fontWeight: '800' },
+  siteSwitchTextSelected: { color: colors.warmWhite },
   emptyCard: { backgroundColor: colors.lightGreen, borderColor: '#CBD1BD', borderRadius: 18, borderWidth: 1, padding: 18 },
   emptyCardTitle: { color: colors.forest, fontSize: 17, fontWeight: '900', marginBottom: 6 },
   emptyCardText: { color: colors.muted, fontSize: 14, lineHeight: 21 },
@@ -694,8 +761,17 @@ const styles = StyleSheet.create({
   propertyLocation: { color: colors.muted, fontSize: 14, marginTop: 4 },
   propertyMeta: { color: colors.olive, fontSize: 13, fontWeight: '700', marginTop: 9 },
   propertyAction: { color: colors.brown, fontSize: 13, fontWeight: '900', marginTop: 12 },
-  propertyTools: { borderTopColor: colors.border, borderTopWidth: 1, flexDirection: 'row' },
-  propertyTool: { alignItems: 'center', flex: 1, justifyContent: 'center', minHeight: 78, paddingHorizontal: 3 },
+  dashboardSection: { borderTopColor: colors.border, borderTopWidth: 1, paddingTop: 16 },
+  dashboardSectionEyebrow: { color: colors.brown, fontSize: 11, fontWeight: '900', letterSpacing: 1.1, marginHorizontal: 16 },
+  dashboardSectionTitle: { color: colors.muted, fontSize: 13, lineHeight: 19, marginHorizontal: 16, marginTop: 5, marginBottom: 10 },
+  growthAction: { alignItems: 'center', borderTopColor: colors.border, borderTopWidth: 1, flexDirection: 'row', minHeight: 62, paddingHorizontal: 16 },
+  growthActionIcon: { color: colors.brown, fontSize: 19, marginRight: 11, width: 21 },
+  growthActionCopy: { flex: 1 },
+  growthActionLabel: { color: colors.forest, fontSize: 15, fontWeight: '900' },
+  growthActionDetail: { color: colors.muted, fontSize: 12, lineHeight: 17, marginTop: 2 },
+  growthActionArrow: { color: colors.brown, fontSize: 23, fontWeight: '700', marginLeft: 10 },
+  propertyTools: { borderTopColor: colors.border, borderTopWidth: 1, flexDirection: 'row', flexWrap: 'wrap' },
+  propertyTool: { alignItems: 'center', flexBasis: '33.333%', justifyContent: 'center', minHeight: 78, paddingHorizontal: 3 },
   propertyToolIcon: { fontSize: 20 },
   propertyToolLabel: { color: colors.forest, fontSize: 11, fontWeight: '800', marginTop: 6, textAlign: 'center' },
   messageGuestsButton: { alignItems: 'center', borderColor: colors.forest, borderRadius: 14, borderWidth: 1, flexDirection: 'row', justifyContent: 'center', marginBottom: 5, marginHorizontal: 15, marginTop: 7, minHeight: 52 },

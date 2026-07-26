@@ -1,0 +1,148 @@
+import { router, useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { colors } from '../../../constants/theme';
+import { supabase } from '../../../lib/supabase';
+import { useAuth } from '../../../services/auth-context';
+
+type PropertySummary = { id: string; name: string; price_per_hour: number | string };
+type SubscriptionOffer = { id: string; name: string; credit_count: number; package_price: number | string; duration_months: number; is_active: boolean };
+type SubscriptionDraft = { id?: string; name: string; creditCount: string; packageDiscount: string; durationMonths: string };
+
+const emptyDraft = (): SubscriptionDraft => ({ name: '', creditCount: '10', packageDiscount: '', durationMonths: '12' });
+
+export default function SubscriptionsScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const { session } = useAuth();
+  const [property, setProperty] = useState<PropertySummary | null>(null);
+  const [offers, setOffers] = useState<SubscriptionOffer[]>([]);
+  const [draft, setDraft] = useState<SubscriptionDraft>(emptyDraft);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const hourlyRate = Number(property?.price_per_hour ?? 0);
+  const credits = Number(draft.creditCount) || 0;
+  const discount = Number(draft.packageDiscount) || 0;
+  const duration = Number(draft.durationMonths) || 0;
+  const originalCost = credits * hourlyRate;
+  const subscriptionPrice = originalCost * (1 - discount / 100);
+  const guestSavings = originalCost - subscriptionPrice;
+  const platformFee = originalCost * 0.18;
+  const hostPayout = subscriptionPrice - platformFee;
+
+  const load = useCallback(async () => {
+    if (!id || !session?.user.id) { setIsLoading(false); return; }
+    setIsLoading(true);
+    const [propertyResult, offersResult] = await Promise.all([
+      supabase.from('properties').select('id, name, price_per_hour').eq('id', id).eq('host_id', session.user.id).maybeSingle(),
+      supabase.from('loyalty_pass_offers').select('id, name, credit_count, package_price, duration_months, is_active').eq('property_id', id).order('created_at', { ascending: false }),
+    ]);
+    const error = propertyResult.error ?? offersResult.error;
+    if (error) { Alert.alert('Unable to load subscriptions', error.message); setIsLoading(false); return; }
+    setProperty(propertyResult.data as PropertySummary | null);
+    setOffers((offersResult.data ?? []) as SubscriptionOffer[]);
+    setIsLoading(false);
+  }, [id, session?.user.id]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const startNew = () => setDraft(emptyDraft());
+  const editOffer = (offer: SubscriptionOffer) => {
+    const regularValue = offer.credit_count * hourlyRate;
+    const existingDiscount = regularValue > 0 ? Math.max(0, Math.min(82, Math.round((1 - Number(offer.package_price) / regularValue) * 100))) : 0;
+    setDraft({ id: offer.id, name: offer.name, creditCount: String(offer.credit_count), packageDiscount: String(existingDiscount), durationMonths: String(offer.duration_months) });
+  };
+
+  const save = async () => {
+    if (!id || !property || isSaving) return;
+    if (!draft.name.trim() || !Number.isInteger(credits) || credits < 1 || credits > 50 || !Number.isInteger(discount) || discount < 1 || discount > 82 || !Number.isInteger(duration) || duration < 1 || duration > 12) {
+      Alert.alert('Complete your Subscription', 'Add a name, 1 to 50 one-hour credits, a package discount from 1% to 82%, and a duration from 1 to 12 months.');
+      return;
+    }
+    try {
+      setIsSaving(true);
+      const values = { property_id: id, name: draft.name.trim(), credit_count: credits, package_price: subscriptionPrice, duration_months: duration, is_active: true, updated_at: new Date().toISOString() };
+      const result = draft.id
+        ? await supabase.from('loyalty_pass_offers').update(values).eq('id', draft.id).eq('property_id', id)
+        : await supabase.from('loyalty_pass_offers').insert(values);
+      if (result.error) throw result.error;
+      Alert.alert('Subscription saved', 'Guests can now see this subscription on this site.');
+      setDraft(emptyDraft());
+      await load();
+    } catch (error) {
+      Alert.alert('Unable to save subscription', error instanceof Error ? error.message : 'Please try again.');
+    } finally { setIsSaving(false); }
+  };
+
+  const endOffer = async (offer: SubscriptionOffer) => {
+    Alert.alert('End this subscription?', 'It will no longer be offered to new guests. Your existing records stay intact.', [
+      { text: 'Keep Active', style: 'cancel' },
+      { text: 'End Subscription', style: 'destructive', onPress: () => void (async () => {
+        const { error } = await supabase.from('loyalty_pass_offers').update({ is_active: false, updated_at: new Date().toISOString() }).eq('id', offer.id).eq('property_id', id);
+        if (error) { Alert.alert('Unable to end subscription', error.message); return; }
+        if (draft.id === offer.id) setDraft(emptyDraft());
+        await load();
+      })() },
+    ]);
+  };
+
+  const activeOffers = useMemo(() => offers.filter((offer) => offer.is_active), [offers]);
+  const endedOffers = useMemo(() => offers.filter((offer) => !offer.is_active), [offers]);
+
+  if (isLoading) return <SafeAreaView style={styles.safeArea}><View style={styles.centered}><ActivityIndicator color={colors.forest} /></View></SafeAreaView>;
+  if (!property) return <SafeAreaView style={styles.safeArea}><View style={styles.centered}><Text style={styles.title}>This site is unavailable</Text><Pressable onPress={() => router.replace('/host-dashboard')} style={styles.primaryButton}><Text style={styles.primaryButtonText}>Host Dashboard</Text></Pressable></View></SafeAreaView>;
+
+  return <SafeAreaView style={styles.safeArea}><ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+    <Pressable accessibilityRole="button" onPress={() => router.replace('/host-dashboard')} style={styles.backButton}><Text style={styles.backText}>Host Dashboard</Text></Pressable>
+    <Text style={styles.eyebrow}>GROW YOUR SITE</Text>
+    <Text style={styles.title}>Manage Subscriptions</Text>
+    <Text style={styles.description}>Create and manage discounted prepaid visit packages for guests who choose {property.name} as a regular spot.</Text>
+
+    <View style={styles.siteCard}><Text style={styles.siteLabel}>THIS SITE</Text><Text style={styles.siteName}>{property.name}</Text><Text style={styles.siteRate}>Standard hourly rate: ${hourlyRate.toFixed(2)}</Text></View>
+
+    <Text style={styles.sectionHeading}>Active subscriptions</Text>
+    {activeOffers.length === 0 ? <View style={styles.emptyCard}><Text style={styles.emptyTitle}>No active subscriptions yet</Text><Text style={styles.emptyText}>Create one below when you want to reward repeat guests at this site.</Text></View> : activeOffers.map((offer) => <OfferCard key={offer.id} offer={offer} hourlyRate={hourlyRate} onEdit={() => editOffer(offer)} onEnd={() => void endOffer(offer)} />)}
+
+    <View style={styles.editorCard}>
+      <Text style={styles.sectionHeading}>{draft.id ? 'Edit subscription' : 'Create a subscription'}</Text>
+      <Text style={styles.editorText}>Each credit covers one hour. You choose the number of credits, package discount, and validity period.</Text>
+      <Field label="Subscription name" value={draft.name} onChangeText={(name) => setDraft((current) => ({ ...current, name }))} placeholder="Example: 10-Visit Subscription" />
+      <View style={styles.fieldRow}>
+        <View style={styles.flexField}><Field keyboardType="number-pad" label="One-hour visit credits" maxLength={2} value={draft.creditCount} onChangeText={(creditCount) => setDraft((current) => ({ ...current, creditCount: creditCount.replace(/[^0-9]/g, '') }))} placeholder="10" /></View>
+        <View style={styles.flexField}><Field keyboardType="number-pad" label="Package discount (%)" maxLength={2} value={draft.packageDiscount} onChangeText={(packageDiscount) => setDraft((current) => ({ ...current, packageDiscount: packageDiscount.replace(/[^0-9]/g, '') }))} placeholder="20" suffix="%" /></View>
+      </View>
+      <Field keyboardType="number-pad" label="Subscription duration in months" maxLength={2} value={draft.durationMonths} onChangeText={(durationMonths) => setDraft((current) => ({ ...current, durationMonths: durationMonths.replace(/[^0-9]/g, '') }))} placeholder="1 to 12" />
+      <View style={styles.mathCard}>
+        <Text style={styles.mathTitle}>At a glance</Text>
+        <MathRow label="Original cost" value={`$${originalCost.toFixed(2)}`} />
+        <MathRow label="Package discount" value={`${discount}%`} />
+        <MathRow label="Subscription price" value={`$${subscriptionPrice.toFixed(2)}`} />
+        <MathRow label="Guest savings" value={`$${Math.max(0, guestSavings).toFixed(2)}`} />
+        <MathRow label="ROVAH fee (18%)" value={`$${platformFee.toFixed(2)}`} />
+        <MathRow emphasis label="Your payout" value={`$${hostPayout.toFixed(2)}`} />
+      </View>
+      <Pressable accessibilityRole="button" disabled={isSaving} onPress={() => void save()} style={[styles.primaryButton, isSaving && styles.disabled]}>{isSaving ? <ActivityIndicator color={colors.warmWhite} /> : <Text style={styles.primaryButtonText}>{draft.id ? 'Save Subscription Changes' : 'Create Subscription'}</Text>}</Pressable>
+      {draft.id ? <Pressable accessibilityRole="button" onPress={startNew} style={styles.secondaryButton}><Text style={styles.secondaryButtonText}>Create Another Subscription</Text></Pressable> : null}
+    </View>
+
+    {endedOffers.length > 0 ? <><Text style={styles.endedHeading}>Ended subscriptions</Text>{endedOffers.map((offer) => <OfferCard key={offer.id} offer={offer} hourlyRate={hourlyRate} onEdit={() => editOffer(offer)} />)}</> : null}
+  </ScrollView></SafeAreaView>;
+}
+
+function OfferCard({ offer, hourlyRate, onEdit, onEnd }: { offer: SubscriptionOffer; hourlyRate: number; onEdit: () => void; onEnd?: () => void }) {
+  const originalCost = offer.credit_count * hourlyRate;
+  const savings = Math.max(0, originalCost - Number(offer.package_price));
+  return <View style={[styles.offerCard, !offer.is_active && styles.endedCard]}><View style={styles.offerHeader}><Text style={styles.offerName}>{offer.name}</Text><Text style={styles.offerStatus}>{offer.is_active ? 'ACTIVE' : 'ENDED'}</Text></View><Text style={styles.offerDetails}>{offer.credit_count} one-hour credits · ${Number(offer.package_price).toFixed(2)} · Save ${savings.toFixed(2)} · Valid {offer.duration_months} {offer.duration_months === 1 ? 'month' : 'months'}</Text><View style={styles.offerActions}><Pressable accessibilityRole="button" onPress={onEdit} style={styles.editButton}><Text style={styles.editButtonText}>Modify</Text></Pressable>{onEnd ? <Pressable accessibilityRole="button" onPress={onEnd} style={styles.endButton}><Text style={styles.endButtonText}>End Subscription</Text></Pressable> : null}</View></View>;
+}
+
+function Field({ label, value, onChangeText, placeholder, keyboardType = 'default', maxLength, suffix }: { label: string; value: string; onChangeText: (value: string) => void; placeholder: string; keyboardType?: 'default' | 'number-pad'; maxLength?: number; suffix?: string }) {
+  return <View style={styles.field}><Text style={styles.fieldLabel}>{label}</Text><View style={suffix ? styles.inputWithSuffix : undefined}><TextInput accessibilityLabel={label} keyboardType={keyboardType} maxLength={maxLength} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor="#8A877D" style={[styles.input, suffix && styles.inputSuffixField]} value={value} />{suffix ? <Text style={styles.suffix}>{suffix}</Text> : null}</View></View>;
+}
+
+function MathRow({ label, value, emphasis = false }: { label: string; value: string; emphasis?: boolean }) { return <View style={[styles.mathRow, emphasis && styles.mathRowEmphasis]}><Text style={[styles.mathLabel, emphasis && styles.mathEmphasis]}>{label}</Text><Text style={[styles.mathValue, emphasis && styles.mathEmphasis]}>{value}</Text></View>; }
+
+const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: colors.cream }, container: { padding: 20, paddingBottom: 42 }, centered: { alignItems: 'center', flex: 1, justifyContent: 'center', padding: 28 }, backButton: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' }, backText: { color: colors.forest, fontSize: 16, fontWeight: '800' }, eyebrow: { color: colors.brown, fontSize: 12, fontWeight: '900', letterSpacing: 1.2, marginTop: 8 }, title: { color: colors.forest, fontSize: 29, fontWeight: '900', marginTop: 5 }, description: { color: colors.muted, fontSize: 15, lineHeight: 22, marginTop: 9 }, siteCard: { backgroundColor: colors.lightGreen, borderColor: '#CBD1BD', borderRadius: 18, borderWidth: 1, marginTop: 18, padding: 16 }, siteLabel: { color: colors.brown, fontSize: 11, fontWeight: '900', letterSpacing: 1 }, siteName: { color: colors.forest, fontSize: 18, fontWeight: '900', marginTop: 4 }, siteRate: { color: colors.muted, fontSize: 13, marginTop: 4 }, sectionHeading: { color: colors.forest, fontSize: 19, fontWeight: '900', marginBottom: 7, marginTop: 22 }, emptyCard: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 16, borderWidth: 1, padding: 16 }, emptyTitle: { color: colors.forest, fontSize: 16, fontWeight: '900' }, emptyText: { color: colors.muted, fontSize: 14, lineHeight: 20, marginTop: 5 }, offerCard: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 16, borderWidth: 1, marginTop: 10, padding: 15 }, endedCard: { opacity: 0.72 }, offerHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }, offerName: { color: colors.forest, flex: 1, fontSize: 16, fontWeight: '900', paddingRight: 8 }, offerStatus: { color: colors.brown, fontSize: 11, fontWeight: '900', letterSpacing: 0.8 }, offerDetails: { color: colors.muted, fontSize: 13, lineHeight: 20, marginTop: 8 }, offerActions: { flexDirection: 'row', gap: 9, marginTop: 13 }, editButton: { alignItems: 'center', borderColor: colors.forest, borderRadius: 11, borderWidth: 1, flex: 1, justifyContent: 'center', minHeight: 42 }, editButtonText: { color: colors.forest, fontSize: 13, fontWeight: '900' }, endButton: { alignItems: 'center', borderColor: '#A55245', borderRadius: 11, borderWidth: 1, flex: 1, justifyContent: 'center', minHeight: 42 }, endButtonText: { color: '#A55245', fontSize: 13, fontWeight: '900' }, editorCard: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 18, borderWidth: 1, marginTop: 22, padding: 16 }, editorText: { color: colors.muted, fontSize: 14, lineHeight: 20 }, field: { marginTop: 15 }, fieldLabel: { color: colors.forest, fontSize: 13, fontWeight: '900', marginBottom: 7 }, input: { backgroundColor: colors.cream, borderColor: colors.border, borderRadius: 12, borderWidth: 1, color: colors.forest, fontSize: 15, minHeight: 50, paddingHorizontal: 13 }, fieldRow: { flexDirection: 'row', gap: 10 }, flexField: { flex: 1, minWidth: 0 }, inputWithSuffix: { position: 'relative' }, inputSuffixField: { paddingRight: 32 }, suffix: { color: colors.forest, fontSize: 15, fontWeight: '900', position: 'absolute', right: 13, top: 15 }, mathCard: { backgroundColor: colors.lightGreen, borderColor: '#CBD1BD', borderRadius: 14, borderWidth: 1, marginTop: 18, padding: 14 }, mathTitle: { color: colors.forest, fontSize: 15, fontWeight: '900', marginBottom: 7 }, mathRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }, mathRowEmphasis: { borderTopColor: '#AFC6A6', borderTopWidth: 1, marginTop: 4, paddingTop: 10 }, mathLabel: { color: colors.muted, flex: 1, fontSize: 13 }, mathValue: { color: colors.forest, fontSize: 13, fontVariant: ['tabular-nums'], fontWeight: '900', textAlign: 'right' }, mathEmphasis: { color: colors.forest, fontSize: 14, fontWeight: '900' }, primaryButton: { alignItems: 'center', backgroundColor: colors.forest, borderRadius: 13, justifyContent: 'center', marginTop: 18, minHeight: 52, paddingHorizontal: 16 }, primaryButtonText: { color: colors.warmWhite, fontSize: 15, fontWeight: '900' }, secondaryButton: { alignItems: 'center', borderColor: colors.forest, borderRadius: 13, borderWidth: 1, justifyContent: 'center', marginTop: 10, minHeight: 48 }, secondaryButtonText: { color: colors.forest, fontSize: 14, fontWeight: '900' }, disabled: { opacity: 0.55 }, endedHeading: { color: colors.forest, fontSize: 18, fontWeight: '900', marginTop: 27 },
+});

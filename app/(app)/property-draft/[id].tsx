@@ -65,6 +65,18 @@ type TimePickerTarget =
 type DateAvailabilityOverride = Omit<PropertyDateAvailability, 'id' | 'created_at' | 'updated_at'> & {
   id?: string;
 };
+type PropertyBasicsDraft = {
+  name: string;
+  shortDescription: string;
+  siteAddress: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  pricePerHour: string;
+  acreage: string;
+  isFullyFenced: boolean;
+  fenceHeightFeet: string;
+};
 
 const defaultSchedule = (): DaySchedule[] =>
   dayNames.map((_, day_of_week) => ({
@@ -73,6 +85,19 @@ const defaultSchedule = (): DaySchedule[] =>
     end_time: '17:00',
     enabled: false,
   }));
+
+const propertyBasicsFrom = (property: Property): PropertyBasicsDraft => ({
+  name: property.name,
+  shortDescription: property.short_description,
+  siteAddress: property.site_address,
+  city: property.city,
+  state: property.state,
+  postalCode: property.postal_code,
+  pricePerHour: String(property.price_per_hour),
+  acreage: property.acreage === null ? '' : String(property.acreage),
+  isFullyFenced: property.is_fully_fenced,
+  fenceHeightFeet: property.fence_height_feet === null ? '' : String(property.fence_height_feet),
+});
 
 const halfHourTimes = Array.from({ length: 48 }, (_, index) => {
   const hour = Math.floor(index / 2);
@@ -127,6 +152,7 @@ export default function PropertyDraftScreen() {
   const [selectedScheduleDays, setSelectedScheduleDays] = useState<number[]>([]);
   const [timePickerTarget, setTimePickerTarget] = useState<TimePickerTarget>(null);
   const [dateAvailability, setDateAvailability] = useState<DateAvailabilityOverride[]>([]);
+  const [propertyBasics, setPropertyBasics] = useState<PropertyBasicsDraft | null>(null);
   const [availabilityCalendarMonth, setAvailabilityCalendarMonth] = useState(() => startOfDay(new Date()));
   const [selectedCalendarDates, setSelectedCalendarDates] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -169,11 +195,12 @@ export default function PropertyDraftScreen() {
       return;
     }
 
-    setProperty(propertyResult.data as Property | null);
+    const loadedProperty = propertyResult.data as Property | null;
+    setProperty(loadedProperty);
+    setPropertyBasics(loadedProperty ? propertyBasicsFrom(loadedProperty) : null);
     if (detailsResult.data) setDetails(detailsResult.data as PropertyDraftDetails);
     setSelectedAmenities((amenitiesResult.data ?? []).map((item) => item.amenity_code));
     setDateAvailability((dateAvailabilityResult.data ?? []) as DateAvailabilityOverride[]);
-
     const savedAvailability = (availabilityResult.data ?? []) as PropertyAvailability[];
     if (savedAvailability[0]) {
       setTemplateStartTime(normalizeTime(savedAvailability[0].start_time));
@@ -504,8 +531,11 @@ export default function PropertyDraftScreen() {
   };
 
   async function saveListing(submitForReview: boolean, scheduleToSave = schedule) {
-    if (!id || !property || !session?.user.id) return;
+    if (!id || !property || !propertyBasics || !session?.user.id) return;
     const wasPublished = property.is_published;
+    const hourlyRate = Number(propertyBasics.pricePerHour);
+    const acreage = propertyBasics.acreage.trim() ? Number(propertyBasics.acreage) : null;
+    const fenceHeight = propertyBasics.fenceHeightFeet.trim() ? Number(propertyBasics.fenceHeightFeet) : null;
     const openDays = scheduleToSave.filter((day) => day.enabled);
     const invalidDay = openDays.find(
       (day) =>
@@ -513,13 +543,17 @@ export default function PropertyDraftScreen() {
         !/^\d{2}:\d{2}$/.test(day.end_time) ||
         day.start_time >= day.end_time
     );
+    if (propertyBasics.name.trim().length < 3 || propertyBasics.shortDescription.trim().length < 20 || !propertyBasics.siteAddress.trim() || !propertyBasics.city.trim() || propertyBasics.state.trim().length !== 2 || !propertyBasics.postalCode.trim() || !Number.isFinite(hourlyRate) || hourlyRate <= 0 || acreage === null || !Number.isFinite(acreage) || acreage < 0 || (propertyBasics.isFullyFenced && (fenceHeight === null || !Number.isFinite(fenceHeight) || fenceHeight <= 0))) {
+      Alert.alert('Complete property basics', 'Add a property name, description, full address, a valid hourly rate, and valid acreage or fence details before saving.');
+      return;
+    }
 
     if (submitForReview && images.length === 0) {
       Alert.alert('Add a property photo', 'Upload at least one photo before publishing your listing.');
       return;
     }
 
-    if (submitForReview && !property.site_address.trim()) {
+    if (submitForReview && !propertyBasics.siteAddress.trim()) {
       Alert.alert('Add the site address', 'Add the exact street address so guests can open the correct location in Google Maps.');
       return;
     }
@@ -617,11 +651,20 @@ export default function PropertyDraftScreen() {
       const { error: publishError } = await supabase
         .from('properties')
         .update({
+          name: propertyBasics.name.trim(),
+          short_description: propertyBasics.shortDescription.trim(),
+          site_address: propertyBasics.siteAddress.trim(),
+          city: propertyBasics.city.trim(),
+          state: propertyBasics.state.trim().toUpperCase(),
+          postal_code: propertyBasics.postalCode.trim(),
+          price_per_hour: hourlyRate,
+          acreage,
+          is_fully_fenced: propertyBasics.isFullyFenced,
+          fence_height_feet: propertyBasics.isFullyFenced ? fenceHeight : null,
           is_published: submitForReview ? false : property.is_published,
           approval_status: submitForReview ? 'pending' : property.approval_status,
           hero_image_url: primaryPhoto?.storage_path ?? property.hero_image_url,
           is_temporarily_closed: property.is_temporarily_closed,
-          site_address: property.site_address.trim(),
         })
         .eq('id', id)
         .eq('host_id', session.user.id);
@@ -634,7 +677,16 @@ export default function PropertyDraftScreen() {
               is_published: submitForReview ? false : current.is_published,
               approval_status: submitForReview ? 'pending' : current.approval_status,
               hero_image_url: primaryPhoto?.storage_path ?? current.hero_image_url,
-              site_address: current.site_address.trim(),
+              name: propertyBasics.name.trim(),
+              short_description: propertyBasics.shortDescription.trim(),
+              site_address: propertyBasics.siteAddress.trim(),
+              city: propertyBasics.city.trim(),
+              state: propertyBasics.state.trim().toUpperCase(),
+              postal_code: propertyBasics.postalCode.trim(),
+              price_per_hour: hourlyRate,
+              acreage,
+              is_fully_fenced: propertyBasics.isFullyFenced,
+              fence_height_feet: propertyBasics.isFullyFenced ? fenceHeight : null,
             }
           : current
       );
@@ -711,7 +763,7 @@ export default function PropertyDraftScreen() {
     return <LoadingState message="Loading property details..." />;
   }
 
-  if (!property) {
+  if (!property || !propertyBasics) {
     return <LoadingState message="This property was not found." actionLabel="Back to Hosting" onAction={() => router.replace('/host-dashboard')} />;
   }
 
@@ -723,10 +775,31 @@ export default function PropertyDraftScreen() {
             <Text style={styles.backButtonText}>{'<'} Host Dashboard</Text>
           </Pressable>
           <Text style={styles.eyebrow}>PROPERTY DETAILS</Text>
-          <Text style={styles.title}>{property.name}</Text>
+          <Text style={styles.title}>{propertyBasics.name}</Text>
           <Text style={styles.description}>Complete these details so guests know exactly what to expect before they arrive.</Text>
 
+          <Section title="Property Basics" subtitle="Your listing name, location, hourly rate, and core property details" icon="Property" requiredForReview>
+            <DraftField label="Property name" value={propertyBasics.name} onChangeText={(name) => { setPropertyBasics((current) => current ? { ...current, name } : current); setHasUnsavedChanges(true); }} placeholder="Example: Mission Field" requiredForReview />
+            <DraftField label="Short description" value={propertyBasics.shortDescription} onChangeText={(shortDescription) => { setPropertyBasics((current) => current ? { ...current, shortDescription } : current); setHasUnsavedChanges(true); }} placeholder="Tell guests what makes this private space special." requiredForReview multiline />
+            <DraftField label="Street address" value={propertyBasics.siteAddress} onChangeText={(siteAddress) => { setPropertyBasics((current) => current ? { ...current, siteAddress } : current); setHasUnsavedChanges(true); }} placeholder="123 Country Lane" requiredForReview />
+            <View style={styles.propertyBasicsRow}>
+              <View style={styles.propertyBasicsWideField}><DraftField label="City" value={propertyBasics.city} onChangeText={(city) => { setPropertyBasics((current) => current ? { ...current, city } : current); setHasUnsavedChanges(true); }} placeholder="City" requiredForReview /></View>
+              <View style={styles.propertyBasicsNarrowField}><DraftField label="State" value={propertyBasics.state} onChangeText={(state) => { setPropertyBasics((current) => current ? { ...current, state: state.toUpperCase() } : current); setHasUnsavedChanges(true); }} placeholder="MI" requiredForReview maxLength={2} /></View>
+            </View>
+            <DraftField label="ZIP or postal code" value={propertyBasics.postalCode} onChangeText={(postalCode) => { setPropertyBasics((current) => current ? { ...current, postalCode } : current); setHasUnsavedChanges(true); }} placeholder="ZIP or postal code" requiredForReview />
+            <View style={styles.propertyBasicsRow}>
+              <View style={styles.propertyBasicsWideField}><DraftField keyboardType="decimal-pad" label="Standard hourly rate" value={propertyBasics.pricePerHour} onChangeText={(pricePerHour) => { setPropertyBasics((current) => current ? { ...current, pricePerHour: pricePerHour.replace(/[^0-9.]/g, '') } : current); setHasUnsavedChanges(true); }} placeholder="$15" requiredForReview /></View>
+              <View style={styles.propertyBasicsNarrowField}><DraftField keyboardType="decimal-pad" label="Acreage" value={propertyBasics.acreage} onChangeText={(acreage) => { setPropertyBasics((current) => current ? { ...current, acreage: acreage.replace(/[^0-9.]/g, '') } : current); setHasUnsavedChanges(true); }} placeholder="Example: 2" requiredForReview /></View>
+            </View>
+            <View style={styles.propertyToggleRow}><View style={styles.propertyToggleCopy}><Text style={styles.propertyToggleTitle}>Fully fenced</Text><Text style={styles.propertyToggleText}>Tell guests whether the entire space is enclosed.</Text></View><Switch accessibilityLabel="Property is fully fenced" onValueChange={(isFullyFenced) => { setPropertyBasics((current) => current ? { ...current, isFullyFenced } : current); setHasUnsavedChanges(true); }} thumbColor="#FFFDF8" trackColor={{ false: '#B8B3A8', true: '#6E996E' }} value={propertyBasics.isFullyFenced} /></View>
+            {propertyBasics.isFullyFenced ? <DraftField keyboardType="decimal-pad" label="Fence height in feet" value={propertyBasics.fenceHeightFeet} onChangeText={(fenceHeightFeet) => { setPropertyBasics((current) => current ? { ...current, fenceHeightFeet: fenceHeightFeet.replace(/[^0-9.]/g, '') } : current); setHasUnsavedChanges(true); }} placeholder="Example: 6" requiredForReview /> : null}
+          </Section>
+
           <Section title="Photos" subtitle={`${images.length} uploaded`} icon="Photos" requiredForReview>
+            <View style={styles.photoGuidance}>
+              <Text style={styles.photoGuidanceTitle}>Photos are required to publish</Text>
+              <Text style={styles.photoGuidanceText}>More high-quality photos help guests picture their visit, build trust, and drive more bookings. Aim for at least 8 recent photos of the entrance, parking, play areas, fencing, and amenities.</Text>
+            </View>
             <View style={styles.imageGrid}>
               {images.map((image) => (
                 <View key={image.id} style={styles.imageTile}>
@@ -771,7 +844,6 @@ export default function PropertyDraftScreen() {
           </Section>
 
           <Section title="Arrival Details" subtitle="Parking, gate access, directions, and your exact map location" icon="Gate">
-            <DraftField label="Site street address" value={property.site_address} onChangeText={(value) => { setProperty((current) => current ? { ...current, site_address: value } : current); setHasUnsavedChanges(true); }} placeholder="123 Country Lane" requiredForReview />
             <DraftField label="Parking instructions" value={details.parking_instructions} onChangeText={(value) => { setDetails((current) => ({ ...current, parking_instructions: value })); setHasUnsavedChanges(true); }} placeholder="Where should guests park?" requiredForReview multiline />
             <DraftField label="Gate access" value={details.gate_access_instructions} onChangeText={(value) => { setDetails((current) => ({ ...current, gate_access_instructions: value })); setHasUnsavedChanges(true); }} placeholder="Which gate should guests use and how do they enter?" requiredForReview multiline />
           </Section>
@@ -994,8 +1066,8 @@ export default function PropertyDraftScreen() {
               {property.approval_status === 'approved'
                 ? 'Your site is live. You can save changes to its write-up and details without sending it through review again.'
                 : property.approval_status === 'pending'
-                  ? 'Your site is waiting for K9 Country administrator review. The review submission is locked until an administrator responds.'
-                  : 'Save your finished listing to submit it for K9 Country administrator review. It will appear in guest search only after approval.'}
+                  ? 'Your site is waiting for ROVAH administrator review. The review submission is locked until an administrator responds.'
+                  : 'Save your finished listing to submit it for ROVAH administrator review. It will appear in guest search only after approval.'}
             </Text>
             {property.approval_status === 'approved' ? (
               <>
@@ -1044,7 +1116,7 @@ export default function PropertyDraftScreen() {
           <View style={styles.deleteNotice}>
             <Text style={styles.deleteNoticeTitle}>Remove this listing</Text>
             <Text style={styles.deleteNoticeText}>
-              Deleting removes this property, its details, and its photos from K9 Country.
+              Deleting removes this property, its details, and its photos from ROVAH.
             </Text>
             <Pressable
               accessibilityRole="button"
@@ -1079,6 +1151,18 @@ export default function PropertyDraftScreen() {
               trackColor={{ false: '#B8B3A8', true: '#A7463B' }}
               value={property.is_temporarily_closed}
             />
+          </View>
+
+          <View style={styles.listingGuide}>
+            <Text style={styles.listingGuideTitle}>How to use Property Details</Text>
+            <Text style={styles.listingGuideIntro}>Complete each section, save your work as you go, and submit only when the listing is ready for ROVAH review.</Text>
+
+            <ListingGuideStep number="1" title="Add the property basics" text="Enter the property name, short description, full address, hourly rate, acreage, and fence information. These details help members understand the space before they book." />
+            <ListingGuideStep number="2" title="Upload clear photos" text="Add at least one good photo of the actual private space. Photos are required for review and should show guests what they can expect when they arrive." />
+            <ListingGuideStep number="3" title="Set arrival details, rules, and amenities" text="Explain parking and gate access, add property rules, and select every amenity available to guests. Clear instructions create a safer, smoother visit." />
+            <ListingGuideStep number="4" title="Choose your availability" text="Days start red and closed. Tap each day you want to offer, set its opening and closing times, then use Apply Hours. Use the calendar below to open or close specific dates." />
+            <ListingGuideStep number="5" title="Use guest tools after publishing" text="Once your listing is approved, use Reservations to manage visits, Messages to communicate with a guest, and the Gift button when you want to send a one-time Special Discount or Courtesy Waiver." />
+            <ListingGuideStep number="6" title="Save, then submit for review" text="Save Draft keeps your work private while you continue editing. Submit for Review sends the finished listing to ROVAH. Members cannot see or reserve it until it is approved." />
           </View>
         </ScrollView>
 
@@ -1116,8 +1200,12 @@ function Section({ title, subtitle, children, requiredForReview = false }: { tit
   return <View style={styles.section}><Text style={styles.sectionTitle}>{title}</Text>{requiredForReview ? <Text style={styles.sectionRequiredText}>Required to submit for review</Text> : null}<Text style={styles.sectionSubtitle}>{subtitle}</Text><View style={styles.sectionContent}>{children}</View></View>;
 }
 
-function DraftField({ label, value, onChangeText, placeholder, multiline = false, requiredForReview = false }: { label: string; value: string; onChangeText: (value: string) => void; placeholder: string; multiline?: boolean; requiredForReview?: boolean }) {
-  return <View style={styles.field}><Text style={styles.label}>{label}</Text>{requiredForReview ? <Text style={styles.reviewRequiredText}>Required to submit for review</Text> : null}<TextInput value={value} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor="#8A877D" multiline={multiline} numberOfLines={multiline ? 4 : 1} textAlignVertical={multiline ? 'top' : 'center'} style={[styles.input, multiline && styles.multilineInput]} /></View>;
+function DraftField({ label, value, onChangeText, placeholder, multiline = false, requiredForReview = false, keyboardType = 'default', maxLength, suffix }: { label: string; value: string; onChangeText: (value: string) => void; placeholder: string; multiline?: boolean; requiredForReview?: boolean; keyboardType?: 'default' | 'number-pad' | 'decimal-pad'; maxLength?: number; suffix?: string }) {
+  return <View style={styles.field}><Text style={styles.label}>{label}</Text>{requiredForReview ? <Text style={styles.reviewRequiredText}>Required</Text> : null}<View style={suffix ? styles.inputWithSuffix : undefined}><TextInput accessibilityLabel={label} value={value} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor="#8A877D" keyboardType={keyboardType} maxLength={maxLength} multiline={multiline} numberOfLines={multiline ? 4 : 1} textAlignVertical={multiline ? 'top' : 'center'} style={[styles.input, suffix && styles.inputWithSuffixField, multiline && styles.multilineInput]} />{suffix ? <Text style={styles.inputSuffix}>{suffix}</Text> : null}</View></View>;
+}
+
+function ListingGuideStep({ number, title, text }: { number: string; title: string; text: string }) {
+  return <View style={styles.listingGuideStep}><Text style={styles.listingGuideNumber}>{number}</Text><View style={styles.listingGuideCopy}><Text style={styles.listingGuideStepTitle}>{title}</Text><Text style={styles.listingGuideStepText}>{text}</Text></View></View>;
 }
 
 function normalizeTime(time: string) {
@@ -1155,6 +1243,9 @@ const styles = StyleSheet.create({
   sectionRequiredText: { color: colors.brown, fontSize: 11, fontWeight: '900', letterSpacing: 0.6, marginTop: 5 },
   sectionSubtitle: { color: colors.muted, fontSize: 13, marginTop: 4 },
   sectionContent: { marginTop: 18 },
+  photoGuidance: { backgroundColor: colors.lightGreen, borderColor: '#CBD1BD', borderRadius: 14, borderWidth: 1, marginBottom: 16, padding: 13 },
+  photoGuidanceTitle: { color: colors.forest, fontSize: 14, fontWeight: '900' },
+  photoGuidanceText: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 4 },
   imageGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 14 },
   imageTile: { width: '47%' },
   photoPreview: { height: 98, overflow: 'hidden' },
@@ -1173,7 +1264,33 @@ const styles = StyleSheet.create({
   label: { color: colors.forest, fontSize: 14, fontWeight: '800', marginBottom: 7 },
   reviewRequiredText: { color: colors.brown, fontSize: 12, fontWeight: '800', marginBottom: 7, marginTop: -3 },
   input: { backgroundColor: colors.cream, borderColor: colors.border, borderRadius: 12, borderWidth: 1, color: colors.forest, fontSize: 15, minHeight: 52, paddingHorizontal: 14 },
+  inputWithSuffix: { position: 'relative', width: '100%' },
+  inputWithSuffixField: { paddingRight: 42, width: '100%' },
+  inputSuffix: { color: colors.forest, fontSize: 17, fontWeight: '900', position: 'absolute', right: 14, top: 15 },
   multilineInput: { minHeight: 200, paddingTop: 13 },
+  propertyBasicsRow: { flexDirection: 'row', gap: 10 },
+  propertyBasicsWideField: { flex: 1.55 },
+  propertyBasicsNarrowField: { flex: 1 },
+  propertyToggleRow: { alignItems: 'center', borderTopColor: colors.border, borderTopWidth: 1, flexDirection: 'row', justifyContent: 'space-between', marginTop: 2, paddingTop: 16, paddingBottom: 15 },
+  propertyToggleCopy: { flex: 1, paddingRight: 14 },
+  propertyToggleTitle: { color: colors.forest, fontSize: 16, fontWeight: '900' },
+  propertyToggleText: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 4 },
+  loyaltyToggleRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  loyaltyToggleCopy: { flex: 1, paddingRight: 14 },
+  loyaltyToggleTitle: { color: colors.forest, fontSize: 16, fontWeight: '900' },
+  loyaltyToggleText: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 4 },
+  loyaltySetup: { borderTopColor: colors.border, borderTopWidth: 1, marginTop: 18, paddingTop: 18 },
+  loyaltyFieldRow: { flexDirection: 'row', gap: 10 },
+  loyaltyField: { flex: 1, minWidth: 0 },
+  loyaltyFieldHint: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: -5 },
+  loyaltyMathCard: { backgroundColor: colors.lightGreen, borderColor: '#CBD1BD', borderRadius: 15, borderWidth: 1, marginTop: 16, padding: 14 },
+  loyaltyMathTitle: { color: colors.forest, fontSize: 15, fontWeight: '900', marginBottom: 8 },
+  loyaltyMathRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 },
+  loyaltyMathRowEmphasis: { borderTopColor: '#AFC6A6', borderTopWidth: 1, marginTop: 4, paddingTop: 11 },
+  loyaltyMathLabel: { color: colors.muted, flex: 1, fontSize: 13, paddingRight: 10 },
+  loyaltyMathValue: { color: colors.forest, fontSize: 13, fontVariant: ['tabular-nums'], fontWeight: '900', textAlign: 'right' },
+  loyaltyMathEmphasis: { color: colors.forest, fontSize: 14, fontWeight: '900' },
+  loyaltyPaymentNote: { color: colors.brown, fontSize: 12, fontWeight: '700', lineHeight: 18, marginTop: 12 },
   disabled: { opacity: 0.6 },
   amenityGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 },
   amenity: { alignItems: 'center', backgroundColor: colors.cream, borderColor: colors.border, borderRadius: 14, borderWidth: 1, flexDirection: 'row', justifyContent: 'center', minHeight: 48, paddingHorizontal: 12, paddingVertical: 10, width: '48%' },
@@ -1254,6 +1371,14 @@ const styles = StyleSheet.create({
   temporaryClosureText: { flex: 1, paddingRight: 14 },
   temporaryClosureTitle: { color: '#8A4F17', fontSize: 16, fontWeight: '900' },
   temporaryClosureDescription: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 5 },
+  listingGuide: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 18, borderWidth: 1, marginTop: 24, padding: 17 },
+  listingGuideTitle: { color: colors.forest, fontSize: 19, fontWeight: '900' },
+  listingGuideIntro: { color: colors.muted, fontSize: 14, lineHeight: 20, marginTop: 5 },
+  listingGuideStep: { flexDirection: 'row', marginTop: 16 },
+  listingGuideNumber: { alignItems: 'center', backgroundColor: colors.lightGreen, borderColor: '#CBD1BD', borderRadius: 13, borderWidth: 1, color: colors.forest, fontSize: 13, fontWeight: '900', height: 26, lineHeight: 24, marginRight: 10, textAlign: 'center', width: 26 },
+  listingGuideCopy: { flex: 1 },
+  listingGuideStepTitle: { color: colors.forest, fontSize: 14, fontWeight: '900' },
+  listingGuideStepText: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 3 },
   deleteNotice: { backgroundColor: '#FDF0EE', borderColor: '#F0B8B0', borderRadius: 16, borderWidth: 1, marginTop: 26, padding: 16 },
   deleteNoticeTitle: { color: '#B42318', fontSize: 16, fontWeight: '900' },
   deleteNoticeText: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 5 },
