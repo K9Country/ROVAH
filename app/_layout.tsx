@@ -4,7 +4,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { AuthProvider, useAuth } from '../services/auth-context';
  
 function RootNavigator() {
-  const { session, isLoading } = useAuth();
+  const { accountType, isLoading, session } = useAuth();
  
   if (isLoading) {
     return (
@@ -22,8 +22,12 @@ function RootNavigator() {
         <Stack.Screen name="(auth)" />
       </Stack.Protected>
  
-      <Stack.Protected guard={Boolean(session)}>
+      <Stack.Protected guard={Boolean(session) && accountType === 'member'}>
         <Stack.Screen name="(app)" />
+      </Stack.Protected>
+
+      <Stack.Protected guard={Boolean(session) && accountType === 'host'}>
+        <Stack.Screen name="host-dashboard" />
       </Stack.Protected>
     </Stack>
   );

@@ -15,8 +15,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
  
 import { supabase } from '../../lib/supabase';
+import type { AccountType } from '../../services/auth-context';
  
-export default function SignUpScreen() {
+type SignUpScreenProps = {
+  accountType?: AccountType;
+};
+
+export function SignUpScreen({ accountType = 'member' }: SignUpScreenProps) {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -73,15 +78,34 @@ export default function SignUpScreen() {
         Alert.alert('Unable to create account', error.message);
         return;
       }
- 
-      if (data.session) {
+
+      if (data.session && data.user) {
+        const { error: accountRoleError } = await supabase
+          .from('account_roles')
+          .insert({
+            user_id: data.user.id,
+            account_type: accountType,
+          });
+
+        if (accountRoleError) {
+          await supabase.auth.signOut();
+          Alert.alert('Unable to create account', accountRoleError.message);
+          return;
+        }
+
+        await supabase.auth.signOut();
         Alert.alert(
           'Account created',
-          'Welcome to K9 Country.',
+          accountType === 'host'
+            ? 'Your host account is ready. Please sign in to continue.'
+            : 'Your member account is ready. Please sign in to continue.',
           [
             {
-              text: 'Continue',
-              onPress: () => router.replace('/dashboard'),
+              text: 'Sign In',
+              onPress: () =>
+                router.replace(
+                  accountType === 'host' ? '/host-sign-in' : '/sign-in'
+                ),
             },
           ]
         );
@@ -135,7 +159,9 @@ export default function SignUpScreen() {
             <Text style={styles.title}>Create your account</Text>
  
             <Text style={styles.description}>
-              Use one K9 Country account as a guest, a host, or both.
+              {accountType === 'host'
+                ? 'Create a host account to offer a private space.'
+                : 'Create a member account to find private spaces for your dog.'}
             </Text>
           </View>
  
@@ -233,11 +259,17 @@ export default function SignUpScreen() {
  
             <Pressable
               accessibilityRole="button"
-              onPress={() => router.replace('/sign-in')}
+              onPress={() =>
+                router.replace(
+                  accountType === 'host' ? '/host-sign-in' : '/sign-in'
+                )
+              }
               style={styles.textButton}
             >
               <Text style={styles.textButtonText}>
-                Already have an account? Sign In
+                {accountType === 'host'
+                  ? 'Already a host? Sign In'
+                  : 'Already a member? Sign In'}
               </Text>
             </Pressable>
           </View>
@@ -245,6 +277,10 @@ export default function SignUpScreen() {
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
+}
+
+export default function MemberSignUpScreen() {
+  return <SignUpScreen accountType="member" />;
 }
  
 const colors = {

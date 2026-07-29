@@ -17,13 +17,6 @@ export default function WelcomeScreen() {
     );
   };
  
-  const handleBecomeHost = () => {
-    Alert.alert(
-      'Become a Host',
-      'Host registration will be connected in the host onboarding phase.'
-    );
-  };
- 
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
@@ -73,7 +66,7 @@ export default function WelcomeScreen() {
             ]}
           >
             <Text style={styles.secondaryButtonText}>
-              Create Account
+              Create Member Account
             </Text>
           </Pressable>
  
@@ -86,7 +79,7 @@ export default function WelcomeScreen() {
             ]}
           >
             <Text style={styles.textButtonText}>
-              Already have an account? Sign In
+                Member Sign In
             </Text>
           </Pressable>
         </View>
@@ -109,7 +102,7 @@ export default function WelcomeScreen() {
  
           <Pressable
             accessibilityRole="button"
-            onPress={handleBecomeHost}
+            onPress={() => router.push('/host-sign-up')}
             style={({ pressed }) => [
               styles.hostButton,
               pressed && styles.buttonPressed,
@@ -118,6 +111,14 @@ export default function WelcomeScreen() {
             <Text style={styles.hostButtonText}>
               Become a Host
             </Text>
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push('/host-sign-in')}
+            style={styles.hostSignInButton}
+          >
+            <Text style={styles.hostSignInButtonText}>Host Sign In</Text>
           </Pressable>
         </View>
  
@@ -319,6 +320,20 @@ const styles = StyleSheet.create({
     color: colors.forest,
     fontSize: 16,
     fontWeight: '800',
+  },
+
+  hostSignInButton: {
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+  },
+
+  hostSignInButtonText: {
+    color: colors.cream,
+    fontSize: 15,
+    fontWeight: '800',
+    textDecorationLine: 'underline',
   },
  
   footer: {

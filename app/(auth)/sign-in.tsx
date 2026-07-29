@@ -13,9 +13,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
  
-import { supabase } from '../../lib/supabase';
+import { AccountType, useAuth } from '../../services/auth-context';
  
-export default function SignInScreen() {
+type SignInScreenProps = {
+  accountType?: AccountType;
+};
+
+export function SignInScreen({ accountType = 'member' }: SignInScreenProps) {
+  const { signInAs } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -31,18 +36,19 @@ export default function SignInScreen() {
     try {
       setIsLoading(true);
  
-      const { error } = await supabase.auth.signInWithPassword({
-        email: normalizedEmail,
+      const { errorMessage } = await signInAs(
+        normalizedEmail,
         password,
-      });
- 
-      if (error) {
-        Alert.alert('Unable to sign in', error.message);
+        accountType
+      );
+
+      if (errorMessage) {
+        Alert.alert('Unable to sign in', errorMessage);
         return;
       }
- 
+
       Alert.alert('Welcome back', 'You successfully signed in.');
-      router.replace('/dashboard');
+      router.replace(accountType === 'host' ? '/host-dashboard' : '/dashboard');
     } catch {
       Alert.alert(
         'Something went wrong',
@@ -76,8 +82,9 @@ export default function SignInScreen() {
             <Text style={styles.title}>Welcome back</Text>
  
             <Text style={styles.description}>
-              Sign in to manage reservations, favorite properties, messages,
-              and host activity.
+              {accountType === 'host'
+                ? 'Sign in to manage your property and hosting activity.'
+                : 'Sign in to manage reservations, favorites, and messages.'}
             </Text>
           </View>
  
@@ -137,11 +144,17 @@ export default function SignInScreen() {
  
             <Pressable
               accessibilityRole="button"
-              onPress={() => router.push('/sign-up')}
+              onPress={() =>
+                router.push(
+                  accountType === 'host' ? '/host-sign-up' : '/sign-up'
+                )
+              }
               style={styles.textButton}
             >
               <Text style={styles.textButtonText}>
-                New to K9 Country? Create an account
+                {accountType === 'host'
+                  ? 'New host? Create a host account'
+                  : 'New to K9 Country? Create a member account'}
               </Text>
             </Pressable>
           </View>
@@ -149,6 +162,10 @@ export default function SignInScreen() {
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
+}
+
+export default function MemberSignInScreen() {
+  return <SignInScreen accountType="member" />;
 }
  
 const colors = {
