@@ -105,11 +105,6 @@ Deno.serve(async (req) => {
         subject: `New ROVAH message about ${property?.name || 'your reservation'}`,
         html: `<div style="font-family:Arial,sans-serif;color:#233d28;line-height:1.5"><h1>You have a new message</h1><p>You have a new message about ${siteName} in ROVAH.</p>${actionLink(messagesUrl, 'Open this conversation in ROVAH')}</div>`,
       });
-      recipients.push({
-        email: administratorEmail,
-        subject: `New ROVAH in-app message: ${property?.name || 'private space'}`,
-        html: `<div style="font-family:Arial,sans-serif;color:#233d28;line-height:1.5"><h1>New in-app message</h1><p>A new message was sent regarding ${siteName}.</p><p>Message content is intentionally not included in this notification.</p></div>`,
-      });
     }
 
     if (type === 'host_profile_created') {
