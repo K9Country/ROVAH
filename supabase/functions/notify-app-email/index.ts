@@ -22,6 +22,9 @@ const friendlyDate = (value: string | null) => value
   ? new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
   : 'the scheduled time';
 
+const actionLink = (url: string, label: string) =>
+  `<p style="margin:24px 0"><a href="${url}" style="display:inline-block;background:#233d28;border-radius:8px;color:#fffdf8;font-weight:700;padding:12px 18px;text-decoration:none">${label}</a></p>`;
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
@@ -63,21 +66,23 @@ Deno.serve(async (req) => {
       const siteName = escapeHtml(property.name || 'your private space');
       const when = escapeHtml(friendlyDate(booking.start_at));
       const amount = Number(booking.total_amount || 0).toFixed(2);
-      const reservationUrl = `${appUrl}/reservations`;
+      const guestReservationUrl = `${appUrl}/reservations?bookingId=${encodeURIComponent(booking.id)}`;
+      const hostReservationUrl = `${appUrl}/host-reservations?propertyId=${encodeURIComponent(property.id)}&bookingId=${encodeURIComponent(booking.id)}`;
+      const adminReservationUrl = `${appUrl}/admin?bookingId=${encodeURIComponent(booking.id)}`;
       if (guestResult.user?.email) recipients.push({
         email: guestResult.user.email,
         subject: `Reservation confirmed: ${property.name || 'ROVAH private space'}`,
-        html: `<div style="font-family:Arial,sans-serif;color:#233d28;line-height:1.5"><h1>Your reservation is confirmed</h1><p>You reserved <strong>${siteName}</strong> for ${when}.</p><p>Reservation total: <strong>$${amount}</strong>.</p><p><a href="${reservationUrl}">View your reservations</a></p></div>`,
+        html: `<div style="font-family:Arial,sans-serif;color:#233d28;line-height:1.5"><h1>Your reservation is confirmed</h1><p>You reserved <strong>${siteName}</strong> for ${when}.</p><p>Reservation total: <strong>$${amount}</strong>.</p>${actionLink(guestReservationUrl, 'Open this reservation in ROVAH')}</div>`,
       });
       if (hostResult.user?.email) recipients.push({
         email: hostResult.user.email,
         subject: `New reservation at ${property.name || 'your ROVAH site'}`,
-        html: `<div style="font-family:Arial,sans-serif;color:#233d28;line-height:1.5"><h1>You have a new reservation</h1><p><strong>${siteName}</strong> is booked for ${when}.</p><p><a href="${reservationUrl}">View reservations</a></p></div>`,
+        html: `<div style="font-family:Arial,sans-serif;color:#233d28;line-height:1.5"><h1>You have a new reservation</h1><p><strong>${siteName}</strong> is booked for ${when}.</p>${actionLink(hostReservationUrl, 'Open this reservation in ROVAH')}</div>`,
       });
       recipients.push({
         email: administratorEmail,
         subject: `New ROVAH reservation: ${property.name || 'private space'}`,
-        html: `<div style="font-family:Arial,sans-serif;color:#233d28;line-height:1.5"><h1>New reservation recorded</h1><p>${siteName} is booked for ${when}. Reservation total: $${amount}.</p><p><a href="${reservationUrl}">Open reservations</a></p></div>`,
+        html: `<div style="font-family:Arial,sans-serif;color:#233d28;line-height:1.5"><h1>New reservation recorded</h1><p>${siteName} is booked for ${when}. Reservation total: $${amount}.</p>${actionLink(adminReservationUrl, 'Open ROVAH administration')}</div>`,
       });
     }
 
@@ -94,11 +99,11 @@ Deno.serve(async (req) => {
       const { data: recipientResult } = await service.auth.admin.getUserById(recipientId);
       const property = Array.isArray(conversation.properties) ? conversation.properties[0] : conversation.properties;
       const siteName = escapeHtml(property?.name || 'a ROVAH private space');
-      const messagesUrl = `${appUrl}/messages/${conversation.property_id}`;
+      const messagesUrl = `${appUrl}/messages/${encodeURIComponent(conversation.property_id)}?conversationId=${encodeURIComponent(conversation.id)}`;
       if (recipientResult.user?.email) recipients.push({
         email: recipientResult.user.email,
         subject: `New ROVAH message about ${property?.name || 'your reservation'}`,
-        html: `<div style="font-family:Arial,sans-serif;color:#233d28;line-height:1.5"><h1>You have a new message</h1><p>You have a new message about ${siteName} in ROVAH.</p><p><a href="${messagesUrl}">Open messages</a></p></div>`,
+        html: `<div style="font-family:Arial,sans-serif;color:#233d28;line-height:1.5"><h1>You have a new message</h1><p>You have a new message about ${siteName} in ROVAH.</p>${actionLink(messagesUrl, 'Open this conversation in ROVAH')}</div>`,
       });
       recipients.push({
         email: administratorEmail,
