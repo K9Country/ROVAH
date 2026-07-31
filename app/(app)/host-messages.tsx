@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ConversationAvatar } from '../../components/conversation-avatar';
 import { colors, shadows, typography } from '../../constants/theme';
+import { HostPageGuide } from '../../components/host-page-guide';
 import { formatMessageTimestamp, getLastMessageTimes, getUnreadConversationIds } from '../../lib/messaging';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../services/auth-context';
@@ -34,6 +35,7 @@ type ConversationProfileImage = {
 
 export default function HostMessagesScreen() {
   const { session } = useAuth();
+  const { propertyId } = useLocalSearchParams<{ propertyId?: string }>();
   const [conversations, setConversations] = useState<ConversationListItem[]>([]);
   const [unreadConversationIds, setUnreadConversationIds] = useState<Set<string>>(
     new Set()
@@ -53,7 +55,7 @@ export default function HostMessagesScreen() {
     const displayName =
       typeof session.user.user_metadata?.full_name === 'string'
         ? session.user.user_metadata.full_name
-        : session.user.email?.split('@')[0] ?? 'K9 Country Host';
+        : session.user.email?.split('@')[0] ?? 'ROVAH Host';
 
     await supabase
       .from('messaging_profiles')
@@ -62,11 +64,14 @@ export default function HostMessagesScreen() {
         { onConflict: 'user_id' }
       );
 
-    const { data } = await supabase
+    let conversationQuery = supabase
       .from('property_conversations')
       .select('*')
-      .eq('host_id', session.user.id)
-      .order('created_at', { ascending: false });
+      .eq('host_id', session.user.id);
+    if (typeof propertyId === 'string' && propertyId) {
+      conversationQuery = conversationQuery.eq('property_id', propertyId);
+    }
+    const { data } = await conversationQuery.order('created_at', { ascending: false });
 
     const rows = (data ?? []) as PropertyConversation[];
     const guestIds = [...new Set(rows.map((row) => row.guest_id))];
@@ -103,7 +108,7 @@ export default function HostMessagesScreen() {
       }))
     );
     setUnreadConversationIds(unreadIds);
-  }, [session?.user.email, session?.user.id, session?.user.user_metadata?.full_name]);
+  }, [propertyId, session?.user.email, session?.user.id, session?.user.user_metadata?.full_name]);
 
   useEffect(() => {
     void loadConversations().finally(() => setIsLoading(false));
@@ -168,9 +173,9 @@ export default function HostMessagesScreen() {
           <Text style={styles.backButtonText}>{'<'} Host Dashboard</Text>
         </Pressable>
 
-        <Text style={styles.title}>Guest Messages</Text>
+        <Text style={styles.title}>{propertyId ? 'Site Guests' : 'Guest Messages'}</Text>
         <Text style={styles.description}>
-          Each guest has one shared conversation across all of your private spaces.
+          {propertyId ? 'These conversations are connected to this selected site only.' : 'Each guest has one shared conversation across your private spaces.'}
         </Text>
 
         {conversations.length === 0 ? (
@@ -207,6 +212,16 @@ export default function HostMessagesScreen() {
             </View>;
           })
         )}
+        <HostPageGuide
+          title="How to use Messages"
+          intro="Use private conversations to answer guest questions and manage visit-related communication."
+          steps={[
+            { title: 'Open a conversation', text: 'Tap a guest to read and reply. A new-message label means there is an unread update.' },
+            { title: 'Review visit details', text: 'Open the guest record to see the reservation information available for that visit.' },
+            { title: 'Send a Special / Gift', text: 'In a conversation, choose Special / Gift to offer a site-specific Special Discount or Courtesy Waiver.' },
+            { title: 'Remove a conversation', text: 'Use the X only for a conversation you no longer need. Confirm the prompt before deleting it.' },
+          ]}
+        />
       </ScrollView>
 
       <Modal

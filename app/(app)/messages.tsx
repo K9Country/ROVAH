@@ -12,7 +12,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { colors, shadows, typography } from '../../constants/theme';
+import { colors, shadows } from '../../constants/theme';
+import { memberUi } from '../../constants/member-ui';
+import { HostPageGuide } from '../../components/host-page-guide';
 import { ConversationAvatar } from '../../components/conversation-avatar';
 import { formatMessageTimestamp, getLastMessageTimes, getUnreadConversationIds } from '../../lib/messaging';
 import { supabase } from '../../lib/supabase';
@@ -51,7 +53,7 @@ export default function MessagesScreen() {
     const displayName =
       typeof session.user.user_metadata?.full_name === 'string'
         ? session.user.user_metadata.full_name
-        : session.user.email?.split('@')[0] ?? 'K9 Country Member';
+        : session.user.email?.split('@')[0] ?? 'ROVAH Member';
 
     await supabase
       .from('messaging_profiles')
@@ -203,6 +205,17 @@ export default function MessagesScreen() {
             </View>;
           })
         )}
+        <HostPageGuide
+          title="How to use Messages"
+          intro="Use private conversations to ask hosts questions and share reservation-related updates."
+          tone="forest"
+          steps={[
+            { title: 'Open a conversation', text: 'Tap a host to read and reply. A new-message label means there is an unread update.' },
+            { title: 'Share what helps', text: 'Write a message or add a photo when it helps explain your question or update.' },
+            { title: 'View the host profile', text: 'Tap the host photo to learn more about who manages the site.' },
+            { title: 'Keep it in ROVAH', text: 'Use Messages for reservation communication without sharing personal phone numbers or email addresses.' },
+          ]}
+        />
       </ScrollView>
     </SafeAreaView>
   );
@@ -215,17 +228,17 @@ const styles = StyleSheet.create({
   backButton: { alignSelf: 'flex-start', marginBottom: 12, minHeight: 44, justifyContent: 'center' },
   backButtonText: { color: colors.forest, fontSize: 16, fontWeight: '800' },
   eyebrow: { color: colors.brown, fontSize: 12, fontWeight: '900', letterSpacing: 1.3, marginTop: 0 },
-  title: { color: colors.forest, fontFamily: typography.display, fontSize: 30, fontWeight: '900', marginTop: 0 },
-  description: { color: colors.muted, fontSize: 16, lineHeight: 23, marginTop: 10 },
+  title: { ...memberUi.pageTitle, marginTop: 0 },
+  description: memberUi.pageDescription,
   emptyCard: { backgroundColor: colors.lightGreen, borderColor: colors.border, borderRadius: 18, borderWidth: 1, marginTop: 24, padding: 18, ...shadows.card },
   emptyTitle: { color: colors.forest, fontSize: 18, fontWeight: '900' },
   emptyText: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 7 },
-  conversationCard: { alignItems: 'center', backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 16, borderWidth: 1, flexDirection: 'row', marginTop: 14, paddingLeft: 16, ...shadows.card },
+  conversationCard: { alignItems: 'center', backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 16, borderWidth: 1, flexDirection: 'row', marginTop: 5, paddingLeft: 16, ...shadows.card },
   conversationCardUnread: { backgroundColor: '#FFF9EF', borderColor: '#141414', borderWidth: 3 },
   profileButton: { alignItems: 'center', justifyContent: 'center', minHeight: 74, paddingVertical: 11 },
   conversationOpenButton: { alignItems: 'center', flex: 1, flexDirection: 'row', minHeight: 74, paddingVertical: 16 },
   conversationContent: { flex: 1, marginLeft: 12 },
-  conversationTitle: { color: colors.forest, fontSize: 17, fontWeight: '900' },
+  conversationTitle: memberUi.cardTitle,
   newMessageLabel: { alignSelf: 'flex-start', backgroundColor: '#141414', borderRadius: 8, color: colors.warmWhite, fontSize: 10, fontWeight: '900', letterSpacing: 0.6, marginTop: 6, overflow: 'hidden', paddingHorizontal: 8, paddingVertical: 4 },
   lastMessageTime: { color: colors.muted, fontSize: 12, fontVariant: ['tabular-nums'], marginTop: 4 },
   deleteConversationButton: { alignItems: 'center', justifyContent: 'center', minHeight: 54, width: 46 },

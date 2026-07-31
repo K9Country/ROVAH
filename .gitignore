@@ -42,3 +42,5 @@ app-example
 /ios
 /android
 .env
+public/map-config.json
+dist-google-maps/

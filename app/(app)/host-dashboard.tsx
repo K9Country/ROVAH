@@ -7,7 +7,6 @@ import {
     Image,
     Pressable,
     ScrollView,
-    Share,
     StyleSheet,
     Text,
     View,
@@ -15,7 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { UnreadMessageIcon } from '../../components/unread-message-icon';
-import { colors } from '../../constants/theme';
+import { colors, shadows } from '../../constants/theme';
 import { getUnreadConversationIds } from '../../lib/messaging';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../services/auth-context';
@@ -43,7 +42,6 @@ export default function HostDashboardScreen() {
   const [isUploadingProfilePhoto, setIsUploadingProfilePhoto] = useState(false);
   const [hasUnreadGuestMessages, setHasUnreadGuestMessages] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
-  const [isAdministrator, setIsAdministrator] = useState(false);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
 
   const loadDashboard = useCallback(async () => {
@@ -68,14 +66,9 @@ export default function HostDashboardScreen() {
           .select('*')
           .eq('host_id', session.user.id)
           .order('created_at', { ascending: false }),
-        supabase
-          .from('admin_users')
-          .select('user_id')
-          .eq('user_id', session.user.id)
-          .maybeSingle(),
       ]);
 
-    let [profileResult, propertiesResult, administratorResult] =
+    let [profileResult, propertiesResult] =
       await loadHostingRecords();
 
     const initialError = profileResult.error ?? propertiesResult.error;
@@ -83,7 +76,7 @@ export default function HostDashboardScreen() {
       const { error: refreshError } = await supabase.auth.refreshSession();
 
       if (!refreshError) {
-        [profileResult, propertiesResult, administratorResult] =
+        [profileResult, propertiesResult] =
           await loadHostingRecords();
       }
     }
@@ -135,8 +128,6 @@ export default function HostDashboardScreen() {
       profile: profileResult.data as HostProfile | null,
       properties: propertiesWithBookingCounts,
     });
-    setIsAdministrator(Boolean(administratorResult.data) && !administratorResult.error);
-
     const { data: conversationData } = await supabase
       .from('property_conversations')
       .select('*')
@@ -173,6 +164,7 @@ export default function HostDashboardScreen() {
         .getPublicUrl(dashboardData.profile.profile_image_path).data.publicUrl
     : null;
   const selectedProperty = dashboardData.properties.find((property) => property.id === selectedPropertyId) ?? null;
+  const payoutReady = dashboardData.profile?.payout_status === 'active';
 
   const handleSignOut = async () => {
     try {
@@ -194,33 +186,6 @@ export default function HostDashboardScreen() {
     } finally {
       setIsSigningOut(false);
     }
-  };
-
-  const shareThisSite = async (property: Property) => {
-    const siteUrl = `https://k9-country.expo.app/property/${property.id}`;
-    const shareTitle = `${property.name} | ROVAH`;
-    const shareMessage = `Visit ${property.name}, a private ROVAH dog space in ${property.city}, ${property.state}: ${siteUrl}`;
-
-    if (process.env.EXPO_OS === 'web') {
-      if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
-        await navigator.share({ title: shareTitle, text: shareMessage, url: siteUrl });
-        return;
-      }
-
-      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(shareMessage);
-        Alert.alert('Share link copied', 'Paste it into Facebook, a text message, email, or any other social app.');
-        return;
-      }
-
-      Alert.alert('Copy this site link', siteUrl);
-      return;
-    }
-
-    await Share.share(
-      { message: shareMessage, title: shareTitle },
-      { dialogTitle: 'Share this site' }
-    );
   };
 
   const uploadProfilePhoto = async () => {
@@ -348,27 +313,8 @@ export default function HostDashboardScreen() {
           </View>
         </View>
 
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => router.push('/create-property')}
-          style={({ pressed }) => [styles.primaryButton, pressed && styles.buttonPressed]}
-        >
-          <Text style={styles.primaryButtonText}>+ Add a Private Space</Text>
-        </Pressable>
-
-        {isAdministrator ? (
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.push('/admin')}
-            style={({ pressed }) => [styles.adminButton, pressed && styles.buttonPressed]}
-          >
-            <Text style={styles.adminButtonText}>Administrator: Review Sites</Text>
-          </Pressable>
-        ) : null}
-
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitleNoMargin}>Your sites</Text>
-          <Text style={styles.sectionCount}>{dashboardData.properties.length}</Text>
         </View>
 
         {dashboardData.properties.length === 0 ? (
@@ -390,6 +336,7 @@ export default function HostDashboardScreen() {
                     style={[styles.siteSwitchButton, selectedProperty?.id === property.id && styles.siteSwitchButtonSelected]}
                   >
                     <Text numberOfLines={1} style={[styles.siteSwitchText, selectedProperty?.id === property.id && styles.siteSwitchTextSelected]}>{property.name}</Text>
+                    <SiteStatusBadge compact property={property} payoutReady={payoutReady} />
                   </Pressable>
                 ))}
               </ScrollView>
@@ -410,22 +357,17 @@ export default function HostDashboardScreen() {
                     ${Number(property.price_per_hour).toFixed(0)} / hour{'  '}
                     {property.is_fully_fenced ? 'Fully fenced' : 'Fence details needed'}
                   </Text>
-                  <Text style={styles.propertyAction}>Make Changes {'>'}</Text>
                 </View>
-                {property.is_published ? (
-                  <View style={styles.liveBadge}>
-                    <Text style={styles.liveBadgeText}>Live</Text>
-                  </View>
-                ) : null}
+                <SiteStatusBadge property={property} payoutReady={payoutReady} />
               </Pressable>
 
               <View style={styles.dashboardSection}>
                 <Text style={styles.dashboardSectionEyebrow}>GROW YOUR SITE</Text>
-                <Text style={styles.dashboardSectionTitle}>Build a stronger listing for this exact site.</Text>
+                <Text style={styles.dashboardSectionTitle}>Build a Stronger Listing</Text>
                 <DashboardAction icon="✦" label="Get Discovered" detail="Share a $2.00 site message with eligible new local members." onPress={() => router.push(`/local-promotions?propertyId=${property.id}` as never)} />
                 <DashboardAction icon="↻" label="Subscriptions" detail="Create, modify, or end repeat-visit packages for this site." onPress={() => router.push(`/subscriptions/${property.id}` as never)} />
                 <DashboardAction icon="★" label="Make Your Site Stand Out" detail="Keep the listing, photos, and guest feedback current." onPress={() => router.push(`/property-draft/${property.id}` as never)} />
-                <DashboardAction icon="↗" label="Bring Guests Back" detail="Share your site or send a site-only broadcast to connected guests." onPress={() => router.push(`/host-guest-message?propertyId=${property.id}&propertyName=${encodeURIComponent(property.name)}` as never)} />
+                <DashboardAction icon="↗" label="Communicate With Your Guest" detail="Send a site-only broadcast to guests connected to this private space." onPress={() => router.push(`/host-guest-message?propertyId=${property.id}&propertyName=${encodeURIComponent(property.name)}` as never)} />
               </View>
 
               <View style={styles.dashboardSection}>
@@ -433,41 +375,31 @@ export default function HostDashboardScreen() {
                 <Text style={styles.dashboardSectionTitle}>These tools stay connected to {property.name} only.</Text>
               <View style={styles.propertyTools}>
                 <PropertyTool
-                  icon={'\u{1F4CB}'}
+                  icon={'\u{1F4C5}'}
                   label="Reservations"
+                  detail="View upcoming visits, completed visits, and your site schedule."
                   onPress={() => router.push(`/host-reservations?propertyId=${property.id}&propertyName=${encodeURIComponent(property.name)}&view=upcoming` as never)}
                 />
                 <PropertyTool
-                  icon={'\u{1F4C5}'}
-                  label="Calendar"
-                  onPress={() => router.push(`/host-reservations?propertyId=${property.id}&propertyName=${encodeURIComponent(property.name)}&view=calendar` as never)}
-                />
-                <PropertyTool
                   icon={'\u{1F4AC}'}
-                  label="Guests"
+                  label="Messages"
+                  detail="Communicate with guests"
                   hasUnread={hasUnreadGuestMessages}
                   onPress={() => router.push(`/host-messages?propertyId=${property.id}` as never)}
                 />
                 <PropertyTool
                   icon={'\u{2B50}'}
                   label="Site Reviews"
+                  detail="Read guest feedback about this private space."
                   onPress={() => router.push(`/host-reviews?propertyId=${property.id}&propertyName=${encodeURIComponent(property.name)}` as never)}
                 />
                 <PropertyTool
                   icon={'\u{1F465}'}
                   label="Guest Reviews"
+                  detail="Review completed guests and view feedback shared by other hosts."
                   onPress={() => router.push(`/host-reviews?propertyId=${property.id}&propertyName=${encodeURIComponent(property.name)}&view=guest_records` as never)}
                 />
               </View>
-              <Pressable
-                accessibilityLabel={`Message visitors of ${property.name}`}
-                accessibilityRole="button"
-                onPress={() => router.push(`/host-guest-message?propertyId=${property.id}&propertyName=${encodeURIComponent(property.name)}` as never)}
-                style={({ pressed }) => [styles.messageGuestsButton, pressed && styles.buttonPressed]}
-              >
-                <Text style={styles.messageGuestsButtonIcon}>📣</Text>
-                <Text style={styles.messageGuestsButtonText}>Broadcast Message</Text>
-              </Pressable>
               </View>
               {false && property.is_published ? (
                 <Pressable
@@ -479,32 +411,45 @@ export default function HostDashboardScreen() {
                   <Text style={styles.promotePropertyButtonIcon}>✦</Text>
                   <View style={styles.promotePropertyCopy}>
                     <Text style={styles.promotePropertyButtonText}>Promote Your Spot</Text>
-                    <Text style={styles.promotePropertyButtonDetail}>Reach nearby opted-in members for $2.00</Text>
+                    <Text style={styles.promotePropertyButtonDetail}>Reach eligible members within 50 miles for $2.00</Text>
                   </View>
                   <Text style={styles.promotePropertyArrow}>›</Text>
-                </Pressable>
-              ) : null}
-              {property.is_published ? (
-                <Pressable
-                  accessibilityLabel={`Share ${property.name}`}
-                  accessibilityRole="button"
-                  onPress={() => void shareThisSite(property)}
-                  style={({ pressed }) => [styles.sharePropertyButton, pressed && styles.buttonPressed]}
-                >
-                  <Text style={styles.sharePropertyText}>Share this site</Text>
-                  <View pointerEvents="none" style={styles.sharePropertyIcon}>
-                    <View style={[styles.shareIconLine, styles.shareIconLineTop]} />
-                    <View style={[styles.shareIconLine, styles.shareIconLineBottom]} />
-                    <View style={[styles.shareIconDot, styles.shareIconDotOrigin]} />
-                    <View style={[styles.shareIconDot, styles.shareIconDotTop]} />
-                    <View style={[styles.shareIconDot, styles.shareIconDotBottom]} />
-                  </View>
                 </Pressable>
               ) : null}
             </View>
           ))}
           </>
         )}
+
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push('/create-property')}
+          style={({ pressed }) => [styles.primaryButton, styles.addPrivateSpaceButton, pressed && styles.buttonPressed]}
+        >
+          <Text style={styles.primaryButtonText}>+ Add a Private Space</Text>
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push('/host-payments')}
+          style={({ pressed }) => [styles.payoutSetupCard, pressed && styles.buttonPressed]}
+        >
+          <View style={styles.payoutSetupCopy}>
+            <Text style={styles.payoutSetupEyebrow}>CONTINUE TO GROW YOUR INCOME</Text>
+            <Text style={styles.payoutSetupTitle}>{payoutReady ? 'Stripe payouts are ready' : 'Set Up Stripe Payouts'}</Text>
+            <Text style={styles.payoutSetupText}>
+              {payoutReady
+                ? 'Your secure payout account is connected. Approved sites can accept paid reservations.'
+                : 'Complete secure Stripe setup to receive money from reservations. ROVAH never stores your bank or tax details.'}
+            </Text>
+          </View>
+          <Text style={styles.payoutSetupArrow}>›</Text>
+        </Pressable>
+
+        <View style={styles.reviewNotice}>
+          <Text style={styles.reviewNoticeTitle}>When a site can go live</Text>
+          <Text style={styles.reviewNoticeText}>A private space stays unavailable for reservations until a ROVAH administrator approves it and Stripe payouts are ready.</Text>
+        </View>
 
         <Text style={styles.sectionTitle}>Earnings</Text>
         <Pressable
@@ -564,54 +509,61 @@ export default function HostDashboardScreen() {
 
         <View style={styles.hostGuide}>
           <Text style={styles.hostGuideTitle}>How to use your Host Dashboard</Text>
-          <Text style={styles.hostGuideIntro}>Use these steps to create, manage, and grow a private space guests feel confident booking.</Text>
+          <Text style={styles.hostGuideIntro}>Use this dashboard to manage the selected site, prepare it for guests, and choose your next action.</Text>
           <View style={styles.hostGuideStep}>
             <Text style={styles.hostGuideNumber}>1</Text>
             <View style={styles.hostGuideCopy}>
               <Text style={styles.hostGuideStepTitle}>Set up your property</Text>
-              <Text style={styles.hostGuideStepText}>Add the property basics, at least one clear property photo, arrival details, rules, amenities, and availability.</Text>
+              <Text style={styles.hostGuideStepText}>Add the basics, clear site photos, arrival details, rules, amenities, and available hours.</Text>
             </View>
           </View>
           <View style={styles.hostGuideStep}>
             <Text style={styles.hostGuideNumber}>2</Text>
             <View style={styles.hostGuideCopy}>
               <Text style={styles.hostGuideStepTitle}>Submit for ROVAH review</Text>
-              <Text style={styles.hostGuideStepText}>When all required details are complete, submit your property for review. It becomes visible to members only after approval.</Text>
+              <Text style={styles.hostGuideStepText}>Save the required details, then submit the site for ROVAH review. A site becomes live only after ROVAH approval and secure Stripe payouts are ready.</Text>
             </View>
           </View>
           <View style={styles.hostGuideStep}>
             <Text style={styles.hostGuideNumber}>3</Text>
             <View style={styles.hostGuideCopy}>
-              <Text style={styles.hostGuideStepTitle}>Manage reservations and guests</Text>
-              <Text style={styles.hostGuideStepText}>Open any confirmed reservation to review the visiting dogs, message that guest, or cancel an upcoming reservation when needed.</Text>
+              <Text style={styles.hostGuideStepTitle}>Upcoming visitors</Text>
+              <Text style={styles.hostGuideStepText}>Open Reservations to review upcoming visits, attending dogs, arrival details, and the site schedule. Payment Pending means the reservation is secured and payment will settle one hour before the visit begins.</Text>
             </View>
           </View>
           <View style={styles.hostGuideStep}>
             <Text style={styles.hostGuideNumber}>4</Text>
             <View style={styles.hostGuideCopy}>
-              <Text style={styles.hostGuideStepTitle}>Keep your listing current</Text>
-              <Text style={styles.hostGuideStepText}>Update photos, hours, rules, amenities, standard rate, and any Subscription offer whenever your property changes.</Text>
+              <Text style={styles.hostGuideStepTitle}>Previous visitors</Text>
+              <Text style={styles.hostGuideStepText}>After a completed visit, use Guest Reviews to review the guest and see feedback shared by other hosts. Use Site Reviews to read feedback the guest left about this private space.</Text>
             </View>
           </View>
           <View style={styles.hostGuideStep}>
             <Text style={styles.hostGuideNumber}>5</Text>
             <View style={styles.hostGuideCopy}>
-              <Text style={styles.hostGuideStepTitle}>Send a gift in Messages</Text>
-              <Text style={styles.hostGuideStepText}>During a private conversation, use Gift to send a one-time Special Discount or Courtesy Waiver for that specific site. The guest sees it immediately and can apply it to their next reservation.</Text>
+              <Text style={styles.hostGuideStepTitle}>Keep your listing current</Text>
+              <Text style={styles.hostGuideStepText}>Use Make Your Site Stand Out to update photos, hours, rules, amenities, rate, and listing details.</Text>
             </View>
           </View>
           <View style={styles.hostGuideStep}>
             <Text style={styles.hostGuideNumber}>6</Text>
             <View style={styles.hostGuideCopy}>
-              <Text style={styles.hostGuideStepTitle}>Use messages and analytics to improve</Text>
-              <Text style={styles.hostGuideStepText}>Reply to guest messages, send a broadcast only to guests connected to that site, and review clicks, bookings, and average host earnings to improve the listing.</Text>
+              <Text style={styles.hostGuideStepTitle}>Offer a Special / Gift when needed</Text>
+              <Text style={styles.hostGuideStepText}>In Messages, choose Special / Gift to send a site-specific Special Discount or Courtesy Waiver to one guest.</Text>
             </View>
           </View>
           <View style={styles.hostGuideStep}>
             <Text style={styles.hostGuideNumber}>7</Text>
             <View style={styles.hostGuideCopy}>
-              <Text style={styles.hostGuideStepTitle}>Get discovered with a site promotion</Text>
-              <Text style={styles.hostGuideStepText}>Choose one published site, review the nearby opted-in audience count, then confirm the message and pay $2.00. It activates only after secure payment confirmation and stays inside the ROVAH app.</Text>
+              <Text style={styles.hostGuideStepTitle}>Use messages and analytics to improve</Text>
+              <Text style={styles.hostGuideStepText}>Reply in Messages, use Communicate With Your Guest for site updates, and review analytics to improve the listing.</Text>
+            </View>
+          </View>
+          <View style={styles.hostGuideStep}>
+            <Text style={styles.hostGuideNumber}>8</Text>
+            <View style={styles.hostGuideCopy}>
+              <Text style={styles.hostGuideStepTitle}>Reach new local members</Text>
+              <Text style={styles.hostGuideStepText}>Use Get Discovered to review the eligible 50-mile audience and message, then confirm the $2 promotion for the selected site.</Text>
             </View>
           </View>
         </View>
@@ -640,29 +592,11 @@ export default function HostDashboardScreen() {
 
         <Pressable
           accessibilityRole="link"
-          onPress={() => router.push('/trust-safety' as never)}
+          onPress={() => router.push('/legal' as never)}
           style={styles.trustSafetyLink}
         >
-          <Text style={styles.trustSafetyLinkTitle}>Trust & Safety</Text>
-          <Text style={styles.trustSafetyLinkText}>How ROVAH helps keep every visit safe</Text>
-        </Pressable>
-
-        <Pressable
-          accessibilityRole="link"
-          onPress={() => router.push('/pricing' as never)}
-          style={[styles.trustSafetyLink, styles.pricingLink]}
-        >
-          <Text style={styles.trustSafetyLinkTitle}>Pricing</Text>
-          <Text style={styles.trustSafetyLinkText}>Simple, fair, transparent pricing for members and hosts</Text>
-        </Pressable>
-
-        <Pressable
-          accessibilityRole="link"
-          onPress={() => router.push('/privacy' as never)}
-          style={[styles.trustSafetyLink, styles.privacyLink]}
-        >
-          <Text style={styles.trustSafetyLinkTitle}>Privacy Policy</Text>
-          <Text style={styles.trustSafetyLinkText}>How ROVAH collects, uses, and protects your information</Text>
+          <Text style={styles.trustSafetyLinkTitle}>Legal Library</Text>
+          <Text style={styles.trustSafetyLinkText}>Terms, privacy, safety, pricing, and marketplace policies</Text>
         </Pressable>
 
       </ScrollView>
@@ -670,14 +604,50 @@ export default function HostDashboardScreen() {
   );
 }
 
+function getSiteStatus(property: Property, payoutReady: boolean) {
+  if (property.approval_status === 'draft') {
+    return { label: 'Draft', tone: 'inactive' as const };
+  }
+
+  if (property.approval_status === 'pending') {
+    return { label: 'Submitted for Review', tone: 'pending' as const };
+  }
+
+  if (property.approval_status === 'declined') {
+    return { label: 'Changes Requested', tone: 'inactive' as const };
+  }
+
+  if (property.approval_status === 'approved' && !payoutReady) {
+    return { label: 'Payout Setup Needed', tone: 'pending' as const };
+  }
+
+  if (property.is_published && !property.is_temporarily_closed) {
+    return { label: 'Live', tone: 'live' as const };
+  }
+
+  return { label: 'Inactive', tone: 'inactive' as const };
+}
+
+function SiteStatusBadge({ property, compact = false, payoutReady }: { property: Property; compact?: boolean; payoutReady: boolean }) {
+  const status = getSiteStatus(property, payoutReady);
+
+  return (
+    <View accessibilityLabel={`Site status: ${status.label}`} style={[styles.siteStatusBadge, compact && styles.siteStatusBadgeCompact, status.tone === 'live' ? styles.siteStatusLive : status.tone === 'pending' ? styles.siteStatusPending : styles.siteStatusInactive]}>
+      <Text style={[styles.siteStatusText, compact && styles.siteStatusTextCompact]}>{status.label}</Text>
+    </View>
+  );
+}
+
 function PropertyTool({
   icon,
   label,
+  detail,
   hasUnread = false,
   onPress,
 }: {
   icon: string;
   label: string;
+  detail: string;
   hasUnread?: boolean;
   onPress: () => void;
 }) {
@@ -687,12 +657,17 @@ function PropertyTool({
       onPress={onPress}
       style={({ pressed }) => [styles.propertyTool, pressed && styles.buttonPressed]}
     >
-      {label === 'Guest Messages' || label === 'Guests' ? (
-        <UnreadMessageIcon hasUnread={hasUnread} size="small" />
-      ) : (
-        <Text style={styles.propertyToolIcon}>{icon}</Text>
-      )}
-      <Text style={styles.propertyToolLabel}>{label}</Text>
+      <View style={styles.propertyToolIconWrap}>
+        {label === 'Guest Messages' || label === 'Messages' ? (
+          <UnreadMessageIcon hasUnread={hasUnread} size="small" />
+        ) : (
+          <Text style={styles.propertyToolIcon}>{icon}</Text>
+        )}
+      </View>
+      <View style={styles.propertyToolCopy}>
+        <Text style={styles.propertyToolLabel}>{label}</Text>
+        <Text style={styles.propertyToolDetail}>{detail}</Text>
+      </View>
     </Pressable>
   );
 }
@@ -742,10 +717,19 @@ const styles = StyleSheet.create({
   secondaryButtonText: { color: colors.forest, fontSize: 16, fontWeight: '800' },
   buttonPressed: { opacity: 0.76 },
   buttonDisabled: { opacity: 0.55 },
-  sectionHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12, marginTop: 28 },
+  addPrivateSpaceButton: { marginTop: 24 },
+  payoutSetupCard: { alignItems: 'center', backgroundColor: colors.forest, borderRadius: 18, flexDirection: 'row', marginTop: 5, padding: 17 },
+  payoutSetupCopy: { flex: 1, paddingRight: 12 },
+  payoutSetupEyebrow: { color: '#D8E8C8', fontSize: 10, fontWeight: '900', letterSpacing: 1.05 },
+  payoutSetupTitle: { color: colors.warmWhite, fontSize: 18, fontWeight: '900', marginTop: 5 },
+  payoutSetupText: { color: '#EEF5E9', fontSize: 13, lineHeight: 19, marginTop: 5 },
+  payoutSetupArrow: { color: colors.warmWhite, fontSize: 30, fontWeight: '600' },
+  reviewNotice: { backgroundColor: colors.lightGreen, borderColor: '#CBD1BD', borderRadius: 14, borderWidth: 1, marginTop: 8, padding: 14 },
+  reviewNoticeTitle: { color: colors.forest, fontSize: 14, fontWeight: '900' },
+  reviewNoticeText: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 4 },
+  sectionHeader: { marginBottom: 12, marginTop: 18 },
   sectionTitle: { color: colors.forest, fontSize: 21, fontWeight: '900', marginTop: 28, marginBottom: 12 },
   sectionTitleNoMargin: { color: colors.forest, fontSize: 21, fontWeight: '900' },
-  sectionCount: { backgroundColor: colors.lightGreen, borderRadius: 14, color: colors.olive, fontSize: 13, fontWeight: '900', minWidth: 29, overflow: 'hidden', paddingHorizontal: 9, paddingVertical: 5, textAlign: 'center' },
   siteSwitcher: { gap: 8, paddingBottom: 12 },
   siteSwitchButton: { backgroundColor: colors.cream, borderColor: colors.border, borderRadius: 999, borderWidth: 1, maxWidth: 180, minHeight: 40, justifyContent: 'center', paddingHorizontal: 14 },
   siteSwitchButtonSelected: { backgroundColor: colors.forest, borderColor: colors.forest },
@@ -770,10 +754,13 @@ const styles = StyleSheet.create({
   growthActionLabel: { color: colors.forest, fontSize: 15, fontWeight: '900' },
   growthActionDetail: { color: colors.muted, fontSize: 12, lineHeight: 17, marginTop: 2 },
   growthActionArrow: { color: colors.brown, fontSize: 23, fontWeight: '700', marginLeft: 10 },
-  propertyTools: { borderTopColor: colors.border, borderTopWidth: 1, flexDirection: 'row', flexWrap: 'wrap' },
-  propertyTool: { alignItems: 'center', flexBasis: '33.333%', justifyContent: 'center', minHeight: 78, paddingHorizontal: 3 },
-  propertyToolIcon: { fontSize: 20 },
-  propertyToolLabel: { color: colors.forest, fontSize: 11, fontWeight: '800', marginTop: 6, textAlign: 'center' },
+  propertyTools: { borderTopColor: colors.border, borderTopWidth: 1, gap: 10, padding: 14 },
+  propertyTool: { alignItems: 'center', backgroundColor: colors.cream, borderColor: colors.border, borderRadius: 18, borderWidth: 1, flexDirection: 'row', minHeight: 92, paddingHorizontal: 15, paddingVertical: 14, ...shadows.card },
+  propertyToolIconWrap: { alignItems: 'center', justifyContent: 'center', marginRight: 13, minHeight: 34, minWidth: 34 },
+  propertyToolIcon: { fontSize: 27 },
+  propertyToolCopy: { flex: 1 },
+  propertyToolLabel: { color: colors.forest, fontSize: 17, fontWeight: '900' },
+  propertyToolDetail: { color: colors.muted, fontSize: 13, lineHeight: 18, marginTop: 4 },
   messageGuestsButton: { alignItems: 'center', borderColor: colors.forest, borderRadius: 14, borderWidth: 1, flexDirection: 'row', justifyContent: 'center', marginBottom: 5, marginHorizontal: 15, marginTop: 7, minHeight: 52 },
   messageGuestsButtonIcon: { fontSize: 18, marginRight: 8 },
   messageGuestsButtonText: { color: colors.forest, fontSize: 14, fontWeight: '900' },
@@ -783,16 +770,6 @@ const styles = StyleSheet.create({
   promotePropertyButtonText: { color: colors.forest, fontSize: 15, fontWeight: '900' },
   promotePropertyButtonDetail: { color: colors.muted, fontSize: 12, marginTop: 3 },
   promotePropertyArrow: { color: colors.brown, fontSize: 28, fontWeight: '600' },
-  sharePropertyButton: { alignItems: 'center', backgroundColor: colors.forest, borderColor: colors.forest, borderRadius: 14, borderWidth: 1, flexDirection: 'row', justifyContent: 'center', marginBottom: 15, marginHorizontal: 15, marginTop: 12, minHeight: 52 },
-  sharePropertyIcon: { height: 22, marginLeft: 10, position: 'relative', width: 22 },
-  shareIconLine: { backgroundColor: colors.warmWhite, height: 2, left: 5, position: 'absolute', width: 13 },
-  shareIconLineTop: { top: 7, transform: [{ rotate: '-27deg' }] },
-  shareIconLineBottom: { top: 14, transform: [{ rotate: '27deg' }] },
-  shareIconDot: { backgroundColor: colors.warmWhite, borderRadius: 4, height: 7, position: 'absolute', width: 7 },
-  shareIconDotOrigin: { left: 0, top: 8 },
-  shareIconDotTop: { right: 0, top: 1 },
-  shareIconDotBottom: { bottom: 1, right: 0 },
-  sharePropertyText: { color: colors.warmWhite, fontSize: 14, fontWeight: '900' },
   earningsCard: { alignItems: 'center', backgroundColor: colors.lightGreen, borderColor: '#CBD1BD', borderRadius: 18, borderWidth: 1, flexDirection: 'row', justifyContent: 'space-between', padding: 18 },
   earningsLabel: { color: colors.brown, fontSize: 11, fontWeight: '900', letterSpacing: 1.1 },
   earningsValue: { color: colors.forest, fontSize: 28, fontWeight: '900', marginTop: 5 },
@@ -819,8 +796,13 @@ const styles = StyleSheet.create({
   propertyMetric: { flex: 1 },
   propertyMetricValue: { color: colors.forest, fontSize: 17, fontWeight: '900' },
   propertyMetricLabel: { color: colors.muted, fontSize: 11, fontWeight: '800', marginTop: 3 },
-  liveBadge: { backgroundColor: colors.lightGreen, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6 },
-  liveBadgeText: { color: colors.olive, fontSize: 12, fontWeight: '900' },
+  siteStatusBadge: { alignSelf: 'flex-start', borderRadius: 999, marginTop: 10, paddingHorizontal: 9, paddingVertical: 5 },
+  siteStatusBadgeCompact: { alignSelf: 'center', marginTop: 4, paddingHorizontal: 7, paddingVertical: 3 },
+  siteStatusLive: { backgroundColor: '#DFF4E4' },
+  siteStatusPending: { backgroundColor: '#FFF0D1' },
+  siteStatusInactive: { backgroundColor: '#E4E5E2' },
+  siteStatusText: { color: colors.forest, fontSize: 11, fontWeight: '900' },
+  siteStatusTextCompact: { fontSize: 9 },
   mainEntryLink: { alignItems: 'center', justifyContent: 'center', marginTop: 28, minHeight: 46 },
   mainEntryLinkText: { color: colors.brown, fontSize: 14, fontWeight: '900', textDecorationLine: 'underline' },
   trustSafetyLink: { alignItems: 'center', marginTop: 28, paddingHorizontal: 20, paddingVertical: 12 },

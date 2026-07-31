@@ -4,12 +4,14 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors } from '../../constants/theme';
+import { HostPageGuide } from '../../components/host-page-guide';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../services/auth-context';
 
 type Period = 'day' | 'month' | 'year';
 type Metric = 'earnings' | 'clicks' | 'bookings';
-type BookingRow = { property_id: string; start_at: string; total_amount: number | string };
+type BookingRow = { id: string; property_id: string; start_at: string; total_amount: number | string };
+type SettlementRow = { booking_id: string; host_payout_amount: number | string; settlement_status: 'settled' | 'reversed' | 'transfer_reversal_required' };
 type ViewRow = { property_id: string; viewed_at: string };
 
 const periods: Period[] = ['day', 'month', 'year'];
@@ -37,6 +39,7 @@ export default function HostAnalyticsScreen() {
   const { propertyId, propertyName } = useLocalSearchParams<{ propertyId?: string; propertyName?: string }>();
   const { session } = useAuth();
   const [bookings, setBookings] = useState<BookingRow[]>([]);
+  const [settlements, setSettlements] = useState<SettlementRow[]>([]);
   const [views, setViews] = useState<ViewRow[]>([]);
   const [period, setPeriod] = useState<Period>('month');
   const [metric, setMetric] = useState<Metric>('earnings');
@@ -47,37 +50,44 @@ export default function HostAnalyticsScreen() {
     if (!session?.user.id) return;
     setIsLoading(true);
     setErrorMessage('');
-    let bookingQuery = supabase.from('bookings').select('property_id, start_at, total_amount').eq('status', 'confirmed');
+    let bookingQuery = supabase.from('bookings').select('id, property_id, start_at, total_amount').eq('status', 'confirmed');
     let viewQuery = supabase.from('property_view_events').select('property_id, viewed_at');
     if (propertyId) {
       bookingQuery = bookingQuery.eq('property_id', propertyId);
       viewQuery = viewQuery.eq('property_id', propertyId);
     }
-    const [bookingResult, viewResult] = await Promise.all([bookingQuery, viewQuery]);
-    if (bookingResult.error || viewResult.error) {
+    const [bookingResult, viewResult, settlementResult] = await Promise.all([
+      bookingQuery,
+      viewQuery,
+      supabase.from('booking_payout_settlements').select('booking_id, host_payout_amount, settlement_status').eq('settlement_status', 'settled'),
+    ]);
+    if (bookingResult.error || viewResult.error || settlementResult.error) {
       setErrorMessage('We could not load your analytics. Please try again.');
     } else {
       setBookings((bookingResult.data ?? []) as BookingRow[]);
       setViews((viewResult.data ?? []) as ViewRow[]);
+      setSettlements((settlementResult.data ?? []) as SettlementRow[]);
     }
     setIsLoading(false);
   }, [propertyId, session?.user.id]);
 
   useEffect(() => { void loadAnalytics(); }, [loadAnalytics]);
 
-  const totalHostEarnings = useMemo(() => bookings.reduce((sum, booking) => sum + Number(booking.total_amount || 0) * 0.85, 0), [bookings]);
-  const averageHostEarnings = bookings.length ? totalHostEarnings / bookings.length : 0;
+  const settledPayoutByBooking = useMemo(() => new Map(settlements.map((settlement) => [settlement.booking_id, Number(settlement.host_payout_amount || 0)])), [settlements]);
+  const settledBookings = useMemo(() => bookings.filter((booking) => settledPayoutByBooking.has(booking.id)), [bookings, settledPayoutByBooking]);
+  const totalHostEarnings = useMemo(() => settledBookings.reduce((sum, booking) => sum + (settledPayoutByBooking.get(booking.id) ?? 0), 0), [settledBookings, settledPayoutByBooking]);
+  const averageHostEarnings = settledBookings.length ? totalHostEarnings / settledBookings.length : 0;
   const chartData = useMemo(() => {
     const totals = new Map<string, number>();
-    const rows = metric === 'clicks' ? views : bookings;
+    const rows = metric === 'clicks' ? views : metric === 'earnings' ? settledBookings : bookings;
     rows.forEach((row) => {
       const dateValue = metric === 'clicks' ? (row as ViewRow).viewed_at : (row as BookingRow).start_at;
       const key = bucketKey(dateValue, period);
-      const increment = metric === 'earnings' ? Number((row as BookingRow).total_amount || 0) * 0.85 : 1;
+      const increment = metric === 'earnings' ? (settledPayoutByBooking.get((row as BookingRow).id) ?? 0) : 1;
       totals.set(key, (totals.get(key) ?? 0) + increment);
     });
     return [...totals.entries()].sort(([first], [second]) => first.localeCompare(second)).map(([key, value]) => ({ key, label: bucketLabel(key, period), value }));
-  }, [bookings, metric, period, views]);
+  }, [bookings, metric, period, settledBookings, settledPayoutByBooking, views]);
   const chartMax = Math.max(1, ...chartData.map((item) => item.value));
 
   return <SafeAreaView style={styles.safeArea}>
@@ -85,10 +95,10 @@ export default function HostAnalyticsScreen() {
       <Pressable accessibilityRole="button" onPress={() => router.replace('/host-dashboard')} style={styles.backButton}><Text style={styles.backButtonText}>Host Dashboard</Text></Pressable>
       <Text style={styles.eyebrow}>HOST ANALYTICS</Text>
       <Text style={styles.title}>{propertyName ?? 'Your performance'}</Text>
-      <Text style={styles.description}>Track your 85% earnings, clicks, and reservations to understand when your site is performing best.</Text>
+      <Text style={styles.description}>Track final settled earnings, clicks, and reservations to understand when your site is performing best.</Text>
       <View style={styles.summaryGrid}>
-        <Summary label="TOTAL HOST EARNINGS" value={`$${totalHostEarnings.toFixed(2)}`} detail="85% of confirmed bookings" />
-        <Summary label="AVG. HOST EARNINGS / BOOKING" value={`$${averageHostEarnings.toFixed(2)}`} detail="Your 85% share per booking" />
+        <Summary label="TOTAL HOST EARNINGS" value={`$${totalHostEarnings.toFixed(2)}`} detail="Final settled payouts" />
+        <Summary label="AVG. HOST EARNINGS / BOOKING" value={`$${averageHostEarnings.toFixed(2)}`} detail="After ROVAH and Stripe fees" />
       </View>
       <Text style={styles.sectionTitle}>Track performance</Text>
       <View style={styles.selectorRow}>{metrics.map((option) => <Pressable accessibilityRole="button" key={option.key} onPress={() => setMetric(option.key)} style={[styles.selector, metric === option.key && styles.selectorSelected]}><Text style={[styles.selectorText, metric === option.key && styles.selectorTextSelected]}>{option.label}</Text></Pressable>)}</View>
@@ -96,7 +106,17 @@ export default function HostAnalyticsScreen() {
       {isLoading ? <View style={styles.loading}><ActivityIndicator color={colors.forest} /></View> : null}
       {errorMessage ? <View style={styles.errorBanner}><Text style={styles.errorText}>{errorMessage}</Text></View> : null}
       {!isLoading && !errorMessage ? <View style={styles.chartCard}><Text style={styles.chartTitle}>{metrics.find((item) => item.key === metric)?.label} by {period}</Text>{chartData.length ? <View style={styles.chart}>{chartData.map((item) => <View key={item.key} style={styles.chartRow}><Text numberOfLines={1} style={styles.chartLabel}>{item.label}</Text><View style={styles.barTrack}><View style={[styles.bar, { width: `${Math.max(4, (item.value / chartMax) * 100)}%` }]} /></View><Text style={styles.chartValue}>{metric === 'earnings' ? `$${item.value.toFixed(0)}` : item.value}</Text></View>)}</View> : <Text style={styles.emptyText}>{metric === 'clicks' ? 'Click trends begin collecting from today forward.' : 'Confirmed reservations will appear here once you receive bookings.'}</Text>}</View> : null}
-      <Text style={styles.note}>Host earnings reflect your 85% share of each confirmed reservation, including additional-dog fees. Actual payment timing will be shown when payouts are connected.</Text>
+      <Text style={styles.note}>Host earnings use each reservation’s final settled payout: reservation total minus ROVAH’s 18% service fee and Stripe’s actual processing fee. Completed paid visits are combined into one monthly host payout.</Text>
+      <HostPageGuide
+        title="How to use Analytics"
+        intro="Use these numbers to see how your selected site is performing and decide what to improve next."
+        steps={[
+          { title: 'Read the summary', text: 'See earnings, clicks, and bookings for the selected site. Settled earnings reflect the final host payout.' },
+          { title: 'Choose a metric', text: 'Select Earnings, Clicks, or Bookings to update the chart.' },
+          { title: 'Choose a timeframe', text: 'Switch between Day, Month, and Year to spot trends.' },
+          { title: 'Take the next step', text: 'If interest is high but bookings are low, refresh photos, availability, rate, or arrival details.' },
+        ]}
+      />
     </ScrollView>
   </SafeAreaView>;
 }

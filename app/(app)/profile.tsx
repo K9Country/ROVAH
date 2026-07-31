@@ -1,8 +1,10 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
 import {
   ActivityIndicator,
+  Alert,
   Image,
   KeyboardAvoidingView,
   Modal,
@@ -17,7 +19,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors } from '../../constants/theme';
+import { memberUi } from '../../constants/member-ui';
+import { HostPageGuide } from '../../components/host-page-guide';
 import { formatUsPhoneNumber, hasValidUsPhoneNumber, phoneNumberHelpText } from '../../lib/phone-number';
+import { markExplicitMemberSignOut } from '../../lib/member-entry';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../services/auth-context';
 import type { GuestProfile } from '../../types/guest-profile';
@@ -67,6 +72,7 @@ export default function GuestProfileScreen() {
   const [profile, setProfile] = useState<ProfileForm>(emptyProfile);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isVerifyingPromotionLocation, setIsVerifyingPromotionLocation] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDeleteWarningOpen, setIsDeleteWarningOpen] = useState(false);
   const [isDogProfileRequiredOpen, setIsDogProfileRequiredOpen] = useState(false);
@@ -153,6 +159,28 @@ export default function GuestProfileScreen() {
 
     void loadProfile();
   }, [isMember, session?.user.id, session?.user.email, session?.user.user_metadata]);
+
+  const verifyPromotionLocation = async () => {
+    if (!session?.user.id || isVerifyingPromotionLocation) return;
+    try {
+      setIsVerifyingPromotionLocation(true);
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Location access needed', 'Allow location access to receive nearby site promotions. Hosts never see your address or location.');
+        return;
+      }
+      const currentLocation = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const { error } = await supabase.functions.invoke('save-member-promotion-location', {
+        body: { latitude: currentLocation.coords.latitude, longitude: currentLocation.coords.longitude },
+      });
+      if (error) throw error;
+      Alert.alert('Nearby promotions enabled', 'Your private nearby location has been verified. You can now receive qualifying site promotions in ROVAH Messages.');
+    } catch (error) {
+      Alert.alert('We could not verify your location', error instanceof Error ? error.message : 'Please try again with location access enabled.');
+    } finally {
+      setIsVerifyingPromotionLocation(false);
+    }
+  };
 
   const updateProfile = <Key extends keyof ProfileForm>(
     key: Key,
@@ -289,6 +317,22 @@ export default function GuestProfileScreen() {
         throw authUpdateError;
       }
 
+      // This is intentionally separate from saving the private address: a host
+      // never receives either the member's address or their device coordinates.
+      // If permission is declined, the profile still saves and reservations work.
+      try {
+        const permission = await Location.requestForegroundPermissionsAsync();
+        if (permission.granted) {
+          const currentLocation = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+          const { error: locationError } = await supabase.functions.invoke('save-member-promotion-location', {
+            body: { latitude: currentLocation.coords.latitude, longitude: currentLocation.coords.longitude },
+          });
+          if (locationError) console.warn('Local promotion location was not saved', locationError.message);
+        }
+      } catch (locationError) {
+        console.warn('Local promotion location was not saved', locationError);
+      }
+
       setIsComplete(true);
       setStatusMessage('');
       router.replace('/dashboard?profileSaved=true' as never);
@@ -332,9 +376,10 @@ export default function GuestProfileScreen() {
         .from('guest-profile-images')
         .remove([`${session.user.id}/profile.jpg`]);
 
-      await supabase.auth.signOut();
+      await markExplicitMemberSignOut();
+      await supabase.auth.signOut({ scope: 'local' });
       router.dismissAll();
-      router.replace('/');
+      router.replace('/choose-path');
     } catch (error) {
       setStatusMessage(
         error instanceof Error
@@ -406,7 +451,7 @@ export default function GuestProfileScreen() {
           </ProfileSection>
 
           <ProfileSection title="Private home address">
-            <Text style={styles.privateNote}>Used only for your private reservation record. It is never shared with a host.</Text>
+            <Text style={styles.privateNote}>Used only for your private reservation record. It is never shared with a host. When you save, ROVAH may ask to privately verify your device location so you can receive nearby site promotions. Hosts never see your address or location.</Text>
             <Field label="Street address" required error={fieldErrors.address_line1} value={profile.address_line1} onChangeText={(value) => updateProfile('address_line1', value)} autoComplete="street-address" autoCapitalize="words" />
             <Field label="Apartment, suite, or unit" value={profile.address_line2} onChangeText={(value) => updateProfile('address_line2', value)} autoCapitalize="words" />
             <View style={styles.row}>
@@ -414,22 +459,41 @@ export default function GuestProfileScreen() {
               <View style={styles.stateField}><Field label="State" required error={fieldErrors.state} value={profile.state} onChangeText={(value) => updateProfile('state', value)} autoCapitalize="characters" maxLength={2} /></View>
             </View>
             <Field label="ZIP code" required error={fieldErrors.postal_code} value={profile.postal_code} onChangeText={(value) => updateProfile('postal_code', value)} autoComplete="postal-code" keyboardType="number-pad" />
+            <View style={styles.promotionLocationCard}>
+              <Text style={styles.promotionLocationTitle}>Nearby promotions</Text>
+              <Text style={styles.promotionLocationText}>Verify your current device location to receive eligible site promotions. It stays private and is never shared with a host.</Text>
+              <Pressable accessibilityRole="button" disabled={isVerifyingPromotionLocation} onPress={() => void verifyPromotionLocation()} style={[styles.promotionLocationButton, isVerifyingPromotionLocation && styles.primaryButtonDisabled]}>
+                {isVerifyingPromotionLocation ? <ActivityIndicator color={colors.warmWhite} /> : <Text style={styles.promotionLocationButtonText}>Verify My Location</Text>}
+              </Pressable>
+            </View>
           </ProfileSection>
 
           <ProfileSection title="Your dogs">
             <Text style={styles.privateNote}>Your saved dog profiles appear here. Add and update their information from Dog Profiles.</Text>
-            {dogProfiles.length ? <View style={styles.dogList}>{dogProfiles.map((dog, index) => <View key={dog.id} style={styles.dogRow}><Text style={styles.dogNumber}>{index + 1}</Text><Text style={styles.dogName}>{dog.name}</Text></View>)}</View> : <Text style={styles.noDogsText}>No dog profiles yet. Complete your first dog’s profile to add it here.</Text>}
-            <Pressable accessibilityRole="button" onPress={() => router.push('/dog-profiles?returnTo=parent' as never)} style={styles.manageDogsButton}><Text style={styles.manageDogsButtonText}>Manage Dog Profiles</Text></Pressable>
+            {dogProfiles.length ? <View style={styles.dogList}>{dogProfiles.map((dog, index) => <View key={dog.id} style={styles.dogRow}><Text style={styles.dogNumber}>{index + 1}</Text><Text style={styles.dogName}>{dog.name}</Text></View>)}</View> : <Text style={styles.noDogsText}>{isComplete ? 'No dog profiles yet. Add your first dog to complete your member information.' : 'Step 1: Save your Parent Profile details. Step 2: Add your dog profile.'}</Text>}
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                if (isComplete) {
+                  router.push('/dog-profiles?returnTo=parent' as never);
+                  return;
+                }
+                void saveParentProfileDraftAndOpenDogs();
+              }}
+              style={styles.manageDogsButton}
+            >
+              <Text style={styles.manageDogsButtonText}>{isComplete ? 'Manage Dog Profiles' : 'Save Parent Draft & Add a Dog'}</Text>
+            </Pressable>
           </ProfileSection>
 
           <View style={styles.messagingCard}>
-            <Text style={styles.messagingTitle}>Communication stays in K9 Country</Text>
+            <Text style={styles.messagingTitle}>Communication stays in ROVAH</Text>
             <Text style={styles.messagingText}>Questions and reservation communication happen only through Messages. Your personal contact information is not shown to hosts.</Text>
           </View>
 
           {statusMessage ? <View style={styles.statusBanner}><Text style={styles.statusMessage}>{statusMessage}</Text></View> : null}
 
-          <Pressable disabled={isSaving} onPress={saveProfile} style={[styles.primaryButton, isSaving && styles.primaryButtonDisabled]}>
+          <Pressable disabled={isSaving} onPress={saveProfile} style={[styles.saveParentProfileButton, isSaving && styles.primaryButtonDisabled]}>
             {isSaving ? <ActivityIndicator color={colors.warmWhite} /> : <Text style={styles.primaryButtonText}>Save Parent Profile</Text>}
           </Pressable>
 
@@ -447,6 +511,17 @@ export default function GuestProfileScreen() {
               {isDeleting ? <ActivityIndicator color={colors.red} /> : <Text style={styles.deleteButtonText}>Delete My Profile</Text>}
             </Pressable>
           </View>
+          <HostPageGuide
+            title="How to use Parent Profile"
+            intro="Keep your information and dogs current so you are ready to reserve a private space."
+            tone="forest"
+            steps={[
+              { title: 'Complete the required details', text: 'Enter your contact information and home address, then save your profile.' },
+              { title: 'Manage your dogs', text: 'Add, update, or remove Dog Profiles. You need at least one dog before you can reserve a space.' },
+              { title: 'Save and continue', text: 'Save Parent Profile when every required field is complete. You can then return to the Member Dashboard.' },
+              { title: 'Use Messages for questions', text: 'Reservation questions stay in ROVAH Messages without sharing your personal contact details.' },
+            ]}
+          />
         </ScrollView>
       </KeyboardAvoidingView>
       <Modal animationType="fade" onRequestClose={() => setIsDeleteWarningOpen(false)} transparent visible={isDeleteWarningOpen}>
@@ -467,10 +542,10 @@ export default function GuestProfileScreen() {
       <Modal animationType="fade" onRequestClose={() => setIsDogProfileRequiredOpen(false)} transparent visible={isDogProfileRequiredOpen}>
         <View style={styles.deleteWarningBackdrop}>
           <View accessibilityRole="alert" style={styles.deleteWarningModal}>
-            <Text style={styles.dogProfileRequiredTitle}>Complete your dog’s profile</Text>
-            <Text style={styles.deleteWarningText}>Before you can save your Parent Profile and reserve a private space, add at least one dog profile.</Text>
+            <Text style={styles.dogProfileRequiredTitle}>Add your dog next</Text>
+            <Text style={styles.deleteWarningText}>First, we’ll save the Parent Profile details above as a draft. Then add at least one dog profile. Return here afterward to finish saving your Parent Profile.</Text>
             <Pressable accessibilityRole="button" disabled={isSaving} onPress={() => void saveParentProfileDraftAndOpenDogs()} style={[styles.manageDogProfileButton, isSaving && styles.primaryButtonDisabled]}>
-              {isSaving ? <ActivityIndicator color={colors.warmWhite} /> : <Text style={styles.confirmDeleteButtonText}>Manage Dog Profiles</Text>}
+              {isSaving ? <ActivityIndicator color={colors.warmWhite} /> : <Text style={styles.confirmDeleteButtonText}>Save Parent Draft & Add a Dog</Text>}
             </Pressable>
           </View>
         </View>
@@ -516,8 +591,8 @@ const styles = StyleSheet.create({
   backButton: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center', marginBottom: 12 },
   backButtonText: { color: colors.forest, fontSize: 16, fontWeight: '800' },
   eyebrow: { color: colors.brown, fontSize: 12, fontWeight: '900', letterSpacing: 1.3, marginBottom: 7 },
-  title: { color: colors.forest, fontSize: 31, fontWeight: '900', marginBottom: 10 },
-  description: { color: colors.muted, fontSize: 16, lineHeight: 23, marginBottom: 19 },
+  title: { ...memberUi.pageTitle, marginBottom: 0 },
+  description: { ...memberUi.pageDescription, marginBottom: 19 },
   profileHeader: { alignItems: 'flex-start', flexDirection: 'row', gap: 14 },
   profileHeaderCopy: { flex: 1 },
   profilePhotoControl: { alignItems: 'center', width: 88 },
@@ -528,8 +603,13 @@ const styles = StyleSheet.create({
   completionTitle: { color: colors.forest, fontSize: 17, fontWeight: '900', marginBottom: 6 },
   completionText: { color: colors.muted, fontSize: 14, lineHeight: 20 },
   section: { backgroundColor: colors.warmWhite, borderWidth: 1, borderColor: colors.border, borderRadius: 20, padding: 18, marginBottom: 16 },
-  sectionTitle: { color: colors.forest, fontSize: 19, fontWeight: '900', marginBottom: 15 },
+  sectionTitle: { ...memberUi.cardTitle, marginBottom: 15 },
   privateNote: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: -7, marginBottom: 15 },
+  promotionLocationCard: { backgroundColor: colors.lightGreen, borderColor: '#C4D2B6', borderRadius: 13, borderWidth: 1, marginTop: 2, padding: 13 },
+  promotionLocationTitle: { color: colors.forest, fontSize: 15, fontWeight: '900' },
+  promotionLocationText: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 5 },
+  promotionLocationButton: { alignItems: 'center', backgroundColor: colors.forest, borderRadius: 11, justifyContent: 'center', marginTop: 11, minHeight: 43 },
+  promotionLocationButtonText: { color: colors.warmWhite, fontSize: 13, fontWeight: '900' },
   fieldGroup: { marginBottom: 15 },
   label: { color: colors.forest, fontSize: 14, fontWeight: '800', marginBottom: 7 },
   required: { color: colors.brown, fontSize: 12, fontWeight: '800' },
@@ -554,6 +634,7 @@ const styles = StyleSheet.create({
   statusBanner: { backgroundColor: '#FCEDEB', borderColor: '#E9B7B0', borderRadius: 13, borderWidth: 1, marginBottom: 14, padding: 13 },
   statusMessage: { color: colors.red, fontSize: 14, lineHeight: 20, fontWeight: '800' },
   primaryButton: { minHeight: 56, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: colors.brown, paddingHorizontal: 22 },
+  saveParentProfileButton: { minHeight: 56, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: colors.forest, paddingHorizontal: 22 },
   primaryButtonDisabled: { opacity: 0.65 },
   primaryButtonText: { color: colors.warmWhite, fontSize: 16, fontWeight: '900' },
   deleteSection: { backgroundColor: '#FCEDEB', borderColor: '#E9B7B0', borderRadius: 18, borderWidth: 1, marginTop: 20, padding: 18 },

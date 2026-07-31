@@ -15,9 +15,9 @@ import {
     TextInput,
     View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors } from '../../constants/theme';
+import { memberUi } from '../../constants/member-ui';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../services/auth-context';
 import type { Property } from '../../types/property';
@@ -34,6 +34,14 @@ type DiscoverImage = {
 type DiscoverProperty = Property & {
   images: DiscoverImage[];
   amenities: string[];
+};
+
+type GuestPromotion = {
+  id: string;
+  property_id: string;
+  message: string;
+  image_path: string | null;
+  image_url?: string | null;
 };
 
 const amenityFilters = [
@@ -64,6 +72,9 @@ export default function SearchScreen() {
   const [query, setQuery] = useState('');
   const [isLocating, setIsLocating] = useState(false);
   const [properties, setProperties] = useState<DiscoverProperty[]>([]);
+  const [promotionsByProperty, setPromotionsByProperty] = useState<
+    Record<string, GuestPromotion>
+  >({});
   const [favoritePropertyIds, setFavoritePropertyIds] = useState<string[]>([]);
   const [favoriteSavingId, setFavoriteSavingId] = useState<string | null>(null);
   const [selectedImageIdByProperty, setSelectedImageIdByProperty] = useState<
@@ -79,6 +90,8 @@ export default function SearchScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(
     null
   );
+  const [expandedPromotion, setExpandedPromotion] =
+    useState<GuestPromotion | null>(null);
 
   const normalizedQuery = query.trim().toLowerCase();
 
@@ -177,10 +190,11 @@ export default function SearchScreen() {
     if (propertyIds.length === 0) {
       setProperties([]);
       setFavoritePropertyIds([]);
+      setPromotionsByProperty({});
       return;
     }
 
-    const [imageResult, amenityResult, favoriteResult] = await Promise.all([
+    const [imageResult, amenityResult, favoriteResult, promotionResult] = await Promise.all([
       supabase
         .from('property_images')
         .select('id, property_id, storage_path, display_order, is_cover')
@@ -197,6 +211,11 @@ export default function SearchScreen() {
             .eq('user_id', memberId)
             .in('property_id', propertyIds)
         : Promise.resolve({ data: [], error: null }),
+      supabase
+        .from('local_promotions')
+        .select('id, property_id, message, image_path')
+        .eq('status', 'active')
+        .in('property_id', propertyIds),
     ]);
 
     setFavoritePropertyIds(
@@ -211,6 +230,42 @@ export default function SearchScreen() {
 
         return { ...image, signed_url: signedImage?.signedUrl };
       })
+    );
+
+    const promotionRows = (promotionResult.error
+      ? []
+      : promotionResult.data ?? []) as GuestPromotion[];
+    const promotionImagePaths = promotionRows
+      .map((promotion) => promotion.image_path)
+      .filter((path): path is string => Boolean(path));
+    const { data: promotionSignedUrls } = promotionImagePaths.length
+      ? await supabase.storage
+          .from('promotion-images')
+          .createSignedUrls(promotionImagePaths, 60 * 60)
+      : { data: [] as { path: string; signedUrl: string }[] };
+    const promotionUrlsByPath = new Map(
+      (promotionSignedUrls ?? []).flatMap((file) =>
+        file.path && file.signedUrl ? [[file.path, file.signedUrl]] : []
+      )
+    );
+    const nextPromotionsByProperty = promotionRows.reduce<
+      Record<string, GuestPromotion>
+    >((groupedPromotions, promotion) => {
+      groupedPromotions[promotion.property_id] = {
+        ...promotion,
+        image_url: promotion.image_path
+          ? promotionUrlsByPath.get(promotion.image_path) ?? null
+          : null,
+      };
+      return groupedPromotions;
+    }, {});
+    void Promise.all(
+      promotionRows.map((promotion) =>
+        supabase.rpc('record_local_promotion_engagement', {
+          p_promotion_id: promotion.id,
+          p_action: 'viewed',
+        })
+      )
     );
 
     const amenitiesByProperty = (amenityResult.error ? [] : amenityResult.data ?? []).reduce<Record<string, string[]>>(
@@ -242,6 +297,7 @@ export default function SearchScreen() {
         amenities: amenitiesByProperty[property.id] ?? [],
       }))
     );
+    setPromotionsByProperty(nextPromotionsByProperty);
   }, [memberId]);
 
   useEffect(() => {
@@ -400,12 +456,21 @@ export default function SearchScreen() {
       item.hero_image_signed_url ??
       item.hero_image_url;
     const isFavorite = favoritePropertyIds.includes(item.id);
+    const promotion = promotionsByProperty[item.id];
 
     return (
       <View style={styles.propertyCard}>
         <Pressable
           accessibilityRole="button"
-          onPress={() => router.push(`/property/${item.id}` as never)}
+          onPress={() => {
+            if (promotion) {
+              void supabase.rpc('record_local_promotion_engagement', {
+                p_promotion_id: promotion.id,
+                p_action: 'opened',
+              });
+            }
+            router.push(`/property/${item.id}` as never);
+          }}
           style={({ pressed }) => pressed && styles.cardPressed}
         >
         {selectedImageUrl ? (
@@ -548,6 +613,32 @@ export default function SearchScreen() {
           </View>
         </Pressable>
 
+        {promotion ? (
+          <View style={styles.promotionCard}>
+            <Text style={styles.promotionEyebrow}>FEATURED BY THIS HOST</Text>
+            {promotion.image_url ? (
+              <Pressable
+                accessibilityHint="Opens the promotion photo full screen"
+                accessibilityLabel={`Open promotion photo for ${item.name}`}
+                accessibilityRole="button"
+                onPress={() => setExpandedPromotion(promotion)}
+                style={({ pressed }) => [
+                  styles.promotionImageButton,
+                  pressed && styles.cardPressed,
+                ]}
+              >
+                <Image
+                  accessibilityLabel={`Promotion photo for ${item.name}`}
+                  resizeMode="cover"
+                  source={{ uri: promotion.image_url }}
+                  style={styles.promotionImage}
+                />
+              </Pressable>
+            ) : null}
+            <Text style={styles.promotionMessage}>{promotion.message}</Text>
+          </View>
+        ) : null}
+
         <Pressable
           accessibilityLabel={`Message the host of ${item.name}`}
           accessibilityRole="button"
@@ -563,7 +654,7 @@ export default function SearchScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <View style={styles.safeArea}>
         <View style={styles.centeredState}>
           <ActivityIndicator size="large" color="#263A24" />
 
@@ -571,12 +662,12 @@ export default function SearchScreen() {
             Finding private spaces...
           </Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <View style={styles.safeArea}>
       <FlatList
         contentContainerStyle={styles.listContent}
         data={filteredProperties}
@@ -584,17 +675,16 @@ export default function SearchScreen() {
         keyboardShouldPersistTaps="handled"
         ListHeaderComponent={
           <>
-            <Image source={require('../../assets/images/k9-8.png')} style={styles.discoverHeaderImage} />
+            <View style={styles.searchHero}>
+              <Image
+                accessibilityLabel="From city streets to freedom in minutes"
+                resizeMode="contain"
+                source={require('../../assets/images/rovah-search-header.png')}
+                style={styles.searchHeroImage}
+              />
+            </View>
 
-            <Text style={styles.title}>
-              Find a private space
-            </Text>
-
-            <Text style={styles.subtitle}>
-              Search for peaceful outdoor properties where your
-              family and dog can enjoy exclusive access.
-            </Text>
-
+            <View style={styles.searchHeaderContent}>
             <View style={styles.searchPanel}>
               <Text style={styles.inputLabel}>
                 Where do you want to go?
@@ -627,11 +717,6 @@ export default function SearchScreen() {
             </View>
 
             <View style={styles.resultsHeading}>
-              <Text style={styles.resultsTitle}>
-                <Text style={styles.resultsCount}>{filteredProperties.length}</Text>{' '}
-                <Text style={styles.resultsLabel}>(spaces found)</Text>
-              </Text>
-
               <Pressable
                 accessibilityRole="button"
                 onPress={() => setIsFilterOpen(true)}
@@ -643,6 +728,7 @@ export default function SearchScreen() {
                     : 'Search Filter'}
                 </Text>
               </Pressable>
+            </View>
             </View>
           </>
         }
@@ -663,7 +749,7 @@ export default function SearchScreen() {
                 ? errorMessage
                 : normalizedQuery
                   ? 'Try another city, ZIP code, or property name.'
-                  : 'Published K9 Country properties will appear here as hosts complete their listings.'}
+                  : 'Published ROVAH properties will appear here as hosts complete their listings.'}
             </Text>
 
             {errorMessage ? (
@@ -811,7 +897,41 @@ export default function SearchScreen() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+
+      <Modal
+        animationType="fade"
+        transparent
+        visible={Boolean(expandedPromotion?.image_url)}
+        onRequestClose={() => setExpandedPromotion(null)}
+      >
+        <View style={styles.promotionViewerBackdrop}>
+          <Pressable
+            accessibilityLabel="Close promotion photo"
+            accessibilityRole="button"
+            onPress={() => setExpandedPromotion(null)}
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={styles.promotionViewerCard}>
+            <Pressable
+              accessibilityLabel="Close promotion photo"
+              accessibilityRole="button"
+              onPress={() => setExpandedPromotion(null)}
+              style={styles.promotionViewerClose}
+            >
+              <Text style={styles.promotionViewerCloseText}>Close</Text>
+            </Pressable>
+            {expandedPromotion?.image_url ? (
+              <Image
+                accessibilityLabel="Expanded promotion photo"
+                resizeMode="contain"
+                source={{ uri: expandedPromotion.image_url }}
+                style={styles.promotionViewerImage}
+              />
+            ) : null}
+          </View>
+        </View>
+      </Modal>
+    </View>
   );
 }
 
@@ -841,16 +961,22 @@ function FilterChip({
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: colors.cream,
+    backgroundColor: '#FAEDDD',
   },
 
-  discoverHeaderImage: { alignSelf: 'center', height: 220, resizeMode: 'contain', width: '100%' },
+  searchHero: {
+    aspectRatio: 941 / 1355,
+    marginHorizontal: -20,
+    width: 'auto',
+  },
+  searchHeroImage: { height: '100%', width: '100%' },
+  searchHeaderContent: { zIndex: 1 },
 
 
   listContent: {
     flexGrow: 1,
     paddingHorizontal: 20,
-    paddingTop: 4,
+    paddingTop: 0,
     paddingBottom: 36,
   },
 
@@ -875,23 +1001,13 @@ const styles = StyleSheet.create({
     marginBottom: 7,
   },
 
-  title: {
-    color: colors.forest,
-    fontSize: 31,
-    fontWeight: '900',
-    marginBottom: 10,
-  },
+  title: { ...memberUi.pageTitle, marginBottom: 10 },
 
-  subtitle: {
-    color: colors.muted,
-    fontSize: 16,
-    lineHeight: 23,
-    marginBottom: 8,
-  },
+  subtitle: { ...memberUi.pageDescription, marginBottom: 8, marginTop: 0 },
 
   hostReturnLink: {
     alignSelf: 'flex-start',
-    marginBottom: 16,
+    marginBottom: 10,
   },
 
   hostReturnLinkText: {
@@ -906,6 +1022,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 20,
+    marginTop: -58,
     padding: 18,
     marginBottom: 24,
   },
@@ -947,22 +1064,8 @@ const styles = StyleSheet.create({
   resultsHeading: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     marginBottom: 14,
-  },
-
-  resultsTitle: {
-    color: colors.forest,
-    fontWeight: '900',
-  },
-
-  resultsCount: {
-    fontSize: 28,
-  },
-
-  resultsLabel: {
-    fontSize: 13,
-    fontWeight: '400',
   },
 
   filterButton: {
@@ -1119,7 +1222,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 20,
-    marginBottom: 16,
+    marginBottom: 5,
   },
 
   imagePlaceholder: {
@@ -1221,6 +1324,76 @@ const styles = StyleSheet.create({
     padding: 17,
   },
 
+  promotionCard: {
+    backgroundColor: '#EDF1E5',
+    borderColor: '#CBD1BD',
+    borderTopWidth: 1,
+    padding: 14,
+  },
+
+  promotionEyebrow: {
+    color: colors.brown,
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+
+  promotionImageButton: {
+    aspectRatio: 16 / 9,
+    borderRadius: 12,
+    marginTop: 9,
+    overflow: 'hidden',
+    width: '100%',
+  },
+
+  promotionImage: {
+    height: '100%',
+    width: '100%',
+  },
+
+  promotionMessage: {
+    color: colors.forest,
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 8,
+  },
+
+  promotionViewerBackdrop: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(16, 24, 15, 0.84)',
+    flex: 1,
+    justifyContent: 'center',
+    padding: 20,
+  },
+
+  promotionViewerCard: {
+    backgroundColor: colors.warmWhite,
+    borderRadius: 18,
+    maxHeight: '86%',
+    overflow: 'hidden',
+    padding: 12,
+    width: '100%',
+  },
+
+  promotionViewerClose: {
+    alignSelf: 'flex-end',
+    minHeight: 40,
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+
+  promotionViewerCloseText: {
+    color: colors.forest,
+    fontSize: 15,
+    fontWeight: '900',
+  },
+
+  promotionViewerImage: {
+    aspectRatio: 1,
+    maxHeight: 560,
+    width: '100%',
+  },
+
   messageHostButton: {
     alignItems: 'center',
     borderTopColor: colors.border,
@@ -1252,11 +1425,7 @@ const styles = StyleSheet.create({
     paddingRight: 10,
   },
 
-  propertyName: {
-    color: colors.forest,
-    fontSize: 24,
-    fontWeight: '900',
-  },
+  propertyName: memberUi.cardTitle,
 
   propertyLocation: {
     color: colors.muted,
@@ -1277,12 +1446,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
 
-  propertyDescription: {
-    color: colors.muted,
-    fontSize: 14,
-    lineHeight: 19,
-    marginTop: 8,
-  },
+  propertyDescription: memberUi.cardDescription,
 
   detailRow: {
     flexDirection: 'row',

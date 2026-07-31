@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors } from '../../constants/theme';
+import { memberUi } from '../../constants/member-ui';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../services/auth-context';
 import type { Property } from '../../types/property';
@@ -200,16 +201,16 @@ const styles = StyleSheet.create({
   backButton: { alignSelf: 'flex-start', justifyContent: 'center', minHeight: 44, marginBottom: 12 },
   backButtonText: { color: colors.forest, fontSize: 16, fontWeight: '800' },
   eyebrow: { color: colors.brown, fontSize: 12, fontWeight: '900', letterSpacing: 1.3, marginBottom: 6 },
-  title: { color: colors.forest, fontSize: 31, fontWeight: '900', marginBottom: 9 },
-  description: { color: colors.muted, fontSize: 16, lineHeight: 23, marginBottom: 22 },
-  card: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 20, borderWidth: 1, marginBottom: 16, overflow: 'hidden' },
+  title: { ...memberUi.pageTitle, marginBottom: 0 },
+  description: { ...memberUi.pageDescription, marginBottom: 22 },
+  card: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 20, borderWidth: 1, marginBottom: 5, overflow: 'hidden' },
   image: { height: 190, width: '100%' },
   imagePlaceholder: { alignItems: 'center', backgroundColor: colors.lightGreen, height: 190, justifyContent: 'center' },
   imagePlaceholderText: { fontSize: 44 },
   cardContent: { padding: 16 },
-  propertyName: { color: colors.forest, fontSize: 20, fontWeight: '900' },
+  propertyName: memberUi.cardTitle,
   location: { color: colors.muted, fontSize: 14, marginTop: 4 },
-  propertyDescription: { color: colors.muted, fontSize: 14, lineHeight: 20, marginTop: 10 },
+  propertyDescription: { ...memberUi.cardDescription, marginTop: 10 },
   price: { color: colors.forest, fontSize: 19, fontWeight: '900', marginTop: 13 },
   priceUnit: { color: colors.muted, fontSize: 13, fontWeight: '600' },
   removeButton: { alignItems: 'center', borderTopColor: colors.border, borderTopWidth: 1, justifyContent: 'center', minHeight: 48 },

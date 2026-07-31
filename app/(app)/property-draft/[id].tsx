@@ -126,6 +126,12 @@ function dateKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
+function isValidDateInput(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T12:00:00`);
+  return !Number.isNaN(date.getTime()) && dateKey(date) === value;
+}
+
 function datesInCalendarMonth(month: Date) {
   const firstDay = new Date(month.getFullYear(), month.getMonth(), 1);
   const gridStart = addDays(firstDay, -firstDay.getDay());
@@ -149,6 +155,8 @@ export default function PropertyDraftScreen() {
   const [schedule, setSchedule] = useState<DaySchedule[]>(defaultSchedule);
   const [templateStartTime, setTemplateStartTime] = useState('08:00');
   const [templateEndTime, setTemplateEndTime] = useState('17:00');
+  const [templateStartDate, setTemplateStartDate] = useState('');
+  const [templateEndDate, setTemplateEndDate] = useState('');
   const [selectedScheduleDays, setSelectedScheduleDays] = useState<number[]>([]);
   const [timePickerTarget, setTimePickerTarget] = useState<TimePickerTarget>(null);
   const [dateAvailability, setDateAvailability] = useState<DateAvailabilityOverride[]>([]);
@@ -159,7 +167,11 @@ export default function PropertyDraftScreen() {
   const [isUploading, setIsUploading] = useState(false);
   const [primaryImageId, setPrimaryImageId] = useState<string | null>(null);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [isResendingReviewEmail, setIsResendingReviewEmail] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteConfirmationVisible, setDeleteConfirmationVisible] = useState(false);
+  const [deletedSiteName, setDeletedSiteName] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   const loadDraft = useCallback(async () => {
@@ -175,7 +187,7 @@ export default function PropertyDraftScreen() {
         supabase.from('properties').select('*').eq('id', id).eq('host_id', session.user.id).maybeSingle(),
         supabase.from('property_draft_details').select('*').eq('property_id', id).maybeSingle(),
         supabase.from('property_amenities').select('amenity_code').eq('property_id', id),
-        supabase.from('property_availability').select('day_of_week, start_time, end_time').eq('property_id', id),
+        supabase.from('property_availability').select('day_of_week, start_time, end_time, starts_on, ends_on').eq('property_id', id),
         supabase.from('property_images').select('*').eq('property_id', id).order('display_order'),
         supabase.from('property_date_availability').select('*').eq('property_id', id).order('availability_date'),
       ]);
@@ -202,10 +214,12 @@ export default function PropertyDraftScreen() {
     setSelectedAmenities((amenitiesResult.data ?? []).map((item) => item.amenity_code));
     setDateAvailability((dateAvailabilityResult.data ?? []) as DateAvailabilityOverride[]);
     const savedAvailability = (availabilityResult.data ?? []) as PropertyAvailability[];
-    if (savedAvailability[0]) {
-      setTemplateStartTime(normalizeTime(savedAvailability[0].start_time));
-      setTemplateEndTime(normalizeTime(savedAvailability[0].end_time));
-    }
+      if (savedAvailability[0]) {
+        setTemplateStartTime(normalizeTime(savedAvailability[0].start_time));
+        setTemplateEndTime(normalizeTime(savedAvailability[0].end_time));
+        setTemplateStartDate(savedAvailability[0].starts_on ?? '');
+        setTemplateEndDate(savedAvailability[0].ends_on ?? '');
+      }
     setSchedule(
       dayNames.map((_, day_of_week) => {
         const saved = savedAvailability.find((item) => item.day_of_week === day_of_week);
@@ -446,9 +460,34 @@ export default function PropertyDraftScreen() {
       return;
     }
 
+    const startsOn = templateStartDate.trim();
+    const endsOn = templateEndDate.trim();
+
+    if ((startsOn && !endsOn) || (!startsOn && endsOn)) {
+      Alert.alert('Add both dates', 'Enter both a beginning date and an ending date, or leave both blank for an ongoing schedule.');
+      return;
+    }
+
+    if ((startsOn && !isValidDateInput(startsOn)) || (endsOn && !isValidDateInput(endsOn))) {
+      Alert.alert('Check the dates', 'Use the YYYY-MM-DD format for the beginning and ending dates.');
+      return;
+    }
+
+    if (startsOn && endsOn && startsOn > endsOn) {
+      Alert.alert('Check the date range', 'The beginning date must be on or before the ending date.');
+      return;
+    }
+
     const nextSchedule = schedule.map((day) =>
       selectedScheduleDays.includes(day.day_of_week)
-        ? { ...day, enabled: true, start_time: templateStartTime, end_time: templateEndTime }
+        ? {
+            ...day,
+            enabled: true,
+            start_time: templateStartTime,
+            end_time: templateEndTime,
+            starts_on: startsOn || null,
+            ends_on: endsOn || null,
+          }
         : day
     );
     setSchedule(nextSchedule);
@@ -475,7 +514,13 @@ export default function PropertyDraftScreen() {
   const getCalendarDateOpen = (date: Date) => {
     const override = dateAvailability.find((item) => item.availability_date === dateKey(date));
     if (override) return override.is_open;
-    return schedule.find((item) => item.day_of_week === date.getDay())?.enabled ?? false;
+    const weeklySchedule = schedule.find((item) => item.day_of_week === date.getDay());
+    const key = dateKey(date);
+    return Boolean(
+      weeklySchedule?.enabled &&
+        (!weeklySchedule.starts_on || key >= weeklySchedule.starts_on) &&
+        (!weeklySchedule.ends_on || key <= weeklySchedule.ends_on),
+    );
   };
 
   const toggleCalendarDateSelection = (date: Date) => {
@@ -617,11 +662,13 @@ export default function PropertyDraftScreen() {
         const { error: availabilityInsertError } = await supabase
           .from('property_availability')
           .insert(
-            openDays.map(({ day_of_week, start_time, end_time }) => ({
+            openDays.map(({ day_of_week, start_time, end_time, starts_on, ends_on }) => ({
               property_id: id,
               day_of_week,
               start_time,
               end_time,
+              starts_on: starts_on ?? null,
+              ends_on: ends_on ?? null,
             }))
           );
         if (availabilityInsertError) throw availabilityInsertError;
@@ -670,6 +717,21 @@ export default function PropertyDraftScreen() {
         .eq('host_id', session.user.id);
       if (publishError) throw publishError;
 
+      const { data: locationData, error: locationError } = await supabase.functions.invoke('sync-site-promotion-location', {
+        body: { propertyId: id },
+      });
+      if (locationError || locationData?.error) {
+        console.warn('Saved property address could not yet be prepared for promotions', locationError?.message ?? locationData?.error);
+      }
+
+      if (submitForReview) {
+        const { error: notificationError } = await supabase.functions.invoke('notify-admin-of-site-submission', {
+          body: { propertyId: id },
+        });
+        // A site remains submitted even if the administrator email service is temporarily unavailable.
+        if (notificationError) console.warn('Administrator site-review notification could not be sent', notificationError.message);
+      }
+
       setProperty((current) =>
         current
           ? {
@@ -707,21 +769,32 @@ export default function PropertyDraftScreen() {
     }
   }
 
+  async function resendReviewEmail() {
+    if (!id || !property || property.approval_status !== 'pending' || isResendingReviewEmail) return;
+
+    try {
+      setIsResendingReviewEmail(true);
+      const { data, error } = await supabase.functions.invoke('notify-admin-of-site-submission', {
+        body: { propertyId: id },
+      });
+      if (error) throw error;
+      if (!data?.sent) throw new Error('The review email could not be sent. Please try again.');
+
+      Alert.alert('Review email sent', 'A new review notice was sent to the ROVAH administrator. Your site remains pending review.');
+    } catch (error) {
+      Alert.alert(
+        'Unable to resend review email',
+        error instanceof Error ? error.message : 'Please try again.'
+      );
+    } finally {
+      setIsResendingReviewEmail(false);
+    }
+  }
+
   const deleteListing = () => {
     if (!id || !property || !session?.user.id || isDeleting) return;
-
-    Alert.alert(
-      'Delete this listing?',
-      `This permanently deletes ${property.name}, including its details and photos. This cannot be undone.`,
-      [
-        { text: 'Keep Listing', style: 'cancel' },
-        {
-          text: 'Delete Listing',
-          style: 'destructive',
-          onPress: () => void confirmDeleteListing(),
-        },
-      ]
-    );
+    setDeleteError(null);
+    setDeleteConfirmationVisible(true);
   };
 
   const confirmDeleteListing = async () => {
@@ -729,31 +802,19 @@ export default function PropertyDraftScreen() {
 
     try {
       setIsDeleting(true);
-
-      const imagePaths = images.map((image) => image.storage_path);
-      const { error: propertyError } = await supabase
-        .from('properties')
-        .delete()
-        .eq('id', id)
-        .eq('host_id', session.user.id);
-
-      if (propertyError) throw propertyError;
-
-      if (imagePaths.length > 0) {
-        const { error: storageError } = await supabase.storage
-          .from('property-images')
-          .remove(imagePaths);
-        if (storageError) {
-          console.error('Listing was deleted, but photo cleanup failed:', storageError.message);
-        }
+      const { data, error } = await supabase.functions.invoke('delete-host-property', {
+        body: { propertyId: id },
+      });
+      if (error) {
+        const response = 'context' in error && error.context instanceof Response ? error.context : null;
+        const failure = response ? await response.json().catch(() => null) as { error?: string } | null : null;
+        throw new Error(failure?.error ?? error.message);
       }
-
-      router.replace('/host-dashboard');
+      if (!data?.deleted) throw new Error(data?.error ?? 'We could not delete this site. Please try again.');
+      setDeleteConfirmationVisible(false);
+      setDeletedSiteName(data.siteName ?? 'Your site');
     } catch (error) {
-      Alert.alert(
-        'Unable to delete listing',
-        error instanceof Error ? error.message : 'Please try again.'
-      );
+      setDeleteError(error instanceof Error ? error.message : 'Please try again.');
     } finally {
       setIsDeleting(false);
     }
@@ -875,12 +936,12 @@ export default function PropertyDraftScreen() {
 
           <Section
             title="Availability"
-            subtitle="Open or close days quickly, then reuse the same hours wherever you need them."
+            subtitle="Set weekly hours for a selected date range, then use the calendar only for one-day exceptions."
             icon="Calendar"
           >
             <View style={styles.quickHoursCard}>
               <Text style={styles.quickHoursTitle}>Apply hours</Text>
-              <Text style={styles.quickHoursText}>Every day starts red and closed. Tap each day you want to open so it turns green, then apply the hours.</Text>
+              <Text style={styles.quickHoursText}>Choose the days you want to open, then set the hours and date range for this schedule.</Text>
 
               <View style={styles.templateTimeRow}>
                 <View style={styles.templateTimeField}>
@@ -925,6 +986,41 @@ export default function PropertyDraftScreen() {
                     </Pressable>
                   );
                 })}
+              </View>
+
+              <View style={styles.scheduleRange}>
+                <Text style={styles.scheduleRangeTitle}>Schedule date range</Text>
+                <Text style={styles.scheduleRangeHint}>
+                  Choose when these weekly hours begin and end. Leave both dates blank to keep this schedule ongoing.
+                </Text>
+                <View style={styles.scheduleRangeFields}>
+                  <View style={styles.scheduleRangeField}>
+                    <Text style={styles.templateTimeLabel}>Beginning date</Text>
+                    <TextInput
+                      accessibilityLabel="Schedule beginning date"
+                      autoCapitalize="none"
+                      maxLength={10}
+                      onChangeText={setTemplateStartDate}
+                      placeholder="YYYY-MM-DD"
+                      placeholderTextColor={colors.muted}
+                      style={styles.scheduleRangeInput}
+                      value={templateStartDate}
+                    />
+                  </View>
+                  <View style={styles.scheduleRangeField}>
+                    <Text style={styles.templateTimeLabel}>Ending date</Text>
+                    <TextInput
+                      accessibilityLabel="Schedule ending date"
+                      autoCapitalize="none"
+                      maxLength={10}
+                      onChangeText={setTemplateEndDate}
+                      placeholder="YYYY-MM-DD"
+                      placeholderTextColor={colors.muted}
+                      style={styles.scheduleRangeInput}
+                      value={templateEndDate}
+                    />
+                  </View>
+                </View>
               </View>
 
               <Pressable accessibilityRole="button" disabled={isPublishing} onPress={() => void applyTemplateHours()} style={[styles.applyHoursButton, isPublishing && styles.disabled]}>
@@ -1084,6 +1180,14 @@ export default function PropertyDraftScreen() {
                 </Pressable>
               </>
             ) : <>
+              {property.approval_status === 'pending' ? <Pressable
+                accessibilityRole="button"
+                disabled={isResendingReviewEmail}
+                onPress={() => void resendReviewEmail()}
+                style={[styles.saveDraftButton, isResendingReviewEmail && styles.disabled]}
+              >
+                {isResendingReviewEmail ? <ActivityIndicator color={colors.forest} /> : <Text style={styles.saveDraftButtonText}>Resend Review Email</Text>}
+              </Pressable> : null}
               {property.approval_status !== 'pending' ? <Pressable
                 accessibilityRole="button"
                 disabled={isPublishing || !hasUnsavedChanges}
@@ -1118,6 +1222,7 @@ export default function PropertyDraftScreen() {
             <Text style={styles.deleteNoticeText}>
               Deleting removes this property, its details, and its photos from ROVAH.
             </Text>
+            {deleteError ? <Text accessibilityLiveRegion="polite" style={styles.deleteError}>{deleteError}</Text> : null}
             <Pressable
               accessibilityRole="button"
               disabled={isDeleting}
@@ -1155,14 +1260,14 @@ export default function PropertyDraftScreen() {
 
           <View style={styles.listingGuide}>
             <Text style={styles.listingGuideTitle}>How to use Property Details</Text>
-            <Text style={styles.listingGuideIntro}>Complete each section, save your work as you go, and submit only when the listing is ready for ROVAH review.</Text>
+            <Text style={styles.listingGuideIntro}>Complete the site details, save as you go, then submit when the listing is ready for ROVAH review.</Text>
 
-            <ListingGuideStep number="1" title="Add the property basics" text="Enter the property name, short description, full address, hourly rate, acreage, and fence information. These details help members understand the space before they book." />
-            <ListingGuideStep number="2" title="Upload clear photos" text="Add at least one good photo of the actual private space. Photos are required for review and should show guests what they can expect when they arrive." />
-            <ListingGuideStep number="3" title="Set arrival details, rules, and amenities" text="Explain parking and gate access, add property rules, and select every amenity available to guests. Clear instructions create a safer, smoother visit." />
-            <ListingGuideStep number="4" title="Choose your availability" text="Days start red and closed. Tap each day you want to offer, set its opening and closing times, then use Apply Hours. Use the calendar below to open or close specific dates." />
-            <ListingGuideStep number="5" title="Use guest tools after publishing" text="Once your listing is approved, use Reservations to manage visits, Messages to communicate with a guest, and the Gift button when you want to send a one-time Special Discount or Courtesy Waiver." />
-            <ListingGuideStep number="6" title="Save, then submit for review" text="Save Draft keeps your work private while you continue editing. Submit for Review sends the finished listing to ROVAH. Members cannot see or reserve it until it is approved." />
+            <ListingGuideStep number="1" title="Add the basics" text="Enter the name, description, address, rate, acreage, and fence details. Members use this information to understand the site." />
+            <ListingGuideStep number="2" title="Upload site photos" text="Add at least one clear photo of the actual space. Photos are required before review." />
+            <ListingGuideStep number="3" title="Complete arrival details" text="Add parking and gate access, property rules, and every available amenity so guests know what to expect." />
+            <ListingGuideStep number="4" title="Set availability" text="Choose weekly days and hours, add a beginning and ending date for a seasonal schedule, then select Apply & Save Hours. Leave both dates blank for ongoing availability; use the calendar only for one-day exceptions." />
+            <ListingGuideStep number="5" title="Choose the next action after approval" text="Use Reservations for visits, Messages for guest communication, and Grow Your Site to manage subscriptions, promotion, and listing updates." />
+            <ListingGuideStep number="6" title="Save, then submit" text="Save Draft keeps work private while you edit. Submit for Review sends the finished listing to ROVAH; members cannot reserve it until approval." />
           </View>
         </ScrollView>
 
@@ -1190,6 +1295,64 @@ export default function PropertyDraftScreen() {
               </Pressable>
             </Pressable>
           </Pressable>
+        </Modal>
+
+        <Modal
+          animationType="fade"
+          onRequestClose={() => !isDeleting && setDeleteConfirmationVisible(false)}
+          transparent
+          visible={deleteConfirmationVisible}
+        >
+          <View style={styles.deleteConfirmBackdrop}>
+            <View accessibilityViewIsModal style={styles.deleteConfirmSheet}>
+              <Text style={styles.deleteConfirmTitle}>Delete this listing?</Text>
+              <Text style={styles.deleteConfirmText}>
+                This permanently deletes {property.name}, including its details and photos. This cannot be undone.
+              </Text>
+              <View style={styles.deleteConfirmActions}>
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={isDeleting}
+                  onPress={() => setDeleteConfirmationVisible(false)}
+                  style={[styles.deleteConfirmCancel, isDeleting && styles.disabled]}
+                >
+                  <Text style={styles.deleteConfirmCancelText}>Keep Listing</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={isDeleting}
+                  onPress={() => void confirmDeleteListing()}
+                  style={[styles.deleteConfirmButton, isDeleting && styles.disabled]}
+                >
+                  {isDeleting ? <ActivityIndicator color="#FFFDF8" /> : <Text style={styles.deleteConfirmButtonText}>Delete Listing</Text>}
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        <Modal
+          animationType="fade"
+          onRequestClose={() => setDeletedSiteName(null)}
+          transparent
+          visible={deletedSiteName !== null}
+        >
+          <View style={styles.deleteConfirmBackdrop}>
+            <View accessibilityViewIsModal style={styles.deleteConfirmSheet}>
+              <Text style={styles.deleteSuccessTitle}>Site deleted</Text>
+              <Text style={styles.deleteConfirmText}>{deletedSiteName} was permanently removed.</Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  setDeletedSiteName(null);
+                  router.replace('/host-dashboard');
+                }}
+                style={styles.deleteSuccessButton}
+              >
+                <Text style={styles.deleteSuccessButtonText}>Return to Host Dashboard</Text>
+              </Pressable>
+            </View>
+          </View>
         </Modal>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -1301,6 +1464,12 @@ const styles = StyleSheet.create({
   quickHoursCard: { backgroundColor: colors.lightGreen, borderColor: '#CBD1BD', borderRadius: 15, borderWidth: 1, marginBottom: 16, padding: 14 },
   quickHoursTitle: { color: colors.forest, fontSize: 16, fontWeight: '900' },
   quickHoursText: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 4 },
+  scheduleRange: { marginTop: 14 },
+  scheduleRangeTitle: { color: colors.forest, fontSize: 13, fontWeight: '900' },
+  scheduleRangeHint: { color: colors.muted, fontSize: 12, lineHeight: 17, marginTop: 3 },
+  scheduleRangeFields: { flexDirection: 'row', gap: 10, marginTop: 10 },
+  scheduleRangeField: { flex: 1 },
+  scheduleRangeInput: { backgroundColor: colors.warmWhite, borderColor: '#CBD1BD', borderRadius: 10, borderWidth: 1, color: colors.forest, fontSize: 14, minHeight: 44, paddingHorizontal: 10 },
   templateTimeRow: { flexDirection: 'row', gap: 10, marginTop: 13 },
   templateTimeField: { flex: 1 },
   templateTimeLabel: { color: colors.forest, fontSize: 12, fontWeight: '900', marginBottom: 5 },
@@ -1382,6 +1551,19 @@ const styles = StyleSheet.create({
   deleteNotice: { backgroundColor: '#FDF0EE', borderColor: '#F0B8B0', borderRadius: 16, borderWidth: 1, marginTop: 26, padding: 16 },
   deleteNoticeTitle: { color: '#B42318', fontSize: 16, fontWeight: '900' },
   deleteNoticeText: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 5 },
+  deleteError: { color: '#B42318', fontSize: 13, fontWeight: '800', lineHeight: 19, marginTop: 10 },
   deleteButton: { alignItems: 'center', borderColor: '#B42318', borderRadius: 13, borderWidth: 1, justifyContent: 'center', marginTop: 15, minHeight: 50 },
   deleteButtonText: { color: '#B42318', fontSize: 15, fontWeight: '900' },
+  deleteConfirmBackdrop: { alignItems: 'center', backgroundColor: 'rgba(0, 0, 0, 0.48)', flex: 1, justifyContent: 'center', padding: 22 },
+  deleteConfirmSheet: { backgroundColor: colors.warmWhite, borderColor: '#F0B8B0', borderRadius: 22, borderWidth: 1, maxWidth: 420, padding: 22, width: '100%' },
+  deleteConfirmTitle: { color: '#B42318', fontSize: 22, fontWeight: '900' },
+  deleteSuccessTitle: { color: colors.forest, fontSize: 22, fontWeight: '900' },
+  deleteConfirmText: { color: colors.muted, fontSize: 15, lineHeight: 22, marginTop: 8 },
+  deleteConfirmActions: { flexDirection: 'row', gap: 10, marginTop: 22 },
+  deleteConfirmCancel: { alignItems: 'center', backgroundColor: colors.cream, borderColor: colors.border, borderRadius: 13, borderWidth: 1, flex: 1, justifyContent: 'center', minHeight: 50, paddingHorizontal: 8 },
+  deleteConfirmCancelText: { color: colors.forest, fontSize: 14, fontWeight: '900', textAlign: 'center' },
+  deleteConfirmButton: { alignItems: 'center', backgroundColor: '#B42318', borderRadius: 13, flex: 1, justifyContent: 'center', minHeight: 50, paddingHorizontal: 8 },
+  deleteConfirmButtonText: { color: '#FFFDF8', fontSize: 14, fontWeight: '900', textAlign: 'center' },
+  deleteSuccessButton: { alignItems: 'center', backgroundColor: colors.forest, borderRadius: 13, justifyContent: 'center', marginTop: 22, minHeight: 52, paddingHorizontal: 14 },
+  deleteSuccessButtonText: { color: colors.warmWhite, fontSize: 15, fontWeight: '900', textAlign: 'center' },
 });

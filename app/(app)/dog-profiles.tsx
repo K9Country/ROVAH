@@ -5,6 +5,8 @@ import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Modal, Platform,
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors } from '../../constants/theme';
+import { memberUi } from '../../constants/member-ui';
+import { HostPageGuide } from '../../components/host-page-guide';
 import { dogBreeds } from '../../constants/dog-breeds';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../services/auth-context';
@@ -146,22 +148,34 @@ export default function DogProfilesScreen() {
         : await supabase.from('dog_profiles').insert(dogRecord).select('id').single();
       if (error) throw error;
       if (!savedDog) throw new Error('We could not find the saved dog profile. Please try again.');
-      if (selectedPhoto) await uploadDogPhoto(savedDog.id, selectedPhoto);
+      // A photo is optional. Keep a successful profile save successful even if the
+      // device or storage service cannot finish the separate image upload.
+      let photoUploadMessage = '';
+      if (selectedPhoto) {
+        try {
+          await uploadDogPhoto(savedDog.id, selectedPhoto);
+        } catch (photoError) {
+          console.error('Unable to upload dog photo:', photoError);
+          photoUploadMessage = 'Your dog profile was saved, but the photo could not be uploaded. You can add it later by editing this profile.';
+        }
+      }
       const savedDogs = await loadDogs();
       await synchronizeDogCount(savedDogs.length);
       resetForm();
       if (returnTo === 'parent' && savedDogs.length > 0) {
         Alert.alert(
           'Dog profile saved',
-          'Return to Parent Profile to save your information and continue.',
+          photoUploadMessage || 'Return to Parent Profile to finish saving your member information.',
           [{ text: 'Return to Parent Profile', onPress: () => router.replace('/profile?onboarding=true') }]
         );
       } else if (isOnboarding && savedDogs.length > 0) {
         Alert.alert(
           'Dog profile saved',
-          'Your member setup is complete. You can now search for private spaces and make a reservation.',
+          photoUploadMessage || 'Your member setup is complete. You can now search for private spaces and make a reservation.',
           [{ text: 'Go to Member Dashboard', onPress: () => router.replace('/dashboard') }]
         );
+      } else if (photoUploadMessage) {
+        setStatusMessage(photoUploadMessage);
       }
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : 'We could not save this dog profile. Please try again.');
@@ -249,16 +263,16 @@ export default function DogProfilesScreen() {
           <Text style={styles.title}>Every dog deserves{`\n`}their own profile.</Text>
           <Text style={styles.heroText}>Keep the details that help make each private-space visit safer, easier, and more personal.</Text>
         </View>
-        <View style={styles.infoCard}><Text style={styles.infoTitle}>{isOnboarding ? `Now complete your ${requestedDogCount === 1 ? "dog's profile" : "dogs' profiles"}` : 'Private to your family'}</Text><Text style={styles.infoText}>{isOnboarding ? `Add the required information for ${requestedDogCount === 1 ? 'your dog' : `each of your ${requestedDogCount} dogs`}. Important notes are optional. Hosts will not see these profiles unless a future reservation step specifically asks you to share information.` : 'Your dog profiles are private to you. Hosts will not see them unless a future reservation step specifically asks you to share information.'}</Text></View>
+        <View style={styles.infoCard}><Text style={styles.infoTitle}>{isOnboarding ? `Now complete your ${requestedDogCount === 1 ? "dog's profile" : "dogs' profiles"}` : 'Your dog information'}</Text><Text style={styles.infoText}>{isOnboarding ? `Add the required information for ${requestedDogCount === 1 ? 'your dog' : `each of your ${requestedDogCount} dogs`}. Important notes are optional. When you select a dog for a reservation, the host will receive that dog's name, breed, size, and behavioral and social comfort details.` : "Your dog's photo and private notes stay private to your family. When you select a dog for a reservation, the host receives that dog's name, breed, size, and behavioral and social comfort details."}</Text></View>
         <View style={styles.sectionHeader}>
           <View><Text style={styles.sectionTitle}>Your dogs</Text><Text style={styles.sectionDescription}>Add each dog who may join you on a visit.</Text></View>
           {!isFormOpen ? <Pressable accessibilityRole="button" onPress={() => setIsFormOpen(true)} style={styles.addButton}><Text style={styles.addButtonText}>+ Add a Dog</Text></Pressable> : null}
         </View>
         {isLoading ? <View style={styles.loading}><ActivityIndicator color={colors.forest} /></View> : null}
         {!isLoading && dogs.length === 0 && !isFormOpen ? <View style={styles.emptyCard}><Text style={styles.emptyTitle}>No dog profiles yet</Text><Text style={styles.emptyText}>Start with your dog’s name, breed, size, and a few notes that make visits more comfortable.</Text><Pressable accessibilityRole="button" onPress={() => setIsFormOpen(true)} style={styles.primaryButton}><Text style={styles.primaryButtonText}>Create a Dog Profile</Text></Pressable></View> : null}
-        {dogs.map((dog) => <View key={dog.id} style={styles.dogCard}>
+        {dogs.map((dog) => <View key={dog.id} style={[styles.dogCard, { marginBottom: 5 }]}>
           {dog.photo_url ? <Image accessibilityLabel={`${dog.name}'s photo`} source={{ uri: dog.photo_url }} style={styles.dogPhoto} /> : <View style={styles.dogBadge}><Text style={styles.dogBadgeText}>{dog.name.slice(0, 1).toUpperCase()}</Text></View>}
-          <View style={styles.dogCopy}><Text style={styles.dogName}>{dog.name}</Text><Text style={styles.dogDetails}>{[dog.breed, dog.age, dog.size].filter(Boolean).join(' · ') || 'Details can be added anytime.'}</Text>{dog.behavior_traits.length ? <View style={styles.traitPreview}>{dog.behavior_traits.map((trait) => <View key={trait} style={styles.traitChip}><Text style={styles.traitChipText}>{trait}</Text></View>)}</View> : dog.temperament ? <Text style={styles.dogTemperament}>{dog.temperament}</Text> : null}</View>
+          <View style={styles.dogCopy}><Text style={[styles.dogName, memberUi.cardTitle]}>{dog.name}</Text><Text style={[styles.dogDetails, memberUi.cardDescription]}>{[dog.breed, dog.age, dog.size].filter(Boolean).join(' · ') || 'Details can be added anytime.'}</Text>{dog.behavior_traits.length ? <View style={styles.traitPreview}>{dog.behavior_traits.map((trait) => <View key={trait} style={styles.traitChip}><Text style={styles.traitChipText}>{trait}</Text></View>)}</View> : dog.temperament ? <Text style={styles.dogTemperament}>{dog.temperament}</Text> : null}</View>
           <View style={styles.cardActions}><Pressable accessibilityRole="button" onPress={() => startEditing(dog)} style={styles.textAction}><Text style={styles.textActionText}>Edit</Text></Pressable></View>
         </View>)}
         {isFormOpen ? <View style={styles.formCard}>
@@ -306,6 +320,17 @@ export default function DogProfilesScreen() {
         <Pressable accessibilityRole="button" onPress={() => router.replace('/profile?onboarding=true')} style={styles.returnToParentButton}>
           <Text style={styles.returnToParentButtonText}>Return to Parent Profile</Text>
         </Pressable>
+        <HostPageGuide
+          title="How to use Dog Profiles"
+          intro="Dog Profiles help you choose which dogs attend each visit and give hosts the details needed to prepare."
+          tone="forest"
+          steps={[
+            { title: 'Add each dog', text: 'Enter the name, breed or mix, age, size, and behavior details for every dog you may bring.' },
+            { title: 'Add a photo', text: 'A photo is optional and helps you recognize the dogs attached to a reservation.' },
+            { title: 'Choose traits carefully', text: 'Select the traits that best describe your dog. Hosts see visit details only when you select that dog for a reservation.' },
+            { title: 'Save, then choose dogs', text: 'Save the profile. On your next reservation, select the dogs that will attend.' },
+          ]}
+        />
       </ScrollView>
     </KeyboardAvoidingView>
     <Modal animationType="slide" onRequestClose={() => setIsBreedPickerOpen(false)} transparent visible={isBreedPickerOpen}>

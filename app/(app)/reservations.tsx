@@ -1,9 +1,10 @@
-import { router } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Image,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -14,6 +15,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors } from '../../constants/theme';
+import { memberUi } from '../../constants/member-ui';
+import { HostPageGuide } from '../../components/host-page-guide';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../services/auth-context';
 
@@ -31,7 +34,8 @@ type GuestBooking = {
   dog_count: number;
   total_amount: number;
   status: 'confirmed' | 'cancelled';
-  payment_status: 'pending_configuration' | 'processing' | 'paid' | 'refunded' | 'failed' | 'cancelled';
+  payment_status: 'pending_configuration' | 'processing' | 'authorized' | 'scheduled' | 'paid' | 'refunded' | 'failed' | 'cancelled';
+  stripe_checkout_session_id: string | null;
   properties: BookingProperty | null;
   dogs: BookingDog[];
 };
@@ -40,6 +44,13 @@ type BookingDog = {
   dog_profile_id: string | null;
   name: string;
   photo_url: string | null;
+};
+
+type PaymentConfirmation = {
+  id: string;
+  propertyName: string;
+  totalAmount: number;
+  paymentStatus: 'authorized' | 'scheduled' | 'paid';
 };
 
 const cancellationWindowMs = 60 * 60 * 1000;
@@ -62,6 +73,10 @@ function formatVisitTime(date: Date) {
 
 export default function ReservationsScreen() {
   const { session } = useAuth();
+  const { payment, session_id: checkoutSessionId } = useLocalSearchParams<{
+    payment?: string;
+    session_id?: string;
+  }>();
   const [bookings, setBookings] = useState<GuestBooking[]>([]);
   const [reviewedBookingIds, setReviewedBookingIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
@@ -71,6 +86,20 @@ export default function ReservationsScreen() {
   );
   const [bookingToCancelId, setBookingToCancelId] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(() => Date.now());
+  const [paymentConfirmation, setPaymentConfirmation] = useState<PaymentConfirmation | null>(null);
+  const [paymentConfirmationError, setPaymentConfirmationError] = useState<string | null>(null);
+  const handledCheckoutSessionIds = useRef(new Set<string>());
+
+  const notifyReservationEmail = useCallback((bookingId: string) => {
+    void supabase.functions
+      .invoke('notify-app-email', {
+        body: { type: 'reservation_created', resourceId: bookingId },
+      })
+      .then(({ error }) => {
+        if (error) console.warn('Reservation notification email was not sent:', error.message);
+      })
+      .catch((error) => console.warn('Reservation notification email was not sent:', error));
+  }, []);
 
   const loadBookings = useCallback(async () => {
     if (!session?.user.id) {
@@ -84,7 +113,7 @@ export default function ReservationsScreen() {
       supabase
         .from('bookings')
         .select(
-          'id, property_id, start_at, end_at, dog_count, total_amount, status, payment_status, properties(name, city, state)'
+          'id, property_id, start_at, end_at, dog_count, total_amount, status, payment_status, stripe_checkout_session_id, properties(name, city, state)'
         )
         .eq('guest_id', session.user.id)
         .order('start_at', { ascending: true }),
@@ -162,6 +191,65 @@ export default function ReservationsScreen() {
   }, [loadBookings]);
 
   useEffect(() => {
+    if (payment !== 'success' || !checkoutSessionId || !session?.user.id) return;
+    if (handledCheckoutSessionIds.current.has(checkoutSessionId)) return;
+    handledCheckoutSessionIds.current.add(checkoutSessionId);
+
+    const confirmPaidCheckout = async () => {
+      setPaymentConfirmationError(null);
+      const { data, error } = await supabase.functions.invoke('confirm-booking-payment', {
+        body: { sessionId: checkoutSessionId },
+      });
+      if (error || !['authorized', 'scheduled', 'paid'].includes(data?.paymentStatus) || !data.booking) {
+        const functionError = error as Error & { context?: Response };
+        let message = 'Your payment is still being confirmed. Refresh this page in a moment; do not submit payment again.';
+        if (functionError?.context) {
+          try {
+            const response = await functionError.context.clone().json() as { error?: string };
+            if (response.error) message = response.error;
+          } catch {
+            // Keep the safe guidance above if the function did not return JSON.
+          }
+        }
+        setPaymentConfirmationError(message);
+        return;
+      }
+      setPaymentConfirmation(data.booking as PaymentConfirmation);
+      await loadBookings();
+      notifyReservationEmail(data.booking.id);
+    };
+
+    void confirmPaidCheckout();
+  }, [checkoutSessionId, loadBookings, notifyReservationEmail, payment, session?.user.id]);
+
+  useEffect(() => {
+    if (!session?.user.id) return;
+
+    const pendingCheckout = bookings.find(
+      (booking) =>
+        booking.payment_status === 'processing' &&
+        Boolean(booking.stripe_checkout_session_id) &&
+        !handledCheckoutSessionIds.current.has(booking.stripe_checkout_session_id!)
+    );
+    if (!pendingCheckout?.stripe_checkout_session_id) return;
+
+    handledCheckoutSessionIds.current.add(pendingCheckout.stripe_checkout_session_id);
+    const quietlyReconcilePendingCheckout = async () => {
+      const { data } = await supabase.functions.invoke('confirm-booking-payment', {
+        body: { sessionId: pendingCheckout.stripe_checkout_session_id },
+      });
+      if (!['authorized', 'scheduled', 'paid'].includes(data?.paymentStatus) || !data.booking) return;
+
+      setPaymentConfirmationError(null);
+      setPaymentConfirmation(data.booking as PaymentConfirmation);
+      await loadBookings();
+      notifyReservationEmail(data.booking.id);
+    };
+
+    void quietlyReconcilePendingCheckout();
+  }, [bookings, loadBookings, notifyReservationEmail, session?.user.id]);
+
+  useEffect(() => {
     const refreshClock = setInterval(
       () => setCurrentTime(Date.now()),
       30_000
@@ -218,26 +306,19 @@ export default function ReservationsScreen() {
   const cancelBooking = async (booking: GuestBooking) => {
     try {
       setCancellingBookingId(booking.id);
-      const { data, error } = await supabase
-        .from('bookings')
-        .update({ status: 'cancelled' })
-        .eq('id', booking.id)
-        .eq('guest_id', session?.user.id ?? '')
-        .eq('status', 'confirmed')
-        .select('id')
-        .maybeSingle();
-
-      if (error) {
-        throw error;
-      }
-
-      if (!data) {
-        Alert.alert(
-          'Cancellation unavailable',
-          'The one-hour cancellation window has closed or this reservation was already changed.'
-        );
-        await loadBookings();
-        return;
+      const { data, error } = await supabase.functions.invoke('cancel-booking', {
+        body: { bookingId: booking.id },
+      });
+      if (error || !data?.cancelled) {
+        const functionError = error as Error & { context?: Response };
+        let message = data?.error ?? 'The one-hour cancellation window has closed or this reservation was already changed.';
+        if (functionError?.context) {
+          try {
+            const body = await functionError.context.clone().json() as { error?: string };
+            if (body.error) message = body.error;
+          } catch { /* Keep the reliable default guidance. */ }
+        }
+        throw new Error(message);
       }
 
       setBookingToCancelId(null);
@@ -258,7 +339,7 @@ export default function ReservationsScreen() {
     const propertyName = booking.properties?.name ?? 'Private space';
     const propertyLocation = booking.properties
       ? `${booking.properties.city}, ${booking.properties.state}`
-      : 'K9 Country listing';
+      : 'ROVAH listing';
     const cancellationAvailable = canCancel(booking);
     const isCancelling = cancellingBookingId === booking.id;
     const isConfirmingCancellation = bookingToCancelId === booking.id;
@@ -302,7 +383,11 @@ export default function ReservationsScreen() {
         </Text>
         <Text style={styles.paymentStatusText}>
           {booking.payment_status === 'paid'
-            ? 'Payment received'
+            ? 'Payment captured and received'
+            : booking.payment_status === 'authorized'
+              ? 'Payment secured — captured one hour before your visit'
+              : booking.payment_status === 'scheduled'
+                ? 'Card saved — payment scheduled one hour before your visit'
             : booking.payment_status === 'cancelled'
               ? 'No payment collected'
               : 'Payment setup pending — no money collected'}
@@ -397,6 +482,32 @@ export default function ReservationsScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      <Modal
+        animationType="fade"
+        transparent
+        visible={paymentConfirmation !== null}
+        onRequestClose={() => setPaymentConfirmation(null)}
+      >
+        <View style={styles.paymentModalBackdrop}>
+          <View style={styles.paymentModalCard}>
+            <Text style={styles.paymentModalEyebrow}>{paymentConfirmation?.paymentStatus === 'paid' ? 'PAYMENT CAPTURED' : paymentConfirmation?.paymentStatus === 'scheduled' ? 'CARD SAVED' : 'PAYMENT SECURED'}</Text>
+            <Text style={styles.paymentModalTitle}>Reservation confirmed</Text>
+            <Text style={styles.paymentModalText}>
+              {paymentConfirmation?.propertyName ?? 'Your private space'} is reserved. {paymentConfirmation?.paymentStatus === 'paid'
+                ? `Your payment of $${Number(paymentConfirmation?.totalAmount ?? 0).toFixed(2)} has been captured.`
+                : paymentConfirmation?.paymentStatus === 'scheduled'
+                  ? `Your card is saved for this reservation. The $${Number(paymentConfirmation?.totalAmount ?? 0).toFixed(2)} charge is scheduled one hour before your visit. Cancel before then and no charge will be made.`
+                  : `Your $${Number(paymentConfirmation?.totalAmount ?? 0).toFixed(2)} payment is secured and will be captured one hour before your visit. Cancel before then to release the authorization automatically.`}
+            </Text>
+            <Pressable accessibilityRole="button" onPress={() => setPaymentConfirmation(null)} style={styles.paymentModalPrimaryButton}>
+              <Text style={styles.paymentModalPrimaryButtonText}>View Reservation</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" onPress={() => router.replace('/dashboard')} style={styles.paymentModalSecondaryButton}>
+              <Text style={styles.paymentModalSecondaryButtonText}>Return to Member Dashboard</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
       <ScrollView
         contentContainerStyle={styles.container}
         refreshControl={
@@ -412,6 +523,13 @@ export default function ReservationsScreen() {
         <Text style={styles.description}>
           Started visits appear first, followed by upcoming reservations. Completed visits are ready for review.
         </Text>
+        {paymentConfirmationError ? <View style={styles.paymentPendingNotice}>
+          <Text style={styles.paymentPendingTitle}>Confirming your payment</Text>
+          <Text style={styles.paymentPendingText}>{paymentConfirmationError}</Text>
+          <Pressable accessibilityRole="button" onPress={() => void handleRefresh()} style={styles.paymentPendingButton}>
+            <Text style={styles.paymentPendingButtonText}>Refresh Reservations</Text>
+          </Pressable>
+        </View> : null}
 
         {isLoading ? (
           <View style={styles.loadingState}>
@@ -450,6 +568,17 @@ export default function ReservationsScreen() {
             ) : null}
           </>
         )}
+        <HostPageGuide
+          title="How to use My Reservations"
+          intro="Use this page to prepare for upcoming visits, check past visits, and review eligible completed stays."
+          tone="forest"
+          steps={[
+            { title: 'Check upcoming visits', text: 'Review the date, time, site, and dogs attached to your next reservation.' },
+            { title: 'Message the host', text: 'Open the reservation or Messages if you have a question before the visit.' },
+            { title: 'Review a completed visit', text: 'When Review My Visit is available, share your experience for other members.' },
+            { title: 'Use site-specific offers', text: 'A valid Courtesy Waiver or Special Discount appears when you book the same site.' },
+          ]}
+        />
       </ScrollView>
     </SafeAreaView>
   );
@@ -461,13 +590,13 @@ const styles = StyleSheet.create({
   backButton: { alignSelf: 'flex-start', justifyContent: 'center', marginBottom: 12, minHeight: 44 },
   backButtonText: { color: colors.forest, fontSize: 16, fontWeight: '800' },
   eyebrow: { color: colors.brown, fontSize: 11, fontWeight: '900', letterSpacing: 1.3, marginTop: 14 },
-  title: { color: colors.forest, fontSize: 30, fontWeight: '900', marginTop: 6 },
-  description: { color: colors.muted, fontSize: 15, lineHeight: 22, marginBottom: 24, marginTop: 10 },
-  sectionTitle: { color: colors.forest, fontSize: 20, fontWeight: '900', marginBottom: 12, marginTop: 4 },
-  bookingCard: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 18, borderWidth: 1, marginBottom: 14, padding: 17 },
+  title: { ...memberUi.pageTitle, marginTop: 6 },
+  description: { ...memberUi.pageDescription, marginBottom: 24 },
+  sectionTitle: { ...memberUi.cardTitle, fontSize: 20, marginBottom: 12, marginTop: 4 },
+  bookingCard: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 18, borderWidth: 1, marginBottom: 5, padding: 17 },
   cardHeader: { alignItems: 'flex-start', flexDirection: 'row', justifyContent: 'space-between' },
   cardHeading: { flex: 1, paddingRight: 10 },
-  propertyName: { color: colors.forest, fontSize: 18, fontWeight: '900' },
+  propertyName: memberUi.cardTitle,
   propertyLocation: { color: colors.muted, fontSize: 13, marginTop: 4 },
   statusBadge: { borderRadius: 12, paddingHorizontal: 9, paddingVertical: 6 },
   confirmedBadge: { backgroundColor: colors.lightGreen },
@@ -481,8 +610,8 @@ const styles = StyleSheet.create({
   visitDetails: { color: colors.muted, fontSize: 14, marginTop: 7 },
   paymentStatusText: { color: colors.muted, fontSize: 12, fontStyle: 'italic', lineHeight: 18, marginTop: 5 },
   dogsSection: { borderTopColor: colors.border, borderTopWidth: 1, marginTop: 16, paddingTop: 14 },
-  dogsSectionTitle: { color: colors.forest, fontSize: 14, fontWeight: '900', marginBottom: 10 },
-  dogList: { gap: 10 },
+  dogsSectionTitle: { color: colors.forest, fontSize: 14, fontWeight: '900', marginBottom: 5 },
+  dogList: { gap: 5 },
   dogRow: { alignItems: 'center', backgroundColor: '#FFF7E9', borderColor: '#E7C79D', borderRadius: 14, borderWidth: 1, flexDirection: 'row', padding: 10 },
   dogPhoto: { borderColor: colors.border, borderRadius: 22, borderWidth: 1, height: 44, marginRight: 10, width: 44 },
   dogPhotoFallback: { alignItems: 'center', backgroundColor: colors.lightGreen, borderRadius: 22, height: 44, justifyContent: 'center', marginRight: 10, width: 44 },
@@ -498,12 +627,12 @@ const styles = StyleSheet.create({
   keepButtonText: { color: '#95423A', fontSize: 14, fontWeight: '900' },
   confirmCancelButton: { alignItems: 'center', backgroundColor: '#95423A', borderRadius: 10, flex: 1, justifyContent: 'center', minHeight: 42 },
   confirmCancelButtonText: { color: colors.cream, fontSize: 14, fontWeight: '900' },
-  messageHostButton: { alignItems: 'center', backgroundColor: colors.lightGreen, borderColor: '#CBD1BD', borderRadius: 12, borderWidth: 1, flexDirection: 'row', justifyContent: 'center', marginTop: 10, minHeight: 48 },
+  messageHostButton: { alignItems: 'center', backgroundColor: colors.lightGreen, borderColor: '#CBD1BD', borderRadius: 12, borderWidth: 1, flexDirection: 'row', justifyContent: 'center', marginTop: 5, minHeight: 48 },
   messageHostButtonText: { color: colors.forest, fontSize: 15, fontWeight: '900' },
   messageHostIcon: { fontSize: 17, marginLeft: 8 },
-  reviewButton: { alignItems: 'center', backgroundColor: colors.forest, borderRadius: 12, justifyContent: 'center', marginTop: 10, minHeight: 48 },
+  reviewButton: { alignItems: 'center', backgroundColor: colors.forest, borderRadius: 12, justifyContent: 'center', marginTop: 5, minHeight: 48 },
   reviewButtonText: { color: colors.cream, fontSize: 15, fontWeight: '900' },
-  reviewComplete: { alignItems: 'center', backgroundColor: colors.lightGreen, borderColor: '#CBD1BD', borderRadius: 12, borderWidth: 1, justifyContent: 'center', marginTop: 10, minHeight: 48 },
+  reviewComplete: { alignItems: 'center', backgroundColor: colors.lightGreen, borderColor: '#CBD1BD', borderRadius: 12, borderWidth: 1, justifyContent: 'center', marginTop: 5, minHeight: 48 },
   reviewCompleteText: { color: colors.forest, fontSize: 15, fontWeight: '900' },
   visitStartedText: { color: colors.brown, fontSize: 13, fontWeight: '800', marginTop: 16 },
   windowClosedText: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 16 },
@@ -514,6 +643,20 @@ const styles = StyleSheet.create({
   emptyText: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 6 },
   searchPropertiesButton: { alignItems: 'center', alignSelf: 'center', backgroundColor: colors.forest, borderRadius: 12, justifyContent: 'center', marginBottom: 22, marginTop: -10, minHeight: 48, paddingHorizontal: 20 },
   searchPropertiesButtonText: { color: colors.warmWhite, fontSize: 14, fontWeight: '900', textAlign: 'center' },
+  paymentPendingNotice: { backgroundColor: '#FFF7E9', borderColor: '#D4A660', borderRadius: 16, borderWidth: 1, marginBottom: 20, padding: 16 },
+  paymentPendingTitle: { color: colors.forest, fontSize: 16, fontWeight: '900' },
+  paymentPendingText: { color: colors.muted, fontSize: 14, lineHeight: 20, marginTop: 5 },
+  paymentPendingButton: { alignItems: 'center', borderColor: colors.forest, borderRadius: 10, borderWidth: 1, justifyContent: 'center', marginTop: 12, minHeight: 42 },
+  paymentPendingButtonText: { color: colors.forest, fontSize: 14, fontWeight: '900' },
+  paymentModalBackdrop: { alignItems: 'center', backgroundColor: 'rgba(28, 39, 27, 0.6)', flex: 1, justifyContent: 'center', padding: 22 },
+  paymentModalCard: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 22, borderWidth: 1, maxWidth: 460, padding: 24, width: '100%' },
+  paymentModalEyebrow: { color: colors.brown, fontSize: 12, fontWeight: '900', letterSpacing: 1.2 },
+  paymentModalTitle: { color: colors.forest, fontSize: 26, fontWeight: '900', lineHeight: 32, marginTop: 8 },
+  paymentModalText: { color: colors.muted, fontSize: 16, lineHeight: 24, marginTop: 12 },
+  paymentModalPrimaryButton: { alignItems: 'center', backgroundColor: colors.forest, borderRadius: 12, justifyContent: 'center', marginTop: 22, minHeight: 50 },
+  paymentModalPrimaryButtonText: { color: colors.warmWhite, fontSize: 15, fontWeight: '900' },
+  paymentModalSecondaryButton: { alignItems: 'center', borderColor: colors.forest, borderRadius: 12, borderWidth: 1, justifyContent: 'center', marginTop: 9, minHeight: 50 },
+  paymentModalSecondaryButtonText: { color: colors.forest, fontSize: 15, fontWeight: '900' },
   loadingState: { alignItems: 'center', paddingVertical: 48 },
   loadingText: { color: colors.muted, fontSize: 15, marginTop: 14 },
 });

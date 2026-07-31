@@ -26,6 +26,10 @@ type HostFieldName =
   | 'firstName'
   | 'lastName'
   | 'phone'
+  | 'homeAddress'
+  | 'homeCity'
+  | 'homeState'
+  | 'homePostalCode'
   | 'siteAddress'
   | 'city'
   | 'state'
@@ -54,10 +58,9 @@ export default function HostOnboardingScreen() {
   const [usesHomeAddress, setUsesHomeAddress] = useState(false);
   const [profileImagePath, setProfileImagePath] = useState<string | null>(null);
   const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
-  const [isUploadingProfilePhoto, setIsUploadingProfilePhoto] = useState(false);
-  const [identityVerificationStatus, setIdentityVerificationStatus] =
-    useState<IdentityVerificationStatus>('not_started');
+  const identityVerificationStatus: IdentityVerificationStatus = 'not_started';
   const [showsVerificationWhy, setShowsVerificationWhy] = useState(false);
+  const [isUploadingProfilePhoto, setIsUploadingProfilePhoto] = useState(false);
   const [controlsProperty, setControlsProperty] = useState(false);
   const [acceptsHostTerms, setAcceptsHostTerms] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -117,17 +120,12 @@ export default function HostOnboardingScreen() {
         setHomeCity(profile.home_city ?? '');
         setHomeState(profile.home_state ?? '');
         setHomePostalCode(profile.home_postal_code ?? '');
-        setSiteAddress(profile.primary_site_address ?? '');
-        setCity(profile.primary_site_city ?? '');
-        setState(profile.primary_site_state ?? '');
-        setPostalCode(profile.primary_site_postal_code ?? '');
         setProfileImagePath(profile.profile_image_path);
         setProfileImageUrl(
           profile.profile_image_path
             ? supabase.storage.from('host-profile-images').getPublicUrl(profile.profile_image_path).data.publicUrl
             : null
         );
-        setIdentityVerificationStatus(profile.identity_verification_status ?? 'not_started');
         setControlsProperty(profile.controls_property);
         setAcceptsHostTerms(Boolean(profile.accepted_host_terms_at));
       } else {
@@ -156,6 +154,21 @@ export default function HostOnboardingScreen() {
     session?.user.user_metadata?.last_name,
   ]);
 
+  const handleUseHomeAddress = () => {
+    setUsesHomeAddress((current) => {
+      const next = !current;
+      if (next) {
+        setSiteAddress(homeAddress);
+        setCity(homeCity);
+        setState(homeState);
+        setPostalCode(homePostalCode);
+      }
+      return next;
+    });
+  };
+
+  const canUseHomeAddress = Boolean(homeAddress && homeCity && homeState && homePostalCode);
+
   useEffect(() => {
     if (isAuthLoading) {
       return;
@@ -171,27 +184,6 @@ export default function HostOnboardingScreen() {
       router.replace('/dashboard');
     }
   }, [isAuthLoading, isHost, session?.user.id]);
-
-  const handleUseHomeAddress = () => {
-    setUsesHomeAddress((current) => {
-      const next = !current;
-
-      if (next) {
-        setSiteAddress(homeAddress);
-        setCity(homeCity);
-        setState(homeState);
-        setPostalCode(homePostalCode);
-        clearFieldError('siteAddress');
-        clearFieldError('city');
-        clearFieldError('state');
-        clearFieldError('postalCode');
-      }
-
-      return next;
-    });
-  };
-
-  const canUseHomeAddress = Boolean(homeAddress && homeCity && homeState && homePostalCode);
 
   const uploadProfilePhoto = async () => {
     if (!session?.user.id || isUploadingProfilePhoto) return;
@@ -245,10 +237,10 @@ export default function HostOnboardingScreen() {
     const normalizedLastName = lastName.trim();
     const normalizedName = `${normalizedFirstName} ${normalizedLastName}`.trim();
     const normalizedPhone = phone.trim();
-    const normalizedSiteAddress = siteAddress.trim();
-    const normalizedCity = city.trim();
-    const normalizedState = state.trim();
-    const normalizedPostalCode = postalCode.trim();
+    const normalizedHomeAddress = homeAddress.trim();
+    const normalizedHomeCity = homeCity.trim();
+    const normalizedHomeState = homeState.trim();
+    const normalizedHomePostalCode = homePostalCode.trim();
 
     if (!session?.user.id) {
       Alert.alert('Sign in required', 'Please sign in before becoming a host.');
@@ -260,10 +252,10 @@ export default function HostOnboardingScreen() {
     if (!normalizedLastName) validationErrors.lastName = 'Enter your last name.';
     if (!normalizedPhone) validationErrors.phone = 'Enter a phone number.';
     else if (!hasValidUsPhoneNumber(normalizedPhone)) validationErrors.phone = phoneNumberHelpText;
-    if (!normalizedSiteAddress) validationErrors.siteAddress = 'Enter the private space street address.';
-    if (!normalizedCity) validationErrors.city = 'Enter the private space city.';
-    if (!normalizedState) validationErrors.state = 'Enter the private space state.';
-    if (!normalizedPostalCode) validationErrors.postalCode = 'Enter the ZIP or postal code.';
+    if (!normalizedHomeAddress) validationErrors.homeAddress = 'Enter your home street address.';
+    if (!normalizedHomeCity) validationErrors.homeCity = 'Enter your home city.';
+    if (!normalizedHomeState) validationErrors.homeState = 'Enter your home state.';
+    if (!normalizedHomePostalCode) validationErrors.homePostalCode = 'Enter your home ZIP or postal code.';
     if (!profileImagePath) validationErrors.profilePhoto = 'Upload the host photo before continuing.';
     if (!controlsProperty || !acceptsHostTerms) {
       validationErrors.confirmations = 'Check both confirmations before continuing.';
@@ -287,11 +279,11 @@ export default function HostOnboardingScreen() {
           last_name: normalizedLastName,
           email: session.user.email?.trim().toLowerCase() ?? null,
           phone: normalizedPhone,
+          home_address: normalizedHomeAddress,
+          home_city: normalizedHomeCity,
+          home_state: normalizedHomeState.toUpperCase(),
+          home_postal_code: normalizedHomePostalCode,
           profile_image_path: profileImagePath,
-          primary_site_address: normalizedSiteAddress,
-          primary_site_city: normalizedCity,
-          primary_site_state: normalizedState.toUpperCase(),
-          primary_site_postal_code: normalizedPostalCode,
           controls_property: true,
           accepted_host_terms_at: completedAt,
           onboarding_completed_at: completedAt,
@@ -316,6 +308,19 @@ export default function HostOnboardingScreen() {
         Alert.alert('Unable to update account name', authUpdateError.message);
         return;
       }
+
+      void supabase.functions
+        .invoke('notify-app-email', {
+          body: { type: 'host_profile_created', resourceId: session.user.id },
+        })
+        .then(({ error: notificationError }) => {
+          if (notificationError) {
+            console.warn('Host profile notification email was not sent:', notificationError.message);
+          }
+        })
+        .catch((notificationError) => {
+          console.warn('Host profile notification email was not sent:', notificationError);
+        });
 
       router.replace('/host-dashboard');
     } catch {
@@ -350,11 +355,20 @@ export default function HostOnboardingScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
+          <View style={styles.hostHeroBleed}>
+            <Image
+              accessibilityLabel="ROVAH host profile artwork"
+              contentFit="cover"
+              contentPosition="top"
+              source={require('../../assets/images/rovah-host-profile-header.png')}
+              style={styles.hostHero}
+            />
+          </View>
           <View style={styles.headingArea}>
-            <Text style={styles.title}>Hosting Profile</Text>
+            <Text style={styles.title}>Start Your Host Profile</Text>
             <Text style={styles.description}>
-              Start with a few details about yourself. You’ll add property information,
-              photos, access instructions, and availability next.
+              Your personal details stay private to ROVAH for account, safety, and verification records.
+              You will add each private space separately from your Host Dashboard.
             </Text>
           </View>
 
@@ -418,6 +432,67 @@ export default function HostOnboardingScreen() {
               </Pressable>
               {fieldErrors.profilePhoto ? <Text style={styles.fieldErrorText}>{fieldErrors.profilePhoto}</Text> : null}
             </View>
+            <View style={styles.homeAddressSection}>
+              <Text style={styles.siteLocationTitle}>Personal Home Address</Text>
+              <Text style={styles.homeAddressRequired}>REQUIRED</Text>
+              <Text style={styles.homeAddressDescription}>
+                This address is private to ROVAH for host account, safety, and verification records. It is never shown on your public property listing.
+              </Text>
+            </View>
+            <FormField
+              label="Home Street Address"
+              value={homeAddress}
+              onChangeText={(value) => {
+                setHomeAddress(value);
+                clearFieldError('homeAddress');
+              }}
+              placeholder="123 Country Lane"
+              autoComplete="street-address"
+              autoCapitalize="words"
+              error={fieldErrors.homeAddress}
+            />
+            <View style={styles.locationRow}>
+              <View style={styles.cityField}>
+                <FormField
+                  label="Home City"
+                  value={homeCity}
+                  onChangeText={(value) => {
+                    setHomeCity(value);
+                    clearFieldError('homeCity');
+                  }}
+                  placeholder="Your city"
+                  autoCapitalize="words"
+                  error={fieldErrors.homeCity}
+                />
+              </View>
+              <View style={styles.stateField}>
+                <FormField
+                  label="Home State"
+                  value={homeState}
+                  onChangeText={(value) => {
+                    setHomeState(value);
+                    clearFieldError('homeState');
+                  }}
+                  placeholder="State"
+                  autoCapitalize="characters"
+                  maxLength={2}
+                  error={fieldErrors.homeState}
+                />
+              </View>
+            </View>
+            <FormField
+              label="Home ZIP or Postal Code"
+              value={homePostalCode}
+              onChangeText={(value) => {
+                setHomePostalCode(value);
+                clearFieldError('homePostalCode');
+              }}
+              placeholder="ZIP or postal code"
+              autoCapitalize="characters"
+              keyboardType="number-pad"
+              error={fieldErrors.homePostalCode}
+            />
+            {false ? <>
             <View style={styles.siteLocationSection}>
               <Text style={styles.siteLocationTitle}>First Private Space</Text>
             </View>
@@ -487,18 +562,15 @@ export default function HostOnboardingScreen() {
             />
             <View style={styles.identityCard}>
               <View style={styles.identityHeader}>
-                <Text style={styles.identityTitle}>Stripe Identity verification</Text>
-                <View style={styles.identityRequiredBadge}>
-                  <Text style={styles.identityRequiredText}>REQUIRED</Text>
-                </View>
+                <Text style={styles.identityTitle}>Payout verification</Text>
               </View>
               <Text style={styles.identityDescription}>
-                Before your first site can be approved and published, you will need to verify your identity through Stripe’s secure verification process.
+                When ROVAH payments are active, Stripe will securely collect the identity, tax, and bank details needed for your monthly host payouts.
               </Text>
               <Text style={styles.identityStatusText}>
                 {identityVerificationStatus === 'verified'
-                  ? 'Identity verified'
-                  : 'Verification will be available after Stripe Identity is connected.'}
+                  ? 'Payout verification complete'
+                  : 'Payout setup will be available here after Stripe is connected.'}
               </Text>
             </View>
             <Pressable
@@ -517,7 +589,7 @@ export default function HostOnboardingScreen() {
               <View style={styles.verificationWhyContent}>
                 <Text style={styles.verificationWhyTitle}>Why Identity Verification Matters</Text>
                 <Text style={styles.verificationWhyText}>
-                  At K9 Country, trust is the foundation of our community. Every host completes a secure identity verification before listing a property to help protect members, homeowners, and the integrity of our platform.
+                  At ROVAH, trust is the foundation of our community. When payouts are active, hosts complete Stripe’s secure payout onboarding before receiving a monthly payout.
                 </Text>
                 <Text style={styles.verificationWhyLead}>Identity verification helps us:</Text>
                 <View style={styles.verificationBenefits}>
@@ -527,7 +599,7 @@ export default function HostOnboardingScreen() {
                   <VerificationBenefit text="Create a safer, more trusted experience for everyone." />
                 </View>
                 <Text style={styles.verificationWhyText}>
-                  To keep this process fair, hosts pay the verification fee directly through our secure verification provider during registration. Once you successfully complete your first booking, K9 Country will reimburse your verification fee as a thank-you for becoming a verified, active host.
+                  Stripe collects the information required to verify the payout account. ROVAH does not store a host’s bank or tax information in the app.
                 </Text>
                 <Text style={styles.verificationWhyClosing}>
                   This is more than a verification process—it&apos;s a commitment to creating one of the safest and most trusted private dog communities anywhere.
@@ -535,6 +607,7 @@ export default function HostOnboardingScreen() {
               </View>
             ) : null}
 
+            </> : null}
             <View style={[styles.confirmationCard, fieldErrors.confirmations && styles.confirmationCardError]}>
               <ConfirmationRow
                 checked={controlsProperty}
@@ -544,7 +617,7 @@ export default function HostOnboardingScreen() {
               <View style={styles.confirmationDivider} />
               <ConfirmationRow
                 checked={acceptsHostTerms}
-                label="I agree to provide accurate listing details and follow K9 Country host requirements."
+                label="I agree to provide accurate listing details and follow ROVAH host requirements."
                 onPress={() => { setAcceptsHostTerms((current) => !current); clearFieldError('confirmations'); }}
               />
               {fieldErrors.confirmations ? <Text style={styles.fieldErrorText}>{fieldErrors.confirmations}</Text> : null}
@@ -563,13 +636,12 @@ export default function HostOnboardingScreen() {
               {isSubmitting ? (
                 <ActivityIndicator color="#FFFDF8" />
               ) : (
-                <Text style={styles.primaryButtonText}>Continue to Create Property</Text>
+                <Text style={styles.primaryButtonText}>Complete Host Profile</Text>
               )}
             </Pressable>
 
             <Text style={styles.footerText}>
-              Your host profile is submitted for review. You can create a
-              property draft next, but it cannot be published until approved.
+              Next, add a private space from your Host Dashboard. A site remains private until ROVAH approves it and secure Stripe payouts are complete.
             </Text>
           </View>
         </ScrollView>
@@ -650,11 +722,15 @@ function ConfirmationRow({
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: colors.cream },
-  keyboardView: { flex: 1 },
-  container: { paddingHorizontal: 24, paddingTop: 24, paddingBottom: 36 },
+  // Sampled from the lower fade of rovah-host-profile-header.png so the
+  // artwork blends directly into the profile form without a visible edge.
+  safeArea: { flex: 1, backgroundColor: '#F5EDE7' },
+  keyboardView: { flex: 1, backgroundColor: '#F5EDE7' },
+  container: { backgroundColor: '#F5EDE7', paddingHorizontal: 24, paddingTop: 0, paddingBottom: 36 },
   centeredState: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   stateText: { color: colors.muted, fontSize: 15, marginTop: 14 },
+  hostHeroBleed: { alignSelf: 'stretch', marginHorizontal: -24, marginBottom: 24 },
+  hostHero: { aspectRatio: 3 / 4, width: '100%' },
   headingArea: { alignItems: 'center', marginBottom: 26 },
   title: { color: colors.forest, fontFamily: typography.display, fontSize: 29, fontWeight: '900', textAlign: 'center', marginBottom: 10 },
   description: { color: colors.muted, fontSize: 16, lineHeight: 23, textAlign: 'center', maxWidth: 370 },
@@ -670,6 +746,9 @@ const styles = StyleSheet.create({
   hostPhotoButton: { alignItems: 'center', backgroundColor: colors.forest, borderRadius: 12, height: 86, justifyContent: 'center', overflow: 'hidden', width: 86 },
   hostPhotoPreview: { height: '100%', width: '100%' },
   hostPhotoButtonText: { color: colors.warmWhite, fontSize: 12, fontWeight: '900', textAlign: 'center' },
+  homeAddressSection: { backgroundColor: '#EEF3E7', borderColor: '#C7D4B8', borderRadius: 16, borderWidth: 1, gap: 4, padding: 16 },
+  homeAddressRequired: { color: colors.brown, fontSize: 10, fontWeight: '900', letterSpacing: 0.7 },
+  homeAddressDescription: { color: colors.muted, fontSize: 13, lineHeight: 19 },
   siteLocationSection: { marginTop: 2 },
   siteLocationTitle: { color: colors.forest, fontSize: 18, fontWeight: '900' },
   useHomeAddressCard: { alignItems: 'flex-start', backgroundColor: '#EEF3E7', borderColor: '#C7D4B8', borderRadius: 16, borderWidth: 1, flexDirection: 'row', padding: 14 },

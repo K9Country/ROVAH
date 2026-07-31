@@ -1,6 +1,6 @@
 import 'react-native-url-polyfill/auto';
  
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import { createClient } from '@supabase/supabase-js';
 import { Platform } from 'react-native';
  
@@ -18,11 +18,18 @@ if (!supabaseUrl || !supabasePublishableKey) {
 // Browser and native storage are unavailable there, so auth must use an
 // in-memory session until the app reaches a real device or browser.
 const isServer = typeof window === 'undefined';
+// Browsers retain sessions in their own storage. Native apps instead keep
+// Supabase session tokens in the operating system's encrypted credential
+// store (iOS Keychain / Android Keystore-backed storage).
 const authStorage = isServer
   ? undefined
   : Platform.OS === 'web'
     ? window.localStorage
-    : AsyncStorage;
+    : {
+        getItem: (key: string) => SecureStore.getItemAsync(key),
+        setItem: (key: string, value: string) => SecureStore.setItemAsync(key, value),
+        removeItem: (key: string) => SecureStore.deleteItemAsync(key),
+      };
 
 export const supabase = createClient(
   supabaseUrl,

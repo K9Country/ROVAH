@@ -14,7 +14,7 @@ export function ConversationAvatar({ hasUnread, imageUrl, name }: ConversationAv
     <View style={styles.wrapper}>
       <View style={styles.avatar}>
         <Image
-          accessibilityLabel={imageUrl ? `${name}'s profile photo` : 'Default K9 Country profile image'}
+          accessibilityLabel={imageUrl ? `${name}'s profile photo` : 'Default ROVAH profile image'}
           contentFit="cover"
           source={imageUrl ? { uri: imageUrl } : require('../assets/images/k9-11.png')}
           style={styles.image}

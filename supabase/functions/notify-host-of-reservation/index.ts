@@ -2,6 +2,7 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
@@ -42,34 +43,59 @@ Deno.serve(async (req) => {
     );
     const { data: booking, error: bookingError } = await adminClient
       .from('bookings')
-      .select('id, guest_id, property_id, start_at, end_at')
+      .select('id, guest_id, property_id, start_at, end_at, status, payment_status, host_sms_notified_at, host_sms_notification_claimed_at')
       .eq('id', bookingId)
       .maybeSingle();
     if (bookingError || !booking || booking.guest_id !== user.id) return json({ error: 'Reservation not found' }, 404);
+    if (booking.status !== 'confirmed' || booking.payment_status !== 'paid') {
+      return json({ error: 'The reservation must be confirmed and paid before the host is notified' }, 409);
+    }
+    if (booking.host_sms_notified_at) return json({ sent: false, reason: 'already_sent' });
+
+    const claimTime = new Date().toISOString();
+    const { data: claimedBooking, error: claimError } = await adminClient
+      .from('bookings')
+      .update({ host_sms_notification_claimed_at: claimTime })
+      .eq('id', booking.id)
+      .is('host_sms_notified_at', null)
+      .is('host_sms_notification_claimed_at', null)
+      .select('id')
+      .maybeSingle();
+    if (claimError) return json({ error: 'Unable to prepare the host notification' }, 500);
+    if (!claimedBooking) return json({ sent: false, reason: 'already_processing' });
 
     const { data: property, error: propertyError } = await adminClient
       .from('properties')
       .select('name, host_id')
       .eq('id', booking.property_id)
       .maybeSingle();
-    if (propertyError || !property) return json({ error: 'Property not found' }, 404);
+    if (propertyError || !property) {
+      await adminClient.from('bookings').update({ host_sms_notification_claimed_at: null }).eq('id', booking.id);
+      return json({ error: 'Property not found' }, 404);
+    }
 
     const [{ data: guest }, { data: host }] = await Promise.all([
       adminClient.from('guest_profiles').select('full_name').eq('user_id', booking.guest_id).maybeSingle(),
       adminClient.from('host_profiles').select('phone').eq('user_id', property.host_id).maybeSingle(),
     ]);
     const recipient = host?.phone ? toE164(host.phone) : null;
-    if (!recipient) return json({ error: 'The host has no valid mobile number configured' }, 422);
+    if (!recipient) {
+      await adminClient.from('bookings').update({ host_sms_notification_claimed_at: null }).eq('id', booking.id);
+      return json({ error: 'The host has no valid mobile number configured' }, 422);
+    }
 
     const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID');
     const authToken = Deno.env.get('TWILIO_AUTH_TOKEN');
     const from = Deno.env.get('TWILIO_FROM_NUMBER');
-    if (!accountSid || !authToken || !from) return json({ error: 'SMS service is not configured' }, 503);
+    if (!accountSid || !authToken || !from) {
+      await adminClient.from('bookings').update({ host_sms_notification_claimed_at: null }).eq('id', booking.id);
+      return json({ error: 'SMS service is not configured' }, 503);
+    }
 
     const date = new Intl.DateTimeFormat('en-US', { dateStyle: 'full', timeZone: 'America/New_York' }).format(new Date(booking.start_at));
     const time = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' });
-    const guestName = guest?.full_name?.trim() || 'A K9 Country member';
-    const message = `K9 Country: Upcoming reservation at ${property.name}. ${guestName} is booked for ${date}, ${time.format(new Date(booking.start_at))}–${time.format(new Date(booking.end_at))} ET.`;
+    const guestName = guest?.full_name?.trim() || 'A ROVAH member';
+    const message = `ROVAH: Upcoming reservation at ${property.name}. ${guestName} is booked for ${date}, ${time.format(new Date(booking.start_at))}–${time.format(new Date(booking.end_at))} ET.`;
     const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`, {
       method: 'POST',
       headers: {
@@ -78,7 +104,16 @@ Deno.serve(async (req) => {
       },
       body: new URLSearchParams({ To: recipient, From: from, Body: message }),
     });
-    if (!response.ok) return json({ error: 'SMS provider rejected the notification' }, 502);
+    if (!response.ok) {
+      await adminClient.from('bookings').update({ host_sms_notification_claimed_at: null }).eq('id', booking.id);
+      return json({ error: 'SMS provider rejected the notification' }, 502);
+    }
+
+    const { error: markSentError } = await adminClient
+      .from('bookings')
+      .update({ host_sms_notified_at: new Date().toISOString(), host_sms_notification_claimed_at: null })
+      .eq('id', booking.id);
+    if (markSentError) return json({ error: 'The reservation notification was sent but could not be recorded' }, 500);
 
     return json({ sent: true });
   } catch {

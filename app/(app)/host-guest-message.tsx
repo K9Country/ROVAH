@@ -4,6 +4,7 @@ import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, Text
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors } from '../../constants/theme';
+import { HostPageGuide } from '../../components/host-page-guide';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../services/auth-context';
 
@@ -118,6 +119,16 @@ export default function HostGuestMessageScreen() {
       <Text style={styles.characterCount}>{message.length}/2,000</Text>
       {statusMessage ? <View style={[styles.statusBanner, statusMessage.startsWith('Message sent') && styles.successBanner]}><Text style={[styles.statusText, statusMessage.startsWith('Message sent') && styles.successText]}>{statusMessage}</Text></View> : null}
       <Pressable accessibilityRole="button" disabled={isLoading || isSending} onPress={requestSend} style={[styles.sendButton, (isLoading || isSending) && styles.buttonDisabled]}>{isSending ? <ActivityIndicator color={colors.warmWhite} /> : <Text style={styles.sendButtonText}>Send to {recipientCount} {recipientCount === 1 ? 'visitor' : 'visitors'}</Text>}</Pressable>
+      <HostPageGuide
+        title="How to use Broadcast Message"
+        intro="Use this page to send one update to guests connected to this selected site."
+        steps={[
+          { title: 'Choose who receives it', text: 'Send to all visitors, upcoming visitors, or previous visitors of this site.' },
+          { title: 'Check the audience count', text: 'Review the number of unique guests before sending. Individual names are not shown here.' },
+          { title: 'Write the update', text: 'Keep it useful and specific, such as a seasonal schedule, parking reminder, or site improvement.' },
+          { title: 'Review, then send', text: 'Confirm the message when it is ready. Guests receive it in their ROVAH messages.' },
+        ]}
+      />
     </ScrollView>
     <Modal animationType="fade" onRequestClose={() => setIsConfirmOpen(false)} transparent visible={isConfirmOpen}>
       <View style={styles.modalBackdrop}><View accessibilityRole="alert" style={styles.modal}><Text style={styles.modalTitle}>Send this message?</Text><Text style={styles.modalText}>This will send your message to {recipientCount} {recipientCount === 1 ? 'visitor' : 'visitors'} from {propertyName ?? 'this site'}.</Text><Pressable accessibilityRole="button" disabled={isSending} onPress={() => void sendMessage()} style={[styles.confirmButton, isSending && styles.buttonDisabled]}>{isSending ? <ActivityIndicator color={colors.warmWhite} /> : <Text style={styles.confirmButtonText}>Send Message</Text>}</Pressable><Pressable accessibilityRole="button" disabled={isSending} onPress={() => setIsConfirmOpen(false)} style={styles.cancelButton}><Text style={styles.cancelButtonText}>Cancel</Text></Pressable></View></View>

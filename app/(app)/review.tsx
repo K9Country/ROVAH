@@ -215,7 +215,7 @@ const styles = StyleSheet.create({
   eyebrow: { color: colors.brown, fontSize: 12, fontWeight: '900', letterSpacing: 1.3, marginTop: 8 },
   title: { color: colors.forest, fontSize: 29, fontWeight: '900', marginTop: 7 },
   siteLocation: { color: colors.muted, fontSize: 13, fontWeight: '800', marginTop: 6 },
-  description: { color: colors.muted, fontSize: 16, lineHeight: 23, marginTop: 10 },
+  description: { color: colors.muted, fontSize: 16, lineHeight: 23, marginTop: 8 },
   card: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 20, borderWidth: 1, marginTop: 18, padding: 18 },
   label: { color: colors.forest, fontSize: 15, fontWeight: '800', marginBottom: 9, marginTop: 18 },
   stars: { flexDirection: 'row', gap: 8 },

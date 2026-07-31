@@ -49,6 +49,8 @@ export type PropertyAvailability = {
   day_of_week: number;
   start_time: string;
   end_time: string;
+  starts_on?: string | null;
+  ends_on?: string | null;
 };
 
 export type PropertyDateAvailability = {

@@ -4,6 +4,7 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors } from '../../constants/theme';
+import { memberUi } from '../../constants/member-ui';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../services/auth-context';
 
@@ -12,9 +13,10 @@ type Preferences = {
   message_updates: boolean;
   review_reminders: boolean;
   product_updates: boolean;
+  local_promotions: boolean;
 };
 
-const defaults: Preferences = { booking_updates: true, message_updates: true, review_reminders: true, product_updates: false };
+const defaults: Preferences = { booking_updates: true, message_updates: true, review_reminders: true, product_updates: false, local_promotions: false };
 
 export default function SettingsScreen() {
   const { session } = useAuth();
@@ -25,7 +27,7 @@ export default function SettingsScreen() {
   useEffect(() => {
     const load = async () => {
       if (!session?.user.id) return;
-      const { data } = await supabase.from('member_notification_preferences').select('booking_updates, message_updates, review_reminders, product_updates').eq('user_id', session.user.id).maybeSingle();
+      const { data } = await supabase.from('member_notification_preferences').select('booking_updates, message_updates, review_reminders, product_updates, local_promotions').eq('user_id', session.user.id).maybeSingle();
       if (data) setPreferences(data as Preferences);
       setIsLoading(false);
     };
@@ -49,19 +51,19 @@ export default function SettingsScreen() {
   };
 
   return <SafeAreaView style={styles.safeArea}><ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-    <Text style={styles.title}>Settings & Privacy</Text>
-    <Text style={styles.description}>Choose the updates you want from K9 Country. Delivery channels are enabled as the service is configured.</Text>
+    <Text style={[styles.title, memberUi.pageTitle]}>Settings & Privacy</Text>
+    <Text style={[styles.description, memberUi.pageDescription]}>Choose the updates you want from ROVAH. Delivery channels are enabled as the service is configured.</Text>
     {isLoading ? <View style={styles.loading}><ActivityIndicator color={colors.forest} /></View> : <View style={styles.section}>
       <Text style={styles.sectionTitle}>Notifications</Text>
       <SettingRow label="Reservation updates" detail="Confirmations, changes, and cancellations" value={preferences.booking_updates} onPress={() => void update('booking_updates')} />
       <SettingRow label="Message updates" detail="New messages from hosts or guests" value={preferences.message_updates} onPress={() => void update('message_updates')} />
       <SettingRow label="Review reminders" detail="A reminder after a completed visit" value={preferences.review_reminders} onPress={() => void update('review_reminders')} />
-      <SettingRow label="K9 Country updates" detail="Optional product and community updates" value={preferences.product_updates} onPress={() => void update('product_updates')} last />
+      <SettingRow label="ROVAH updates" detail="Optional product and community updates" value={preferences.product_updates} onPress={() => void update('product_updates')} />
+      <SettingRow label="Local promotions" detail="Optional nearby private-space offers from ROVAH hosts" value={preferences.local_promotions} onPress={() => void update('local_promotions')} last />
     </View>}
-    <View style={styles.section}><Text style={styles.sectionTitle}>Privacy & support</Text>
-      <Pressable onPress={() => router.push('/support' as never)} style={styles.linkRow}><Text style={styles.linkText}>Safety, support, and report an issue</Text><Text style={styles.chevron}>›</Text></Pressable>
-      <Pressable onPress={() => router.push('/privacy' as never)} style={styles.linkRow}><Text style={styles.linkText}>Privacy Policy</Text><Text style={styles.chevron}>›</Text></Pressable>
-      <Pressable onPress={() => router.push('/legal' as never)} style={styles.linkRow}><Text style={styles.linkText}>Terms and community rules</Text><Text style={styles.chevron}>›</Text></Pressable>
+    <View style={styles.section}><Text style={styles.sectionTitle}>Privacy & help</Text>
+      <Pressable onPress={() => router.push('/support' as never)} style={styles.linkRow}><Text style={styles.linkText}>Help, support, and report an issue</Text><Text style={styles.chevron}>›</Text></Pressable>
+      <Pressable onPress={() => router.push('/legal' as never)} style={styles.linkRow}><Text style={styles.linkText}>Legal Library</Text><Text style={styles.chevron}>›</Text></Pressable>
     </View>
   </ScrollView></SafeAreaView>;
 }

@@ -32,6 +32,7 @@ export type HostProfile = {
   is_active: boolean;
   identity_verification_status: IdentityVerificationStatus;
   identity_verified_at: string | null;
+  payout_status?: 'not_connected' | 'pending' | 'active' | 'restricted';
   profile_image_path: string | null;
   created_at: string;
   updated_at: string;

@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { Redirect, router } from 'expo-router';
 import { useEffect } from 'react';
 import {
     Alert,
@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors } from '../constants/theme';
+import { clearExplicitMemberSignOut, markExplicitMemberSignOut } from '../lib/member-entry';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../services/auth-context';
 
@@ -19,9 +20,12 @@ export default function WelcomeScreen() {
   const { isHost, isLoading, isMember, session } = useAuth();
 
   useEffect(() => {
-    if (isLoading || !session) return;
+    // A fresh OAuth session can exist briefly before the callback has created
+    // and loaded its member/host role. Do not route that incomplete account
+    // into the protected area, which would redirect it back to Choose Path.
+    if (isLoading || !session || (!isMember && !isHost)) return;
     router.replace((isHost ? '/host-dashboard' : '/dashboard') as never);
-  }, [isHost, isLoading, session]);
+  }, [isHost, isLoading, isMember, session]);
 
   const continueAsMember = async () => {
     router.push('/sign-up?intent=guest' as never);
@@ -32,9 +36,11 @@ export default function WelcomeScreen() {
   };
 
   const signOutToSwitchProfile = async () => {
+    await markExplicitMemberSignOut();
     const { error } = await supabase.auth.signOut({ scope: 'local' });
 
     if (error) {
+      await clearExplicitMemberSignOut();
       Alert.alert('Unable to sign out', error.message);
       return;
     }
@@ -42,6 +48,16 @@ export default function WelcomeScreen() {
     router.dismissAll();
     router.replace('/');
   };
+
+  // The historic welcome screen stays in this file for reference, but all
+  // unauthenticated visitors now begin at the dedicated choice page.
+  if (!isLoading && !session) {
+    return <Redirect href="/choose-path" />;
+  }
+
+  if (isLoading || session) {
+    return null;
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -51,9 +67,9 @@ export default function WelcomeScreen() {
       >
         <View style={styles.welcomeArtwork}>
           <Image
-            accessibilityLabel="K9 Country dog running in a private outdoor space"
+            accessibilityLabel="ROVAH host invitation artwork"
             contentFit="contain"
-            source={require('../assets/images/welcome-hero.png')}
+            source={require('../assets/images/rovah-welcome-host-hero.png')}
             style={styles.welcomeArtworkImage}
           />
         </View>
@@ -181,10 +197,10 @@ export default function WelcomeScreen() {
 
         {!isMember ? <View style={styles.dogNeedsSection}>
           <Text style={styles.dogNeedsTitle}>
-            New to K9 Country?
+            New to ROVAH?
           </Text>
           <Text style={styles.dogNeedsIntro}>
-            Whether your dog is energetic, reactive, anxious, in training, or simply enjoys having space to roam, K9 Country helps you find the perfect private destination.
+            Whether your dog is energetic, reactive, anxious, in training, or simply enjoys having space to roam, ROVAH helps you find the perfect private destination.
           </Text>
 
           <View style={styles.dogNeedsList}>
@@ -214,44 +230,11 @@ export default function WelcomeScreen() {
             We’re working to build the largest network of private dog recreation spaces in North America.
           </Text>
           <UpdateItem title="New properties" description="Private spaces are being added regularly." />
-          <UpdateItem title="New communities" description="More local hosts and dog families are joining K9 Country." />
+          <UpdateItem title="New communities" description="More local hosts and dog families are joining ROVAH." />
           <UpdateItem title="New adventures" description="Check back often to see what’s new in your area." />
         </View> : null}
  
-        <Pressable
-          accessibilityRole="link"
-          onPress={() => router.push('/trust-safety' as never)}
-          style={styles.trustSafetyLink}
-        >
-          <Text style={styles.trustSafetyLinkTitle}>Trust &amp; Safety</Text>
-          <Text style={styles.trustSafetyLinkText}>
-            How K9 Country helps keep every visit safe
-          </Text>
-        </Pressable>
-
-        <Pressable
-          accessibilityRole="link"
-          onPress={() => router.push('/pricing' as never)}
-          style={[styles.trustSafetyLink, styles.pricingLink]}
-        >
-          <Text style={styles.trustSafetyLinkTitle}>Pricing</Text>
-          <Text style={styles.trustSafetyLinkText}>
-            Simple, fair, transparent pricing for members and hosts
-          </Text>
-        </Pressable>
-
-        <Pressable
-          accessibilityRole="link"
-          onPress={() => router.push('/privacy' as never)}
-          style={[styles.trustSafetyLink, styles.privacyLink]}
-        >
-          <Text style={styles.trustSafetyLinkTitle}>Privacy Policy</Text>
-          <Text style={styles.trustSafetyLinkText}>
-            How K9 Country collects, uses, and protects your information
-          </Text>
-        </Pressable>
       </ScrollView>
-
     </SafeAreaView>
   );
 }
@@ -295,7 +278,7 @@ const styles = StyleSheet.create({
  
   welcomeArtwork: {
     marginHorizontal: -24,
-    marginTop: 0,
+    marginTop: -22,
   },
  
   welcomeArtworkImage: {
@@ -308,7 +291,7 @@ const styles = StyleSheet.create({
     aspectRatio: 1.5,
     marginBottom: 2,
     marginHorizontal: -24,
-    marginTop: -245,
+    marginTop: -169,
     position: 'relative',
     zIndex: 1,
   },
@@ -662,6 +645,106 @@ const styles = StyleSheet.create({
 
   privacyLink: {
     marginTop: 6,
+  },
+
+  administratorLink: {
+    alignSelf: 'center',
+    marginTop: 22,
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+    marginBottom: 14,
+  },
+
+  administratorLinkText: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: '800',
+    textDecorationLine: 'underline',
+  },
+
+  adminModalBackdrop: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(25, 36, 25, 0.58)',
+    flex: 1,
+    justifyContent: 'center',
+    padding: 24,
+  },
+
+  adminModalCard: {
+    backgroundColor: colors.cream,
+    borderColor: colors.border,
+    borderRadius: 22,
+    borderWidth: 1,
+    maxWidth: 420,
+    padding: 24,
+    width: '100%',
+  },
+
+  adminModalTitle: {
+    color: colors.forest,
+    fontSize: 25,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+
+  adminModalDescription: {
+    color: colors.muted,
+    fontSize: 14,
+    lineHeight: 21,
+    marginTop: 9,
+    textAlign: 'center',
+  },
+
+  adminModalError: {
+    color: '#A44E3E',
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 19,
+    marginTop: 16,
+    textAlign: 'center',
+  },
+
+  adminModalInput: {
+    backgroundColor: colors.warmWhite,
+    borderColor: colors.border,
+    borderRadius: 12,
+    borderWidth: 1,
+    color: colors.forest,
+    fontSize: 16,
+    marginTop: 14,
+    minHeight: 52,
+    paddingHorizontal: 15,
+  },
+
+  adminModalSubmit: {
+    alignItems: 'center',
+    backgroundColor: colors.forest,
+    borderRadius: 12,
+    justifyContent: 'center',
+    marginTop: 20,
+    minHeight: 52,
+  },
+
+  adminModalSubmitText: {
+    color: colors.warmWhite,
+    fontSize: 16,
+    fontWeight: '900',
+  },
+
+  adminModalCancel: {
+    alignSelf: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+    minHeight: 44,
+    paddingHorizontal: 16,
+  },
+
+  adminModalCancelText: {
+    color: colors.brown,
+    fontSize: 14,
+    fontWeight: '800',
+    textDecorationLine: 'underline',
   },
 
   trustSafetyLinkTitle: {

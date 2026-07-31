@@ -34,9 +34,9 @@ export default function HostInfoScreen() {
 
         <View style={styles.incomeCard}>
           <Text style={styles.incomeLabel}>HOW YOU EARN</Text>
-          <Text style={styles.incomeTitle}>You keep 85% of every completed booking.</Text>
+          <Text style={styles.incomeTitle}>You keep 82% of every completed booking.</Text>
           <Text style={styles.incomeText}>
-            Set your own hourly price and availability. K9 Country earns a 15% platform fee only when a guest books your site.
+            Set your own hourly price and availability. ROVAH earns an 18% platform fee only when a guest books your site.
           </Text>
         </View>
 

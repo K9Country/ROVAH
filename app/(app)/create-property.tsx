@@ -40,7 +40,6 @@ type PreviousSite = {
   acreage: number | null;
   is_fully_fenced: boolean;
   fence_height_feet: number | null;
-  instant_book: boolean;
 };
 
 type PreviousSiteDetails = {
@@ -82,8 +81,6 @@ export default function CreatePropertyScreen() {
   const [acreage, setAcreage] = useState('');
   const [isFullyFenced, setIsFullyFenced] = useState(false);
   const [fenceHeightFeet, setFenceHeightFeet] = useState('');
-  const [instantBook, setInstantBook] = useState(false);
-
   const clearFieldError = (field: PropertyFieldName) => {
     setFieldErrors((current) => {
       if (!current[field]) return current;
@@ -108,7 +105,7 @@ export default function CreatePropertyScreen() {
           .maybeSingle(),
         supabase
           .from('properties')
-          .select('id, name, short_description, site_address, city, state, postal_code, price_per_hour, acreage, is_fully_fenced, fence_height_feet, instant_book')
+          .select('id, name, short_description, site_address, city, state, postal_code, price_per_hour, acreage, is_fully_fenced, fence_height_feet')
           .eq('host_id', session.user.id)
           .order('created_at', { ascending: false }),
       ]);
@@ -146,7 +143,6 @@ export default function CreatePropertyScreen() {
     setAcreage(site.acreage === null ? '' : String(site.acreage));
     setIsFullyFenced(site.is_fully_fenced);
     setFenceHeightFeet(site.fence_height_feet === null ? '' : String(site.fence_height_feet));
-    setInstantBook(site.instant_book);
     setFieldErrors({});
   };
 
@@ -163,7 +159,7 @@ export default function CreatePropertyScreen() {
         .eq('property_id', sourcePropertyId),
       supabase
         .from('property_availability')
-        .select('day_of_week, start_time, end_time')
+        .select('day_of_week, start_time, end_time, starts_on, ends_on')
         .eq('property_id', sourcePropertyId),
     ]);
 
@@ -181,7 +177,13 @@ export default function CreatePropertyScreen() {
       writes.push(supabase.from('property_amenities').insert(amenities.map((amenity) => ({ property_id: newPropertyId, amenity_code: amenity.amenity_code }))));
     }
 
-    const availability = (availabilityResult.data ?? []) as { day_of_week: number; start_time: string; end_time: string }[];
+    const availability = (availabilityResult.data ?? []) as {
+      day_of_week: number;
+      start_time: string;
+      end_time: string;
+      starts_on: string | null;
+      ends_on: string | null;
+    }[];
     if (availability.length) {
       writes.push(supabase.from('property_availability').insert(availability.map((slot) => ({ property_id: newPropertyId, ...slot }))));
     }
@@ -271,7 +273,6 @@ export default function CreatePropertyScreen() {
           acreage: parsedAcreage,
           is_fully_fenced: isFullyFenced,
           fence_height_feet: parsedFenceHeight,
-          instant_book: instantBook,
           is_published: false,
           approval_status: 'draft',
         })
@@ -281,6 +282,13 @@ export default function CreatePropertyScreen() {
       if (error) {
         Alert.alert('Unable to save property', error.message);
         return;
+      }
+
+      const { data: locationData, error: locationError } = await supabase.functions.invoke('sync-site-promotion-location', {
+        body: { propertyId: data.id },
+      });
+      if (locationError || locationData?.error) {
+        console.warn('Saved property address could not yet be prepared for promotions', locationError?.message ?? locationData?.error);
       }
 
       if (selectedPreviousSiteId) {
@@ -482,13 +490,6 @@ export default function CreatePropertyScreen() {
                 />
               </View>
             ) : null}
-            <View style={styles.divider} />
-            <ToggleRow
-              title="Instant Book"
-              description="Leave this off until you finish availability and booking settings."
-              value={instantBook}
-              onValueChange={setInstantBook}
-            />
           </View>
 
           <Pressable

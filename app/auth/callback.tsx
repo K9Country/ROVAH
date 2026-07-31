@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors, typography } from '../../constants/theme';
 import { ensureAccountType } from '../../lib/account-role';
+import { legalDocumentVersions } from '../../lib/legal-content';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../services/auth-context';
 
@@ -15,6 +16,7 @@ export default function EmailConfirmationCallbackScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isExchanging, setIsExchanging] = useState(true);
   const isCompleting = useRef(false);
+  const isAdministratorInvite = intent === 'admin';
   const isHostConfirmation = intent === 'host' || session?.user.user_metadata?.account_intent === 'host';
 
   useEffect(() => {
@@ -75,6 +77,17 @@ export default function EmailConfirmationCallbackScreen() {
     if (session?.user.id && !isCompleting.current) {
       const finishSignIn = async () => {
         isCompleting.current = true;
+
+        // Administrator invitations are intentionally separate from the
+        // member/host onboarding flow. They establish a temporary session so
+        // the recipient can choose their own password, then return them to
+        // sign in before entering the protected administrator area.
+        if (isAdministratorInvite) {
+          router.dismissAll();
+            router.replace('/reset-password?intent=admin' as never);
+          return;
+        }
+
         // Email providers and browser handoffs can drop the redirect query
         // string. The signup metadata restores the original requested flow;
         // ensureAccountType remains the authoritative role check.
@@ -88,6 +101,31 @@ export default function EmailConfirmationCallbackScreen() {
             requestedAccountType
           );
           setAccountTypeAfterSetup(accountType);
+
+          // Password sign-up records these acceptances in the signup trigger.
+          // OAuth users instead reach the same in-app acceptance screen before
+          // they can access a profile or make a reservation.
+          const { data: acceptances, error: acceptanceError } = await supabase
+            .from('user_legal_acceptances')
+            .select('document_key, document_version')
+            .eq('user_id', session.user.id);
+          if (acceptanceError) throw acceptanceError;
+
+          const hasCurrentTerms = acceptances?.some(
+            (acceptance) => acceptance.document_key === 'terms_of_service'
+              && acceptance.document_version === legalDocumentVersions.termsOfService
+          );
+          const hasCurrentWaiver = acceptances?.some(
+            (acceptance) => acceptance.document_key === 'liability_waiver_release'
+              && acceptance.document_version === legalDocumentVersions.liabilityWaiver
+          );
+          const returnTo = accountType === 'host' ? '/host' : '/profile?onboarding=true';
+
+          if (!hasCurrentTerms || !hasCurrentWaiver) {
+            router.dismissAll();
+            router.replace(`/legal-acceptance?returnTo=${encodeURIComponent(returnTo)}` as never);
+            return;
+          }
 
           if (accountType === 'host') {
             router.dismissAll();
@@ -109,23 +147,25 @@ export default function EmailConfirmationCallbackScreen() {
 
       void finishSignIn();
     }
-  }, [intent, session?.user.id, session?.user.user_metadata?.account_intent, setAccountTypeAfterSetup]);
+  }, [intent, isAdministratorInvite, session?.user.id, session?.user.user_metadata?.account_intent, setAccountTypeAfterSetup]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         {isExchanging || (session && !errorMessage) ? <ActivityIndicator size="large" color={colors.forest} /> : null}
-        <Text style={styles.title}>{errorMessage ? `We could not open your ${isHostConfirmation ? 'Hosting Profile' : 'Parent Profile'}` : `Opening ${isHostConfirmation ? 'Hosting Profile' : 'Parent Profile'}`}</Text>
+        <Text style={styles.title}>{errorMessage ? `We could not open your ${isAdministratorInvite ? 'Administrator Account' : isHostConfirmation ? 'Hosting Profile' : 'Parent Profile'}` : isAdministratorInvite ? 'Create your administrator password' : `Opening ${isHostConfirmation ? 'Hosting Profile' : 'Parent Profile'}`}</Text>
         <Text style={styles.description}>
           {errorMessage
             ? 'Please request a fresh confirmation email or return to sign in.'
-            : `Your email is confirmed. K9 Country is opening your ${isHostConfirmation ? 'Hosting Profile' : 'Parent Profile'}.`}
+            : isAdministratorInvite
+              ? 'Your email is confirmed. You can now create a secure password for administrator sign-in.'
+              : `Your email is confirmed. ROVAH is opening your ${isHostConfirmation ? 'Hosting Profile' : 'Parent Profile'}.`}
         </Text>
         {errorMessage ? (
           <>
             <Text style={styles.errorText}>{errorMessage}</Text>
-            <Pressable onPress={() => router.replace('/')} style={styles.button}>
-              <Text style={styles.buttonText}>Return to Welcome Page</Text>
+            <Pressable onPress={() => router.replace('/choose-path')} style={styles.button}>
+              <Text style={styles.buttonText}>Return to Start Page</Text>
             </Pressable>
           </>
         ) : !isExchanging && !isLoading && !session ? (

@@ -178,12 +178,21 @@ export default function AdministratorScreen() {
           ? { ...item, approval_status: decision, is_published: decision === 'approved', review_notes: notesByProperty[property.id]?.trim() || null }
           : item
       )));
-      Alert.alert('Site updated', `${property.name} was ${action}d.`);
+      Alert.alert('Site updated', `${property.name} was ${action}.`);
     } catch (error) {
       Alert.alert('Unable to update site', error instanceof Error ? error.message : 'Please try again.');
     } finally {
       setSavingPropertyId(null);
     }
+  };
+
+  const openAdministratorSignIn = async () => {
+    // A signed-in member or host must sign out before choosing the authorized
+    // administrator account. This keeps the administrator area protected.
+    if (session) {
+      await supabase.auth.signOut();
+    }
+    router.replace('/admin-sign-in' as never);
   };
 
   if (isLoading) {
@@ -195,8 +204,18 @@ export default function AdministratorScreen() {
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.centered}>
           <Text style={styles.title}>Administrator access only</Text>
-          <Text style={styles.description}>This area is available only to authorized K9 Country administrators.</Text>
-          <Pressable onPress={() => router.replace('/host-dashboard')} style={styles.primaryButton}><Text style={styles.primaryButtonText}>Return to host area</Text></Pressable>
+          <Text style={styles.description}>
+            Sign in with the ROVAH account that has been assigned administrator access.
+          </Text>
+          <Pressable onPress={() => void openAdministratorSignIn()} style={styles.primaryButton}>
+            <Text style={styles.primaryButtonText}>Sign in as administrator</Text>
+          </Pressable>
+          <Pressable onPress={() => router.push('/forgot-password?intent=admin' as never)} style={styles.secondaryButton}>
+            <Text style={styles.secondaryButtonText}>First time here? Set or reset password</Text>
+          </Pressable>
+          <Pressable onPress={() => router.replace('/host-dashboard')} style={styles.returnButton}>
+            <Text style={styles.returnButtonText}>Return to host area</Text>
+          </Pressable>
         </View>
       </SafeAreaView>
     );
@@ -206,7 +225,7 @@ export default function AdministratorScreen() {
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.container}>
         <Pressable onPress={() => router.replace('/host-dashboard')} style={styles.backButton}><Text style={styles.backText}>‹ Host area</Text></Pressable>
-        <Text style={styles.eyebrow}>K9 COUNTRY ADMINISTRATOR</Text>
+        <Text style={styles.eyebrow}>ROVAH ADMINISTRATOR</Text>
         <Text style={styles.title}>Site review queue</Text>
         <Text style={styles.description}>Review each site before it becomes visible to guests. Approval publishes it; declining hides it.</Text>
 
@@ -259,12 +278,12 @@ export default function AdministratorScreen() {
                 <ReviewLongText label="Availability notes" value={reviewDetails?.details?.availability_notes} />
               </ReviewSection>
               <ReviewSection title="Amenities"><Text style={styles.amenityReviewText}>{reviewDetails?.amenities.length ? reviewDetails.amenities.map((amenity) => amenityLabels[amenity] ?? amenity).join(' · ') : 'No amenities selected.'}</Text></ReviewSection>
-              <Text style={styles.noteLabel}>Administrator notes for the host</Text>
-              <TextInput editable={property.approval_status === 'pending'} multiline onChangeText={(value) => setNotesByProperty((current) => ({ ...current, [property.id]: value }))} placeholder="Optional notes or requested changes" placeholderTextColor="#8A877D" style={[styles.notesInput, property.approval_status !== 'pending' && styles.readOnlyInput]} value={notesByProperty[property.id] ?? ''} />
+              <Text style={styles.noteLabel}>Required changes for the host</Text>
+              <TextInput editable={property.approval_status === 'pending'} multiline onChangeText={(value) => setNotesByProperty((current) => ({ ...current, [property.id]: value }))} placeholder="Describe any changes required before the host resubmits this site" placeholderTextColor="#8A877D" style={[styles.notesInput, property.approval_status !== 'pending' && styles.readOnlyInput]} value={notesByProperty[property.id] ?? ''} />
               {property.approval_status === 'pending' ? (
                 <View style={styles.actionRow}>
-                  <Pressable disabled={saving} onPress={() => void saveDecision(property, 'declined', 'decline')} style={[styles.declineButton, saving && styles.disabled]}>{saving ? <ActivityIndicator color="#A7463B" /> : <Text style={styles.declineText}>Decline</Text>}</Pressable>
-                  <Pressable disabled={saving} onPress={() => void saveDecision(property, 'approved', 'approve')} style={[styles.approveButton, saving && styles.disabled]}>{saving ? <ActivityIndicator color={colors.warmWhite} /> : <Text style={styles.approveText}>Approve & publish</Text>}</Pressable>
+                  <Pressable disabled={saving} onPress={() => void saveDecision(property, 'declined', 'returned for required changes')} style={[styles.declineButton, saving && styles.disabled]}>{saving ? <ActivityIndicator color="#A7463B" /> : <Text style={styles.declineText}>Request changes</Text>}</Pressable>
+                  <Pressable disabled={saving} onPress={() => void saveDecision(property, 'approved', 'approved and published')} style={[styles.approveButton, saving && styles.disabled]}>{saving ? <ActivityIndicator color={colors.warmWhite} /> : <Text style={styles.approveText}>Approve & publish</Text>}</Pressable>
                 </View>
               ) : <Text style={styles.finalDecisionText}>This site has already received its final review decision.</Text>}
             </View>
@@ -357,5 +376,9 @@ const styles = StyleSheet.create({
   finalDecisionText: { color: colors.muted, fontSize: 13, fontWeight: '700', marginTop: 14 },
   primaryButton: { backgroundColor: colors.forest, borderRadius: 13, marginTop: 20, minHeight: 50, paddingHorizontal: 18, justifyContent: 'center' },
   primaryButtonText: { color: colors.warmWhite, fontSize: 16, fontWeight: '900' },
+  secondaryButton: { alignItems: 'center', borderColor: colors.forest, borderRadius: 13, borderWidth: 1, justifyContent: 'center', marginTop: 10, minHeight: 50, paddingHorizontal: 18 },
+  secondaryButtonText: { color: colors.forest, fontSize: 15, fontWeight: '800', textAlign: 'center' },
+  returnButton: { alignItems: 'center', justifyContent: 'center', marginTop: 12, minHeight: 44, paddingHorizontal: 18 },
+  returnButtonText: { color: colors.brown, fontSize: 15, fontWeight: '800', textDecorationLine: 'underline' },
   disabled: { opacity: 0.6 },
 });

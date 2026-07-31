@@ -9,7 +9,7 @@ const memberBenefits = [
   'Secure online booking.',
   'Reservation confirmation and reminders.',
   'Private in-app messaging with your host.',
-  'Verified reviews from real K9 Country members.',
+  'Verified reviews from real ROVAH members.',
 ];
 
 const hostControls = [
@@ -17,7 +17,6 @@ const hostControls = [
   'Your available booking schedule.',
   'Your property rules.',
   'The amenities you provide.',
-  'Whether reservations are accepted instantly or by approval.',
 ];
 
 const hostFeeBenefits = [
@@ -43,21 +42,21 @@ export default function PricingScreen() {
     <SafeAreaView style={styles.safeArea}>
       <Stack.Screen options={{ title: 'Pricing' }} />
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        <Pressable accessibilityRole="button" onPress={() => router.replace('/')} style={styles.backButton}>
-          <Text style={styles.backButtonText}>Return to Welcome Page</Text>
+        <Pressable accessibilityRole="button" onPress={() => router.replace('/choose-path')} style={styles.backButton}>
+          <Text style={styles.backButtonText}>Return to Start Page</Text>
         </Pressable>
 
         <View style={styles.hero}>
           <Text style={styles.eyebrow}>PRICING</Text>
           <Text style={styles.title}>Simple. Fair.{`\n`}Transparent.</Text>
-          <Text style={styles.heroText}>At K9 Country, we believe pricing should be easy to understand. There are no membership fees, no hidden charges, and no surprise costs.</Text>
-          <Text style={styles.heroText}>Whether you’re looking for a private place for your dog to play or opening your property to fellow dog lovers, joining K9 Country is completely free.</Text>
+          <Text style={styles.heroText}>At ROVAH, we believe pricing should be easy to understand. There are no membership fees, no hidden charges, and no surprise costs.</Text>
+          <Text style={styles.heroText}>Whether you’re looking for a private place for your dog to play or opening your property to fellow dog lovers, joining ROVAH is completely free.</Text>
         </View>
 
         <Text style={styles.sectionHeading}>For Members</Text>
         <View style={styles.card}>
           <Text style={styles.cardTitle}>It’s Free to Join</Text>
-          <Text style={styles.bodyText}>Creating a K9 Country member account is completely free.</Text>
+          <Text style={styles.bodyText}>Creating a ROVAH member account is completely free.</Text>
           <BulletList items={['No membership fees.', 'No monthly subscriptions.', 'No hidden charges.']} />
           <Text style={styles.bodyText}>You only pay when you reserve a private dog park.</Text>
           <View style={styles.cardDivider} />
@@ -77,7 +76,7 @@ export default function PricingScreen() {
           <Text style={styles.cardTitle}>It’s Free to Join</Text>
           <Text style={styles.bodyText}>Creating a host account and listing your property is completely free.</Text>
           <BulletList items={['No membership fees.', 'No monthly subscriptions.', 'No listing fees.', 'No setup fees.', 'No contracts.']} />
-          <Text style={styles.bodyText}>You only pay K9 Country after a completed reservation.</Text>
+          <Text style={styles.bodyText}>You only pay ROVAH after a completed reservation.</Text>
         </View>
 
         <View style={styles.hostCard}>
@@ -89,9 +88,9 @@ export default function PricingScreen() {
 
         <View style={styles.feeCard}>
           <Text style={styles.feeLabel}>HOST SERVICE FEE</Text>
-          <Text style={styles.feeValue}>15%</Text>
-          <Text style={styles.feeText}>After each completed reservation, K9 Country deducts a 15% Host Service Fee before sending your payout.</Text>
-          <Text style={styles.feeText}>This helps us operate, maintain, and continually improve the K9 Country marketplace while making it easy for members and hosts to connect.</Text>
+          <Text style={styles.feeValue}>18%</Text>
+          <Text style={styles.feeText}>After each successful paid reservation, ROVAH deducts its 18% Host Service Fee and Stripe deducts its actual processing fee before your payout is calculated.</Text>
+          <Text style={styles.feeText}>This helps us operate, maintain, and continually improve the ROVAH marketplace while making it easy for members and hosts to connect.</Text>
         </View>
 
         <View style={styles.exampleCard}>
@@ -100,8 +99,10 @@ export default function PricingScreen() {
           <PriceRow label="A member books" value="2-hour visit" />
           <View style={styles.cardDivider} />
           <PriceRow label="Reservation total" value="$40.00" emphasis />
-          <PriceRow label="K9 Country Host Service Fee (15%)" value="$6.00" />
-          <PriceRow label="Your payout" value="$34.00" emphasis />
+          <PriceRow label="ROVAH Host Service Fee (18%)" value="$7.20" />
+          <PriceRow label="Estimated Stripe processing fee" value="Varies by payment method" />
+          <PriceRow label="Your payout" value="$32.80 less Stripe’s actual fee" emphasis />
+          <Text style={styles.exampleNote}>Your final payout uses Stripe’s actual processing fee after payment succeeds.</Text>
         </View>
 
         <View style={styles.card}>
@@ -112,13 +113,13 @@ export default function PricingScreen() {
         <View style={styles.hostCard}>
           <Text style={styles.cardTitle}>Why Become a Host?</Text>
           <Text style={styles.bodyText}>If you have a safe outdoor space, it can become more than just a backyard—it can become a place where dogs can run, explore, and play while generating extra income for you.</Text>
-          <Text style={styles.bodyText}>Hosting with K9 Country allows you to:</Text>
+          <Text style={styles.bodyText}>Hosting with ROVAH allows you to:</Text>
           <BulletList items={hostReasons} dark />
         </View>
 
         <View style={styles.commitmentCard}>
           <Text style={styles.cardTitle}>Our Commitment</Text>
-          <Text style={styles.bodyText}>K9 Country succeeds when our members and hosts have great experiences. That’s why we’ve built a platform with simple pricing, complete transparency, and no unnecessary fees.</Text>
+          <Text style={styles.bodyText}>ROVAH succeeds when our members and hosts have great experiences. That’s why we’ve built a platform with simple pricing, complete transparency, and no unnecessary fees.</Text>
           <Text style={styles.commitmentLine}>No hidden costs.</Text>
           <Text style={styles.commitmentLine}>No long-term commitments.</Text>
           <Text style={styles.bodyText}>Just a trusted community connecting responsible dog owners with amazing private places where dogs have more space, more freedom, and more tail wags.</Text>
@@ -176,6 +177,7 @@ const styles = StyleSheet.create({
   feeValue: { color: colors.gold, fontFamily: typography.display, fontSize: 54, fontWeight: '900', lineHeight: 62, marginVertical: 4 },
   feeText: { color: '#F1F0DA', fontSize: 15, lineHeight: 22, marginTop: 10, textAlign: 'center' },
   exampleCard: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 20, borderWidth: 1, marginBottom: 14, padding: 18 },
+  exampleNote: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 3 },
   priceRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
   priceLabel: { color: colors.muted, flex: 1, fontSize: 14, lineHeight: 20, paddingRight: 12 },
   priceValue: { color: colors.forest, fontSize: 14, fontWeight: '800', lineHeight: 20, textAlign: 'right' },

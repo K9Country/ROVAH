@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "k9-country",
+    "name": "ROVAH",
     "slug": "k9-country",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -9,7 +9,10 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -30,14 +33,14 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow K9 Country to access photos for listings, memories, and private messages.",
-          "cameraPermission": "Allow K9 Country to use your camera for private memories and messages."
+          "photosPermission": "Allow ROVAH to access photos for listings, memories, and private messages.",
+          "cameraPermission": "Allow ROVAH to use your camera for private memories and messages."
         }
       ],
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Allow K9 Country to use your location to find private spaces near you."
+          "locationWhenInUsePermission": "Allow ROVAH to use your location to find private spaces near you."
         }
       ],
       [
@@ -52,7 +55,8 @@
           }
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,

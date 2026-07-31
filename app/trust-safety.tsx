@@ -7,11 +7,11 @@ import { colors, typography } from '../constants/theme';
 const safetyPillars = [
   {
     title: 'Secure Reservations',
-    body: 'Every reservation is completed through the K9 Country platform. Payment processing is being prepared for launch; until then, reservations remain managed in one clear place for guests and hosts.',
+    body: 'Every reservation is completed through the ROVAH platform. Payment processing is being prepared for launch; until then, reservations remain managed in one clear place for guests and hosts.',
   },
   {
     title: 'Verified Community',
-    body: 'Every member creates a K9 Country account before participating. Reservation history, member profiles, and verified reviews help build a trusted community of responsible dog lovers.',
+    body: 'Every member creates a ROVAH account before participating. Reservation history, member profiles, and verified reviews help build a trusted community of responsible dog lovers.',
   },
   {
     title: 'Private In-App Messaging',
@@ -27,7 +27,7 @@ const safetyPillars = [
   },
   {
     title: 'Community Standards',
-    body: 'Every member agrees to treat others with courtesy, respect private property, clean up after their pets, and follow posted rules. Members who repeatedly violate community standards may lose access to K9 Country.',
+    body: 'Every member agrees to treat others with courtesy, respect private property, clean up after their pets, and follow posted rules. Members who repeatedly violate community standards may lose access to ROVAH.',
   },
 ];
 
@@ -58,14 +58,14 @@ export default function TrustSafetyScreen() {
     <SafeAreaView style={styles.safeArea}>
       <Stack.Screen options={{ title: 'Trust & Safety' }} />
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        <Pressable accessibilityRole="button" onPress={() => router.replace('/')} style={styles.backButton}>
-          <Text style={styles.backButtonText}>Return to Welcome Page</Text>
+        <Pressable accessibilityRole="button" onPress={() => router.replace('/choose-path')} style={styles.backButton}>
+          <Text style={styles.backButtonText}>Return to Start Page</Text>
         </Pressable>
 
         <View style={styles.hero}>
           <Text style={styles.eyebrow}>TRUST & SAFETY</Text>
           <Text style={styles.title}>Built on Trust.{`\n`}Backed by Responsibility.</Text>
-          <Text style={styles.heroText}>At K9 Country, trust isn’t just a feature—it’s the foundation of every visit.</Text>
+          <Text style={styles.heroText}>At ROVAH, trust isn’t just a feature—it’s the foundation of every visit.</Text>
           <Text style={styles.heroText}>We’re creating a community where responsible dog owners and welcoming property hosts can connect with confidence. Every booking is designed to promote safety, transparency, and respect for both people and pets.</Text>
           <Text style={styles.heroText}>Whether you’re opening your property or searching for a private place to let your dog run free, we’re committed to making every experience secure and enjoyable.</Text>
         </View>
@@ -99,12 +99,12 @@ export default function TrustSafetyScreen() {
 
         <View style={styles.communityCard}>
           <Text style={styles.sectionHeading}>Growing a Trusted Community</Text>
-          <Text style={styles.bodyText}>K9 Country is more than a booking platform—it’s a community of people who value safe spaces, responsible pet ownership, and respect for private property. Every reservation helps strengthen that community.</Text>
+          <Text style={styles.bodyText}>ROVAH is more than a booking platform—it’s a community of people who value safe spaces, responsible pet ownership, and respect for private property. Every reservation helps strengthen that community.</Text>
           <Text style={styles.bodyText}>Together, we’re creating more room to run, more freedom to explore, and more confidence with every visit.</Text>
           <View style={styles.communityDivider} />
           <Text style={styles.communityTitle}>Private Land. Happy Dogs.</Text>
           <Text style={styles.bodyText}>We’re adding new private properties across the country, welcoming new hosts, and helping more dogs discover safe places to run, explore, sniff, and simply be themselves.</Text>
-          <Text style={styles.bodyText}>Whether your dog is energetic, reactive, anxious, in training, or just enjoys having space to roam, K9 Country is built to help you find the perfect private destination.</Text>
+          <Text style={styles.bodyText}>Whether your dog is energetic, reactive, anxious, in training, or just enjoys having space to roam, ROVAH is built to help you find the perfect private destination.</Text>
         </View>
       </ScrollView>
     </SafeAreaView>

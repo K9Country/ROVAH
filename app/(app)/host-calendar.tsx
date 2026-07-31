@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors, shadows, typography } from '../../constants/theme';
+import { HostPageGuide } from '../../components/host-page-guide';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../services/auth-context';
 import type { Property } from '../../types/property';
@@ -76,6 +77,16 @@ export default function HostCalendarScreen() {
             </Pressable>
           ))
         )}
+        <HostPageGuide
+          title="How to use Site Schedule"
+          intro="Choose a site, then set the regular hours and dates when members can reserve it."
+          steps={[
+            { title: 'Choose a site', text: 'Each site has its own schedule and availability.' },
+            { title: 'Set regular hours', text: 'Turn on the days you offer, choose opening and closing times, then apply the hours.' },
+            { title: 'Adjust a specific date', text: 'Use the availability calendar to open or close individual dates when plans change.' },
+            { title: 'Check reservations next', text: 'Open Reservations from the Host Dashboard to see scheduled visits and message guests.' },
+          ]}
+        />
       </ScrollView>
     </SafeAreaView>
   );

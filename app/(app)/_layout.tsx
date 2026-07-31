@@ -1,8 +1,9 @@
 import { Stack, router, usePathname } from 'expo-router';
 import { useEffect } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 import { colors } from '../../constants/theme';
+import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../services/auth-context';
 
 const hostOnlyRoutes = new Set([
@@ -15,6 +16,7 @@ const hostOnlyRoutes = new Set([
   '/host-guests',
   '/host-messages',
   '/host-payments',
+  '/local-promotions',
   '/host-reservations',
   '/host-reviews',
   '/property-draft',
@@ -23,14 +25,17 @@ const hostOnlyRoutes = new Set([
 const memberOnlyRoutes = new Set([
   '/dashboard',
   '/dog-profiles',
+  '/everything-dogs',
   '/favorites',
   '/host-profile',
+  '/host-feedback',
   '/messages',
   '/profile',
   '/property',
   '/reservations',
   '/search',
   '/settings',
+  '/site-reviews',
   '/support',
 ]);
 
@@ -49,17 +54,21 @@ export default function AppLayout() {
     if (isLoading) return;
 
     if (!isMember && !isHost) {
-      router.replace('/' as never);
+      router.replace('/choose-path' as never);
       return;
     }
 
     if (needsHostAccess && !isHost) {
-      router.replace('/dashboard' as never);
+      void supabase.auth.signOut();
+      router.dismissAll();
+      router.replace('/sign-in?intent=host&notice=member' as never);
       return;
     }
 
     if (needsMemberAccess && isHost) {
-      router.replace('/host-dashboard' as never);
+      void supabase.auth.signOut();
+      router.dismissAll();
+      router.replace('/sign-in?notice=host' as never);
     }
   }, [isHost, isLoading, isMember, needsHostAccess, needsMemberAccess]);
 
@@ -72,6 +81,9 @@ export default function AppLayout() {
     return (
       <View style={styles.loadingScreen}>
         <ActivityIndicator color={colors.forest} size="large" />
+        <Text style={styles.loadingText}>
+          {needsHostAccess ? 'Loading your host dashboard…' : 'Loading ROVAH…'}
+        </Text>
       </View>
     );
   }
@@ -85,5 +97,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.cream,
     flex: 1,
     justifyContent: 'center',
+  },
+  loadingText: {
+    color: colors.forest,
+    fontSize: 16,
+    fontWeight: '800',
+    marginTop: 14,
   },
 });

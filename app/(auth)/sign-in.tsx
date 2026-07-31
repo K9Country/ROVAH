@@ -1,10 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    Dimensions,
     KeyboardAvoidingView,
     Platform,
     Pressable,
@@ -17,20 +18,34 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
  
 import { colors } from '../../constants/theme';
+import { getAccountType } from '../../lib/account-role';
 import { getAuthEmailRedirectUrl } from '../../lib/auth-redirect';
+import { continueWithGoogle } from '../../lib/google-auth';
+import { clearExplicitMemberSignOut } from '../../lib/member-entry';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../services/auth-context';
 
 const rememberedEmailKey = '@k9-country/remembered-email';
  
 export default function SignInScreen() {
-  const { intent } = useLocalSearchParams<{ intent?: string }>();
+  const { intent, notice } = useLocalSearchParams<{ intent?: string; notice?: string }>();
+  const {
+    isHost,
+    isLoading: isAuthLoading,
+    isMember,
+    session,
+    setAccountTypeAfterSetup,
+  } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [rememberEmail, setRememberEmail] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [isResendingVerification, setIsResendingVerification] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [signInError, setSignInError] = useState<string | null>(null);
+  const [isMemberSignInExpanded, setIsMemberSignInExpanded] = useState(false);
+  const signInScrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     const loadRememberedEmail = async () => {
@@ -44,11 +59,52 @@ export default function SignInScreen() {
     void loadRememberedEmail();
   }, []);
 
+  useEffect(() => {
+    if (isAuthLoading || !session) return;
+
+    if (intent === 'admin') {
+      router.replace('/admin');
+      return;
+    }
+
+    if (intent === 'host' && isHost) {
+      router.replace('/host-dashboard');
+      return;
+    }
+
+    if (intent !== 'host' && isMember) {
+      router.replace('/dashboard');
+    }
+  }, [intent, isAuthLoading, isHost, isMember, session]);
+
+  useEffect(() => {
+    if (notice !== 'host' && notice !== 'member') return;
+
+    const message = notice === 'host'
+      ? 'This email is registered as a Host account. Please use the Host Sign In page.'
+      : 'This email is registered as a Member account. Please use the Member Sign In page.';
+    setSignInError(message);
+    Alert.alert('Use the correct sign-in page', message);
+  }, [notice]);
+
   const showSignInError = (message: string) => {
     setSignInError(message);
     Alert.alert('Sign in failed', message);
   };
- 
+
+  const handleGoogleSignIn = async () => {
+    try {
+      setIsGoogleLoading(true);
+      setSignInError(null);
+      const { error } = await continueWithGoogle(intent === 'host' ? 'host' : 'guest');
+      if (error) showSignInError(error.message);
+    } catch {
+      showSignInError('We could not start Google sign-in. Please try again.');
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
+
   const handleSignIn = async () => {
     const normalizedEmail = email.trim().toLowerCase();
     setSignInError(null);
@@ -96,23 +152,53 @@ export default function SignInScreen() {
         return;
       }
 
+      // Administrator access is verified only by the protected /admin screen.
+      // Do not use the member/host account-type check here; an administrator
+      // may not have either dashboard role.
+      if (intent === 'admin') {
+        if (rememberEmail) {
+          await AsyncStorage.setItem(rememberedEmailKey, normalizedEmail);
+        } else {
+          await AsyncStorage.removeItem(rememberedEmailKey);
+        }
+        router.replace('/admin');
+        return;
+      }
+
+      const accountType = await getAccountType(data.user.id);
+      const requestedAccountType = intent === 'host' ? 'host' : 'member';
+
+      if (!accountType) {
+        await supabase.auth.signOut();
+        showSignInError('We could not identify this account type. Please contact ROVAH support.');
+        return;
+      }
+
+      if (accountType !== requestedAccountType) {
+        await supabase.auth.signOut();
+        showSignInError(
+          accountType === 'host'
+            ? 'This email is registered as a Host account. Please use the Host Sign In page.'
+            : 'This email is registered as a Member account. Please use the Member Sign In page.'
+        );
+        return;
+      }
+
+      // The account type was just verified through the authenticated role
+      // lookup. Resolve the shared auth state before the route effect sends
+      // this session to its protected dashboard, instead of racing a second
+      // deferred lookup from onAuthStateChange.
+      setAccountTypeAfterSetup(accountType);
+
       if (rememberEmail) {
         await AsyncStorage.setItem(rememberedEmailKey, normalizedEmail);
       } else {
         await AsyncStorage.removeItem(rememberedEmailKey);
       }
 
-      if (intent === 'host') {
-        router.dismissAll();
-        router.replace('/host-dashboard');
-        return;
+      if (intent !== 'host') {
+        await clearExplicitMemberSignOut();
       }
-
-      // Do not make further Supabase calls in the immediate password-sign-in
-      // path. Auth has already succeeded; the protected routes perform the
-      // member profile and dog-profile checks once the session is settled.
-      router.dismissAll();
-      router.replace('/dashboard');
     } catch (error) {
       const message = error instanceof Error ? error.message : '';
       showSignInError(message || 'We could not sign you in. Please try again.');
@@ -125,7 +211,7 @@ export default function SignInScreen() {
     const normalizedEmail = email.trim().toLowerCase();
 
     if (!normalizedEmail) {
-      Alert.alert('Enter your email', 'Enter the email address you used to create your K9 Country account first.');
+      Alert.alert('Enter your email', 'Enter the email address you used to create your ROVAH account first.');
       return;
     }
 
@@ -142,16 +228,173 @@ export default function SignInScreen() {
         return;
       }
 
-      Alert.alert('Verification email sent', 'Check your inbox and spam folder for the newest K9 Country confirmation email.');
+      Alert.alert('Verification email sent', 'Check your inbox and spam folder for the newest ROVAH confirmation email.');
     } catch {
       Alert.alert('Unable to send verification email', 'Please try again in a moment.');
     } finally {
       setIsResendingVerification(false);
     }
   };
+
+  const handleMemberSignInToggle = () => {
+    const isOpening = !isMemberSignInExpanded;
+    setIsMemberSignInExpanded(isOpening);
+
+    if (!isOpening) return;
+
+    // Position the expanded form itself at the top of a phone-sized screen.
+    // This keeps the complete email, password, remember-email, and sign-in
+    // controls in reach without asking the member to hunt for them.
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        signInScrollRef.current?.scrollTo({
+          animated: true,
+          y: Math.round(Dimensions.get('window').height * 0.82),
+        });
+      }, 80);
+    });
+  };
+
+  const googleSignInOption = (
+    <>
+      <Pressable
+        accessibilityLabel="Continue with Google"
+        accessibilityRole="button"
+        disabled={isLoading || isGoogleLoading}
+        onPress={() => void handleGoogleSignIn()}
+        style={({ pressed }) => [styles.googleButton, pressed && styles.buttonPressed, (isLoading || isGoogleLoading) && styles.buttonDisabled]}
+      >
+        {isGoogleLoading ? <ActivityIndicator color={colors.forest} /> : <><Text style={styles.googleMark}>G</Text><Text style={styles.googleButtonText}>Continue with Google</Text></>}
+      </Pressable>
+      <View style={styles.authDivider}>
+        <View style={styles.authDividerLine} />
+        <Text style={styles.authDividerText}>or continue with email</Text>
+        <View style={styles.authDividerLine} />
+      </View>
+    </>
+  );
+
+  const signInFormFields = (
+    <>
+      {signInError ? (
+        <View accessibilityLiveRegion="polite" accessibilityRole="alert" style={styles.signInError}>
+          <Text style={styles.signInErrorText}>{signInError}</Text>
+        </View>
+      ) : null}
+
+      {googleSignInOption}
+
+      <View>
+        <Text style={styles.label}>Email address</Text>
+        <TextInput
+          accessibilityLabel="Email address"
+          autoCapitalize="none"
+          autoComplete="email"
+          autoCorrect={false}
+          keyboardType="email-address"
+          onChangeText={(value) => {
+            setEmail(value);
+            setSignInError(null);
+          }}
+          placeholder="you@example.com"
+          placeholderTextColor="#8A877D"
+          returnKeyType="next"
+          style={styles.input}
+          value={email}
+        />
+      </View>
+
+      <Pressable
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: rememberEmail }}
+        onPress={() => setRememberEmail((current) => !current)}
+        style={styles.rememberRow}
+      >
+        <View style={[styles.checkbox, rememberEmail && styles.checkboxChecked]}>
+          {rememberEmail ? <Text style={styles.checkmark}>{'\u2713'}</Text> : null}
+        </View>
+
+        <View style={styles.rememberTextArea}>
+          <Text style={styles.rememberLabel}>Remember my email</Text>
+          <Text style={styles.rememberDescription}>Your password is never stored by ROVAH.</Text>
+        </View>
+      </Pressable>
+
+      <View>
+        <Text style={styles.label}>Password</Text>
+        <TextInput
+          accessibilityLabel="Password"
+          autoCapitalize="none"
+          autoComplete="current-password"
+          onChangeText={(value) => {
+            setPassword(value);
+            setSignInError(null);
+          }}
+          onSubmitEditing={handleSignIn}
+          placeholder="Enter your password"
+          placeholderTextColor="#8A877D"
+          returnKeyType="done"
+          secureTextEntry={!isPasswordVisible}
+          style={styles.input}
+          value={password}
+        />
+
+        <Pressable
+          accessibilityLabel={isPasswordVisible ? 'Hide password' : 'Show password'}
+          accessibilityRole="button"
+          onPress={() => setIsPasswordVisible((current) => !current)}
+          style={styles.showPasswordButton}
+        >
+          <Text style={styles.showPasswordText}>
+            {isPasswordVisible ? 'Hide Password' : 'Show Password'}
+          </Text>
+        </Pressable>
+      </View>
+
+      <Pressable
+        accessibilityRole="button"
+        disabled={isLoading}
+        onPress={handleSignIn}
+        style={({ pressed }) => [
+          styles.primaryButton,
+          pressed && styles.buttonPressed,
+          isLoading && styles.buttonDisabled,
+        ]}
+      >
+        {isLoading ? <ActivityIndicator color="#FFFDF8" /> : <Text style={styles.primaryButtonText}>Sign In</Text>}
+      </Pressable>
+
+      <Pressable
+        accessibilityRole="button"
+        disabled={isLoading}
+        onPress={() => router.push('/forgot-password' as never)}
+        style={styles.forgotPasswordButton}
+      >
+        <Text style={styles.forgotPasswordText}>Forgot password?</Text>
+      </Pressable>
+
+      {intent === 'host' ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push('/sign-up?intent=host' as never)}
+          style={styles.textButton}
+        >
+          <Text style={styles.textButtonText}>New to ROVAH? Create an account</Text>
+        </Pressable>
+      ) : null}
+
+    </>
+  );
  
   return (
-    <SafeAreaView edges={intent === 'host' ? ['top', 'left', 'right', 'bottom'] : ['left', 'right', 'bottom']} style={styles.safeArea}>
+    <SafeAreaView
+      edges={['left', 'right', 'bottom']}
+      style={[
+        styles.safeArea,
+        intent === 'host' && styles.hostSafeArea,
+        intent !== 'host' && styles.memberSafeArea,
+      ]}
+    >
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardView}
@@ -159,9 +402,10 @@ export default function SignInScreen() {
         <ScrollView
           contentContainerStyle={styles.container}
           keyboardShouldPersistTaps="handled"
+          ref={signInScrollRef}
           showsVerticalScrollIndicator={false}
         >
-          {intent === 'host' ? <Pressable
+          {false && intent === 'host' ? <Pressable
             accessibilityRole="button"
             onPress={() => router.replace('/')}
             style={styles.backButton}
@@ -169,35 +413,50 @@ export default function SignInScreen() {
             <Text style={styles.backButtonText}>← Welcome Page</Text>
           </Pressable> : null}
  
-          <View style={[styles.headingArea, intent === 'host' && styles.hostHeadingArea]}>
-            {intent !== 'host' ? (
+          <View
+            style={[
+              styles.headingArea,
+              intent === 'host' && styles.hostHeadingArea,
+              intent !== 'host' && styles.memberHeadingArea,
+            ]}
+          >
+            {intent === 'host' ? (
+              <Image
+                accessibilityLabel="ROVAH host communication artwork"
+                contentFit="contain"
+                source={require('../../assets/images/rovah-host-sign-in-header.png')}
+                style={styles.hostSignInHero}
+              />
+            ) : (
               <View style={styles.memberHeroBleed}>
                 <Image
-                  accessibilityLabel="K9 Country member sign-in artwork"
+                  accessibilityLabel="ROVAH explore more live better artwork"
                   contentFit="cover"
-                  source={require('../../assets/images/k9-4.png')}
+                  contentPosition="top"
+                  source={require('../../assets/images/rovah-member-sign-in-staged.png')}
                   style={styles.memberHero}
                 />
-              </View>
+             </View>
+             )}
+
+            {intent === 'host' ? (
+              <>
+                <Text style={styles.title}>Host sign in</Text>
+                <Text style={styles.description}>
+                  Sign in to manage your private spaces, reservations, and guest messages.
+                </Text>
+              </>
             ) : null}
- 
-            <Text style={styles.title}>
-              {intent === 'host' ? 'Host sign in' : 'Member sign in'}
-            </Text>
- 
-            <Text style={styles.description}>
-              {intent === 'host'
-                ? 'Sign in to manage your private spaces, reservations, and guest messages.'
-                : 'Sign in to manage reservations, favorites, and messages.'}
-            </Text>
           </View>
  
-          <View style={styles.form}>
+          {intent === 'host' ? <View style={styles.form}>
             {signInError ? (
               <View accessibilityLiveRegion="polite" accessibilityRole="alert" style={styles.signInError}>
                 <Text style={styles.signInErrorText}>{signInError}</Text>
               </View>
             ) : null}
+
+            {googleSignInOption}
 
             <View>
               <Text style={styles.label}>Email address</Text>
@@ -274,7 +533,7 @@ export default function SignInScreen() {
               <View style={styles.rememberTextArea}>
                 <Text style={styles.rememberLabel}>Remember my email</Text>
                 <Text style={styles.rememberDescription}>
-                  Your password is never stored by K9 Country.
+                  Your password is never stored by ROVAH.
                 </Text>
               </View>
             </Pressable>
@@ -295,6 +554,15 @@ export default function SignInScreen() {
                 <Text style={styles.primaryButtonText}>Sign In</Text>
               )}
             </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
+              disabled={isLoading}
+              onPress={() => router.push('/forgot-password' as never)}
+              style={styles.forgotPasswordButton}
+            >
+              <Text style={styles.forgotPasswordText}>Forgot password?</Text>
+            </Pressable>
  
             <Pressable
               accessibilityRole="button"
@@ -308,7 +576,7 @@ export default function SignInScreen() {
               style={styles.textButton}
             >
               <Text style={styles.textButtonText}>
-                New to K9 Country? Create an account
+                New to ROVAH? Create an account
                 </Text>
               </Pressable>
 
@@ -324,7 +592,54 @@ export default function SignInScreen() {
                   <Text style={styles.resendVerificationText}>Resend verification email</Text>
                 )}
               </Pressable>
-          </View>
+          </View> : null}
+
+          {intent !== 'host' ? (
+            <View style={styles.memberActionCards}>
+              <View style={styles.memberActionCard}>
+                <View style={styles.memberActionCopy}>
+                  <Text style={styles.memberActionTitle}>New Member</Text>
+                  <Text style={styles.memberActionDescription}>
+                    Create your free ROVAH account and start exploring today.
+                  </Text>
+                </View>
+                <Pressable
+                  accessibilityHint="Opens member registration"
+                  accessibilityLabel="Join Now"
+                  accessibilityRole="button"
+                  onPress={() => router.push('/sign-up?intent=member' as never)}
+                  style={({ pressed }) => [styles.joinNowButton, pressed && styles.buttonPressed]}
+                >
+                  <Text style={styles.joinNowButtonText}>Join Now</Text>
+                  <Text style={styles.actionArrow}>→</Text>
+                </Pressable>
+              </View>
+
+              <View style={styles.memberActionCard}>
+                <View style={styles.memberActionCopy}>
+                  <Text style={styles.memberActionTitle}>Member Sign In</Text>
+                  <Text style={styles.memberActionDescription}>
+                    Sign in to manage your reservations, favorites, and messages.
+                  </Text>
+                </View>
+                <Pressable
+                  accessibilityHint={isMemberSignInExpanded ? 'Hides the sign-in form' : 'Shows the sign-in form'}
+                  accessibilityLabel={isMemberSignInExpanded ? 'Hide Sign In' : 'Sign In'}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: isMemberSignInExpanded }}
+                  onPress={handleMemberSignInToggle}
+                  style={({ pressed }) => [styles.memberSignInButton, pressed && styles.buttonPressed]}
+                >
+                  <Text style={styles.memberSignInButtonText}>{isMemberSignInExpanded ? 'Hide' : 'Sign In'}</Text>
+                  <Text style={styles.memberSignInArrow}>{isMemberSignInExpanded ? '↑' : '→'}</Text>
+                </Pressable>
+
+                {isMemberSignInExpanded ? (
+                  <View style={styles.memberExpandedForm}>{signInFormFields}</View>
+                ) : null}
+              </View>
+            </View>
+          ) : null}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -335,6 +650,16 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: colors.cream,
+  },
+
+  memberSafeArea: {
+    // Sampled from the edited bottom edge of the member artwork.
+    backgroundColor: '#FBF3E8',
+  },
+
+  hostSafeArea: {
+    // Matches the fade at the bottom edge of the host sign-in artwork.
+    backgroundColor: '#FBF8F5',
   },
  
   keyboardView: {
@@ -367,22 +692,39 @@ const styles = StyleSheet.create({
   headingArea: {
     alignItems: 'center',
     marginTop: 0,
-    marginBottom: 12,
+    marginBottom: 32,
   },
   hostHeadingArea: {
-    marginTop: 88,
+    marginTop: 0,
+  },
+
+  memberHeadingArea: {
+    marginTop: -15,
+    marginBottom: 4,
+  },
+
+  hostSignInHero: {
+    alignSelf: 'stretch',
+    aspectRatio: 1,
+    borderRadius: 0,
+    marginBottom: -142,
+    marginHorizontal: -24,
+    marginTop: -6,
+    overflow: 'hidden',
   },
 
   memberHero: {
-    aspectRatio: 2 / 3,
+    // Includes the full dog and foot, while ending before the sample-card
+    // outline printed into the source artwork.
+    aspectRatio: 0.711,
     width: '100%',
   },
 
   memberHeroBleed: {
     alignSelf: 'stretch',
-    marginBottom: 16,
+    marginBottom: 0,
     marginHorizontal: -24,
-    marginTop: -24,
+    marginTop: 0,
   },
  
   title: {
@@ -390,6 +732,104 @@ const styles = StyleSheet.create({
     fontSize: 30,
     fontWeight: '900',
     marginBottom: 12,
+  },
+
+  memberActionCards: {
+    gap: 10,
+  },
+
+  memberActionCard: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 253, 248, 0.96)',
+    borderColor: '#D9BF86',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    padding: 14,
+  },
+
+  memberActionCopy: {
+    flex: 1,
+    minWidth: 155,
+  },
+
+  memberActionTitle: {
+    color: colors.forest,
+    fontSize: 21,
+    fontWeight: '900',
+    letterSpacing: 0.2,
+  },
+
+  memberActionDescription: {
+    color: '#454139',
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 3,
+  },
+
+  joinNowButton: {
+    alignItems: 'center',
+    backgroundColor: colors.forest,
+    borderRadius: 12,
+    flexDirection: 'row',
+    gap: 7,
+    justifyContent: 'center',
+    minHeight: 46,
+    minWidth: 112,
+    paddingHorizontal: 12,
+  },
+
+  joinNowButtonText: {
+    color: colors.warmWhite,
+    fontSize: 14,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+
+  actionArrow: {
+    color: colors.warmWhite,
+    fontSize: 22,
+    fontWeight: '400',
+    lineHeight: 22,
+  },
+
+  memberSignInButton: {
+    alignItems: 'center',
+    borderColor: colors.forest,
+    borderRadius: 12,
+    borderWidth: 2,
+    flexDirection: 'row',
+    gap: 7,
+    justifyContent: 'center',
+    minHeight: 46,
+    minWidth: 112,
+    paddingHorizontal: 12,
+  },
+
+  memberSignInButtonText: {
+    color: colors.forest,
+    fontSize: 14,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+
+  memberSignInArrow: {
+    color: colors.forest,
+    fontSize: 22,
+    fontWeight: '400',
+    lineHeight: 22,
+  },
+
+  memberExpandedForm: {
+    borderTopColor: '#E7D6B4',
+    borderTopWidth: 1,
+    flexBasis: '100%',
+    gap: 12,
+    marginTop: 4,
+    paddingBottom: 16,
+    paddingTop: 20,
   },
  
   description: {
@@ -403,7 +843,7 @@ const styles = StyleSheet.create({
   form: {
     gap: 12,
   },
- 
+
   label: {
     color: colors.forest,
     fontSize: 15,
@@ -416,7 +856,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 14,
-    backgroundColor: colors.warmWhite,
+    backgroundColor: 'rgba(255, 255, 255, 0.82)',
     color: colors.forest,
     fontSize: 16,
     paddingHorizontal: 16,
@@ -475,9 +915,9 @@ const styles = StyleSheet.create({
   },
 
   rememberRow: {
-    alignItems: 'flex-start',
+    alignItems: 'center',
     flexDirection: 'row',
-    marginTop: -2,
+    marginTop: 0,
   },
 
   checkbox: {
@@ -488,7 +928,6 @@ const styles = StyleSheet.create({
     height: 24,
     justifyContent: 'center',
     marginRight: 12,
-    marginTop: 1,
     width: 24,
   },
 
@@ -520,10 +959,41 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
+  forgotPasswordButton: {
+    alignSelf: 'center',
+    minHeight: 38,
+    justifyContent: 'center',
+  },
+
+  forgotPasswordText: {
+    color: colors.brown,
+    fontSize: 14,
+    fontWeight: '800',
+    textDecorationLine: 'underline',
+  },
+
+  googleButton: {
+    alignItems: 'center',
+    backgroundColor: colors.warmWhite,
+    borderColor: colors.forest,
+    borderRadius: 14,
+    borderWidth: 1.25,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    minHeight: 54,
+    paddingHorizontal: 18,
+  },
+
+  googleMark: { color: '#4285F4', fontSize: 20, fontWeight: '900', marginRight: 10 },
+  googleButtonText: { color: colors.forest, fontSize: 16, fontWeight: '800' },
+  authDivider: { alignItems: 'center', flexDirection: 'row', gap: 9, marginVertical: 2 },
+  authDividerLine: { backgroundColor: colors.border, flex: 1, height: 1 },
+  authDividerText: { color: colors.muted, fontSize: 12, fontWeight: '700' },
+
   resendVerificationButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 10,
+    marginTop: 22,
     minHeight: 44,
   },
 

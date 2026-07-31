@@ -41,7 +41,7 @@ export default function VerifyEmailScreen() {
 
       Alert.alert(
         'New email sent',
-        'Open the newest K9 Country email and click Confirm email address. If it is not in your inbox, please check Spam or Junk.'
+        'Open the newest ROVAH email and click Confirm email address. If it is not in your inbox, please check Spam or Junk.'
       );
     } catch {
       Alert.alert('Unable to send email', 'Please try again in a moment.');
@@ -59,13 +59,13 @@ export default function VerifyEmailScreen() {
         </Text>
         <Text style={styles.email}>{email}</Text>
         <Text style={styles.hint}>
-          Open the newest K9 Country email and click “Confirm email address.” You will return here automatically and be signed in.
+          Open the newest ROVAH email and click “Confirm email address.” You will return here automatically and be signed in.
         </Text>
 
         <View style={styles.spamNotice}>
           <Text style={styles.spamNoticeTitle}>Can’t find the email?</Text>
           <Text style={styles.spamNoticeText}>
-            Check your Spam or Junk folder, then mark the K9 Country email as “Not spam” so future reservation updates arrive in your inbox.
+            Check your Spam or Junk folder, then mark the ROVAH email as “Not spam” so future reservation updates arrive in your inbox.
           </Text>
         </View>
 

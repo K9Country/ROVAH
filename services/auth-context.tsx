@@ -11,6 +11,7 @@ import {
 } from 'react';
 
 import { getAccountType, type AccountType } from '../lib/account-role';
+import { clearExplicitMemberSignOut } from '../lib/member-entry';
 import { supabase } from '../lib/supabase';
 
 type AuthContextValue = {
@@ -29,11 +30,16 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [isLoading, setIsLoading] = useState(true);
   const [accountType, setAccountType] = useState<AccountType | null>(null);
   const accountLookupVersion = useRef(0);
+  const pendingAuthStateResolutionVersion = useRef(0);
 
   const setAccountTypeAfterSetup = useCallback((nextAccountType: AccountType) => {
     // A newly completed email confirmation is authoritative. Ignore any
     // earlier background lookup that started before the role was created.
+    // This is also used after a password sign-in has already verified the
+    // account role, so the queued SIGNED_IN lookup cannot briefly put the
+    // protected dashboard back into a loading state.
     accountLookupVersion.current += 1;
+    pendingAuthStateResolutionVersion.current += 1;
     setAccountType(nextAccountType);
     setIsLoading(false);
   }, []);
@@ -67,6 +73,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
         ]);
         if (isMounted && accountLookupVersion.current === lookupVersion) {
           setAccountType(nextAccountType);
+          if (nextAccountType === 'member') {
+            void clearExplicitMemberSignOut();
+          }
         }
       } catch (error) {
         console.error('Unable to read account type:', error);
@@ -93,8 +102,16 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setSession(nextSession);
       // Supabase holds an internal auth lock while this callback runs. Start
       // the role lookup immediately after it returns so sign-in cannot stall.
+      const resolutionVersion = pendingAuthStateResolutionVersion.current + 1;
+      pendingAuthStateResolutionVersion.current = resolutionVersion;
       setIsLoading(true);
       setTimeout(() => {
+        if (
+          !isMounted ||
+          pendingAuthStateResolutionVersion.current !== resolutionVersion
+        ) {
+          return;
+        }
         void refreshAccountStatus(nextSession);
       }, 0);
     });

@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors } from '../../../constants/theme';
@@ -21,6 +21,7 @@ export default function SubscriptionsScreen() {
   const [draft, setDraft] = useState<SubscriptionDraft>(emptyDraft);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [endingOfferId, setEndingOfferId] = useState<string | null>(null);
 
   const hourlyRate = Number(property?.price_per_hour ?? 0);
   const credits = Number(draft.creditCount) || 0;
@@ -76,20 +77,47 @@ export default function SubscriptionsScreen() {
     } finally { setIsSaving(false); }
   };
 
-  const endOffer = async (offer: SubscriptionOffer) => {
+  const completeEndOffer = async (offer: SubscriptionOffer) => {
+    if (!id || endingOfferId) return;
+    try {
+      setEndingOfferId(offer.id);
+      const { data, error } = await supabase
+        .from('loyalty_pass_offers')
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .eq('id', offer.id)
+        .eq('property_id', id)
+        .select('id, is_active')
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!data || data.is_active) throw new Error('This subscription could not be ended. Please refresh and try again.');
+
+      if (draft.id === offer.id) setDraft(emptyDraft());
+      setOffers((current) => current.map((entry) => entry.id === offer.id ? { ...entry, is_active: false } : entry));
+      Alert.alert('Subscription ended', 'It is no longer available for new guest purchases.');
+    } catch (error) {
+      Alert.alert('Unable to end subscription', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setEndingOfferId(null);
+    }
+  };
+
+  const endOffer = (offer: SubscriptionOffer) => {
+    if (Platform.OS === 'web') {
+      const confirmed = typeof window !== 'undefined' && window.confirm(
+        'End this subscription? It will no longer be offered to new guests. Existing purchase records stay intact.'
+      );
+      if (confirmed) void completeEndOffer(offer);
+      return;
+    }
+
     Alert.alert('End this subscription?', 'It will no longer be offered to new guests. Your existing records stay intact.', [
       { text: 'Keep Active', style: 'cancel' },
-      { text: 'End Subscription', style: 'destructive', onPress: () => void (async () => {
-        const { error } = await supabase.from('loyalty_pass_offers').update({ is_active: false, updated_at: new Date().toISOString() }).eq('id', offer.id).eq('property_id', id);
-        if (error) { Alert.alert('Unable to end subscription', error.message); return; }
-        if (draft.id === offer.id) setDraft(emptyDraft());
-        await load();
-      })() },
+      { text: 'End Subscription', style: 'destructive', onPress: () => void completeEndOffer(offer) },
     ]);
   };
 
   const activeOffers = useMemo(() => offers.filter((offer) => offer.is_active), [offers]);
-  const endedOffers = useMemo(() => offers.filter((offer) => !offer.is_active), [offers]);
 
   if (isLoading) return <SafeAreaView style={styles.safeArea}><View style={styles.centered}><ActivityIndicator color={colors.forest} /></View></SafeAreaView>;
   if (!property) return <SafeAreaView style={styles.safeArea}><View style={styles.centered}><Text style={styles.title}>This site is unavailable</Text><Pressable onPress={() => router.replace('/host-dashboard')} style={styles.primaryButton}><Text style={styles.primaryButtonText}>Host Dashboard</Text></Pressable></View></SafeAreaView>;
@@ -103,7 +131,7 @@ export default function SubscriptionsScreen() {
     <View style={styles.siteCard}><Text style={styles.siteLabel}>THIS SITE</Text><Text style={styles.siteName}>{property.name}</Text><Text style={styles.siteRate}>Standard hourly rate: ${hourlyRate.toFixed(2)}</Text></View>
 
     <Text style={styles.sectionHeading}>Active subscriptions</Text>
-    {activeOffers.length === 0 ? <View style={styles.emptyCard}><Text style={styles.emptyTitle}>No active subscriptions yet</Text><Text style={styles.emptyText}>Create one below when you want to reward repeat guests at this site.</Text></View> : activeOffers.map((offer) => <OfferCard key={offer.id} offer={offer} hourlyRate={hourlyRate} onEdit={() => editOffer(offer)} onEnd={() => void endOffer(offer)} />)}
+    {activeOffers.length === 0 ? <View style={styles.emptyCard}><Text style={styles.emptyTitle}>No active subscriptions yet</Text><Text style={styles.emptyText}>Create one below when you want to reward repeat guests at this site.</Text></View> : activeOffers.map((offer) => <OfferCard key={offer.id} offer={offer} hourlyRate={hourlyRate} isEnding={endingOfferId === offer.id} onEdit={() => editOffer(offer)} onEnd={() => void endOffer(offer)} />)}
 
     <View style={styles.editorCard}>
       <Text style={styles.sectionHeading}>{draft.id ? 'Edit subscription' : 'Create a subscription'}</Text>
@@ -127,14 +155,18 @@ export default function SubscriptionsScreen() {
       {draft.id ? <Pressable accessibilityRole="button" onPress={startNew} style={styles.secondaryButton}><Text style={styles.secondaryButtonText}>Create Another Subscription</Text></Pressable> : null}
     </View>
 
-    {endedOffers.length > 0 ? <><Text style={styles.endedHeading}>Ended subscriptions</Text>{endedOffers.map((offer) => <OfferCard key={offer.id} offer={offer} hourlyRate={hourlyRate} onEdit={() => editOffer(offer)} />)}</> : null}
+    <View style={styles.guideCard}>
+      <Text style={styles.guideTitle}>How to manage subscriptions</Text>
+      <Text style={styles.guideText}><Text style={styles.guideStrong}>Create or modify:</Text> Active subscriptions are packages guests can choose for this private space. Changes apply to future purchases.</Text>
+      <Text style={styles.guideText}><Text style={styles.guideStrong}>End subscription:</Text> Stops new purchases. Members who already bought the package keep their recorded credits and expiration date.</Text>
+    </View>
   </ScrollView></SafeAreaView>;
 }
 
-function OfferCard({ offer, hourlyRate, onEdit, onEnd }: { offer: SubscriptionOffer; hourlyRate: number; onEdit: () => void; onEnd?: () => void }) {
+function OfferCard({ offer, hourlyRate, isEnding = false, onEdit, onEnd, onReuse }: { offer: SubscriptionOffer; hourlyRate: number; isEnding?: boolean; onEdit?: () => void; onEnd?: () => void; onReuse?: () => void }) {
   const originalCost = offer.credit_count * hourlyRate;
   const savings = Math.max(0, originalCost - Number(offer.package_price));
-  return <View style={[styles.offerCard, !offer.is_active && styles.endedCard]}><View style={styles.offerHeader}><Text style={styles.offerName}>{offer.name}</Text><Text style={styles.offerStatus}>{offer.is_active ? 'ACTIVE' : 'ENDED'}</Text></View><Text style={styles.offerDetails}>{offer.credit_count} one-hour credits · ${Number(offer.package_price).toFixed(2)} · Save ${savings.toFixed(2)} · Valid {offer.duration_months} {offer.duration_months === 1 ? 'month' : 'months'}</Text><View style={styles.offerActions}><Pressable accessibilityRole="button" onPress={onEdit} style={styles.editButton}><Text style={styles.editButtonText}>Modify</Text></Pressable>{onEnd ? <Pressable accessibilityRole="button" onPress={onEnd} style={styles.endButton}><Text style={styles.endButtonText}>End Subscription</Text></Pressable> : null}</View></View>;
+  return <View style={[styles.offerCard, !offer.is_active && styles.endedCard]}><View style={styles.offerHeader}><Text style={styles.offerName}>{offer.name}</Text><Text style={styles.offerStatus}>{offer.is_active ? 'ACTIVE' : 'ENDED'}</Text></View><Text style={styles.offerDetails}>{offer.credit_count} one-hour credits · ${Number(offer.package_price).toFixed(2)} · Save ${savings.toFixed(2)} · Valid {offer.duration_months} {offer.duration_months === 1 ? 'month' : 'months'}</Text><View style={styles.offerActions}>{offer.is_active && onEdit ? <Pressable accessibilityRole="button" onPress={onEdit} style={styles.editButton}><Text style={styles.editButtonText}>Modify</Text></Pressable> : null}{onReuse ? <Pressable accessibilityRole="button" onPress={onReuse} style={styles.reuseButton}><Text style={styles.reuseButtonText}>Reuse</Text></Pressable> : null}{onEnd ? <Pressable accessibilityRole="button" onPress={onEnd} style={styles.endButton}><Text style={styles.endButtonText}>End Subscription</Text></Pressable> : null}</View></View>;
 }
 
 function Field({ label, value, onChangeText, placeholder, keyboardType = 'default', maxLength, suffix }: { label: string; value: string; onChangeText: (value: string) => void; placeholder: string; keyboardType?: 'default' | 'number-pad'; maxLength?: number; suffix?: string }) {
@@ -144,5 +176,5 @@ function Field({ label, value, onChangeText, placeholder, keyboardType = 'defaul
 function MathRow({ label, value, emphasis = false }: { label: string; value: string; emphasis?: boolean }) { return <View style={[styles.mathRow, emphasis && styles.mathRowEmphasis]}><Text style={[styles.mathLabel, emphasis && styles.mathEmphasis]}>{label}</Text><Text style={[styles.mathValue, emphasis && styles.mathEmphasis]}>{value}</Text></View>; }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: colors.cream }, container: { padding: 20, paddingBottom: 42 }, centered: { alignItems: 'center', flex: 1, justifyContent: 'center', padding: 28 }, backButton: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' }, backText: { color: colors.forest, fontSize: 16, fontWeight: '800' }, eyebrow: { color: colors.brown, fontSize: 12, fontWeight: '900', letterSpacing: 1.2, marginTop: 8 }, title: { color: colors.forest, fontSize: 29, fontWeight: '900', marginTop: 5 }, description: { color: colors.muted, fontSize: 15, lineHeight: 22, marginTop: 9 }, siteCard: { backgroundColor: colors.lightGreen, borderColor: '#CBD1BD', borderRadius: 18, borderWidth: 1, marginTop: 18, padding: 16 }, siteLabel: { color: colors.brown, fontSize: 11, fontWeight: '900', letterSpacing: 1 }, siteName: { color: colors.forest, fontSize: 18, fontWeight: '900', marginTop: 4 }, siteRate: { color: colors.muted, fontSize: 13, marginTop: 4 }, sectionHeading: { color: colors.forest, fontSize: 19, fontWeight: '900', marginBottom: 7, marginTop: 22 }, emptyCard: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 16, borderWidth: 1, padding: 16 }, emptyTitle: { color: colors.forest, fontSize: 16, fontWeight: '900' }, emptyText: { color: colors.muted, fontSize: 14, lineHeight: 20, marginTop: 5 }, offerCard: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 16, borderWidth: 1, marginTop: 10, padding: 15 }, endedCard: { opacity: 0.72 }, offerHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }, offerName: { color: colors.forest, flex: 1, fontSize: 16, fontWeight: '900', paddingRight: 8 }, offerStatus: { color: colors.brown, fontSize: 11, fontWeight: '900', letterSpacing: 0.8 }, offerDetails: { color: colors.muted, fontSize: 13, lineHeight: 20, marginTop: 8 }, offerActions: { flexDirection: 'row', gap: 9, marginTop: 13 }, editButton: { alignItems: 'center', borderColor: colors.forest, borderRadius: 11, borderWidth: 1, flex: 1, justifyContent: 'center', minHeight: 42 }, editButtonText: { color: colors.forest, fontSize: 13, fontWeight: '900' }, endButton: { alignItems: 'center', borderColor: '#A55245', borderRadius: 11, borderWidth: 1, flex: 1, justifyContent: 'center', minHeight: 42 }, endButtonText: { color: '#A55245', fontSize: 13, fontWeight: '900' }, editorCard: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 18, borderWidth: 1, marginTop: 22, padding: 16 }, editorText: { color: colors.muted, fontSize: 14, lineHeight: 20 }, field: { marginTop: 15 }, fieldLabel: { color: colors.forest, fontSize: 13, fontWeight: '900', marginBottom: 7 }, input: { backgroundColor: colors.cream, borderColor: colors.border, borderRadius: 12, borderWidth: 1, color: colors.forest, fontSize: 15, minHeight: 50, paddingHorizontal: 13 }, fieldRow: { flexDirection: 'row', gap: 10 }, flexField: { flex: 1, minWidth: 0 }, inputWithSuffix: { position: 'relative' }, inputSuffixField: { paddingRight: 32 }, suffix: { color: colors.forest, fontSize: 15, fontWeight: '900', position: 'absolute', right: 13, top: 15 }, mathCard: { backgroundColor: colors.lightGreen, borderColor: '#CBD1BD', borderRadius: 14, borderWidth: 1, marginTop: 18, padding: 14 }, mathTitle: { color: colors.forest, fontSize: 15, fontWeight: '900', marginBottom: 7 }, mathRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }, mathRowEmphasis: { borderTopColor: '#AFC6A6', borderTopWidth: 1, marginTop: 4, paddingTop: 10 }, mathLabel: { color: colors.muted, flex: 1, fontSize: 13 }, mathValue: { color: colors.forest, fontSize: 13, fontVariant: ['tabular-nums'], fontWeight: '900', textAlign: 'right' }, mathEmphasis: { color: colors.forest, fontSize: 14, fontWeight: '900' }, primaryButton: { alignItems: 'center', backgroundColor: colors.forest, borderRadius: 13, justifyContent: 'center', marginTop: 18, minHeight: 52, paddingHorizontal: 16 }, primaryButtonText: { color: colors.warmWhite, fontSize: 15, fontWeight: '900' }, secondaryButton: { alignItems: 'center', borderColor: colors.forest, borderRadius: 13, borderWidth: 1, justifyContent: 'center', marginTop: 10, minHeight: 48 }, secondaryButtonText: { color: colors.forest, fontSize: 14, fontWeight: '900' }, disabled: { opacity: 0.55 }, endedHeading: { color: colors.forest, fontSize: 18, fontWeight: '900', marginTop: 27 },
+  safeArea: { flex: 1, backgroundColor: colors.cream }, container: { padding: 20, paddingBottom: 42 }, centered: { alignItems: 'center', flex: 1, justifyContent: 'center', padding: 28 }, backButton: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' }, backText: { color: colors.forest, fontSize: 16, fontWeight: '800' }, eyebrow: { color: colors.brown, fontSize: 12, fontWeight: '900', letterSpacing: 1.2, marginTop: 8 }, title: { color: colors.forest, fontSize: 29, fontWeight: '900', marginTop: 5 }, description: { color: colors.muted, fontSize: 15, lineHeight: 22, marginTop: 9 }, siteCard: { backgroundColor: colors.lightGreen, borderColor: '#CBD1BD', borderRadius: 18, borderWidth: 1, marginTop: 18, padding: 16 }, siteLabel: { color: colors.brown, fontSize: 11, fontWeight: '900', letterSpacing: 1 }, siteName: { color: colors.forest, fontSize: 18, fontWeight: '900', marginTop: 4 }, siteRate: { color: colors.muted, fontSize: 13, marginTop: 4 }, sectionHeading: { color: colors.forest, fontSize: 19, fontWeight: '900', marginBottom: 7, marginTop: 22 }, emptyCard: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 16, borderWidth: 1, padding: 16 }, emptyTitle: { color: colors.forest, fontSize: 16, fontWeight: '900' }, emptyText: { color: colors.muted, fontSize: 14, lineHeight: 20, marginTop: 5 }, offerCard: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 16, borderWidth: 1, marginTop: 10, padding: 15 }, endedCard: { opacity: 0.72 }, offerHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }, offerName: { color: colors.forest, flex: 1, fontSize: 16, fontWeight: '900', paddingRight: 8 }, offerStatus: { color: colors.brown, fontSize: 11, fontWeight: '900', letterSpacing: 0.8 }, offerDetails: { color: colors.muted, fontSize: 13, lineHeight: 20, marginTop: 8 }, offerActions: { flexDirection: 'row', gap: 9, marginTop: 13 }, editButton: { alignItems: 'center', borderColor: colors.forest, borderRadius: 11, borderWidth: 1, flex: 1, justifyContent: 'center', minHeight: 42 }, editButtonText: { color: colors.forest, fontSize: 13, fontWeight: '900' }, reuseButton: { alignItems: 'center', backgroundColor: colors.forest, borderRadius: 11, flex: 1, justifyContent: 'center', minHeight: 42 }, reuseButtonText: { color: colors.warmWhite, fontSize: 13, fontWeight: '900' }, endButton: { alignItems: 'center', borderColor: '#A55245', borderRadius: 11, borderWidth: 1, flex: 1, justifyContent: 'center', minHeight: 42 }, endButtonText: { color: '#A55245', fontSize: 13, fontWeight: '900' }, editorCard: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 18, borderWidth: 1, marginTop: 22, padding: 16 }, editorText: { color: colors.muted, fontSize: 14, lineHeight: 20 }, field: { marginTop: 15 }, fieldLabel: { color: colors.forest, fontSize: 13, fontWeight: '900', marginBottom: 7 }, input: { backgroundColor: colors.cream, borderColor: colors.border, borderRadius: 12, borderWidth: 1, color: colors.forest, fontSize: 15, minHeight: 50, paddingHorizontal: 13 }, fieldRow: { flexDirection: 'row', gap: 10 }, flexField: { flex: 1, minWidth: 0 }, inputWithSuffix: { position: 'relative' }, inputSuffixField: { paddingRight: 32 }, suffix: { color: colors.forest, fontSize: 15, fontWeight: '900', position: 'absolute', right: 13, top: 15 }, mathCard: { backgroundColor: colors.lightGreen, borderColor: '#CBD1BD', borderRadius: 14, borderWidth: 1, marginTop: 18, padding: 14 }, mathTitle: { color: colors.forest, fontSize: 15, fontWeight: '900', marginBottom: 7 }, mathRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }, mathRowEmphasis: { borderTopColor: '#AFC6A6', borderTopWidth: 1, marginTop: 4, paddingTop: 10 }, mathLabel: { color: colors.muted, flex: 1, fontSize: 13 }, mathValue: { color: colors.forest, fontSize: 13, fontVariant: ['tabular-nums'], fontWeight: '900', textAlign: 'right' }, mathEmphasis: { color: colors.forest, fontSize: 14, fontWeight: '900' }, primaryButton: { alignItems: 'center', backgroundColor: colors.forest, borderRadius: 13, justifyContent: 'center', marginTop: 18, minHeight: 52, paddingHorizontal: 16 }, primaryButtonText: { color: colors.warmWhite, fontSize: 15, fontWeight: '900' }, secondaryButton: { alignItems: 'center', borderColor: colors.forest, borderRadius: 13, borderWidth: 1, justifyContent: 'center', marginTop: 10, minHeight: 48 }, secondaryButtonText: { color: colors.forest, fontSize: 14, fontWeight: '900' }, disabled: { opacity: 0.55 }, endedHeading: { color: colors.forest, fontSize: 18, fontWeight: '900', marginTop: 27 }, guideCard: { backgroundColor: colors.forest, borderRadius: 18, marginTop: 24, padding: 17 }, guideTitle: { color: colors.warmWhite, fontSize: 18, fontWeight: '900' }, guideText: { color: '#F4F1E7', fontSize: 14, lineHeight: 21, marginTop: 10 }, guideStrong: { color: colors.warmWhite, fontWeight: '900' },
 });

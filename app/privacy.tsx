@@ -93,14 +93,14 @@ export default function PrivacyScreen() {
     <SafeAreaView style={styles.safeArea}>
       <Stack.Screen options={{ title: 'Privacy Policy' }} />
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        <Pressable accessibilityRole="button" onPress={() => router.replace('/')} style={styles.backButton}>
-          <Text style={styles.backButtonText}>Return to Welcome Page</Text>
+        <Pressable accessibilityRole="button" onPress={() => router.replace('/choose-path')} style={styles.backButton}>
+          <Text style={styles.backButtonText}>Return to Start Page</Text>
         </Pressable>
 
         <View style={styles.hero}>
           <Text style={styles.eyebrow}>PRIVACY</Text>
           <Text style={styles.title}>Your information.{`\n`}Handled with care.</Text>
-          <Text style={styles.heroText}>K9 Country is committed to explaining how information is collected, used, and protected in clear, accessible language.</Text>
+          <Text style={styles.heroText}>ROVAH is committed to explaining how information is collected, used, and protected in clear, accessible language.</Text>
           <View style={styles.dateRow}>
             <Text style={styles.dateLabel}>EFFECTIVE</Text>
             <Text style={styles.dateValue}>July 18, 2026</Text>

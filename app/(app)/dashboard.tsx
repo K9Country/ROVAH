@@ -1,5 +1,5 @@
 import * as ImagePicker from 'expo-image-picker';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
@@ -11,12 +11,17 @@ import {
     Text,
     View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
  
 import { UnreadMessageIcon } from '../../components/unread-message-icon';
+import { HostFeedbackButton } from '../../components/host-feedback-button';
+import { SiteReviewsButton } from '../../components/site-reviews-button';
 import { colors, shadows, typography } from '../../constants/theme';
+import { memberUi } from '../../constants/member-ui';
+import { HostPageGuide } from '../../components/host-page-guide';
 import { getUnreadConversationIds } from '../../lib/messaging';
+import { clearExplicitMemberSignOut, markExplicitMemberSignOut } from '../../lib/member-entry';
 import { supabase } from '../../lib/supabase';
+import { getPendingSiteReviews } from '../../lib/site-reviews';
 import { useAuth } from '../../services/auth-context';
 import type { PropertyConversation } from '../../types/messaging';
  
@@ -34,22 +39,22 @@ type MemoryPhoto = {
  
 const dashboardActions: DashboardAction[] = [
 {
-  title: 'Find a Private Space',
+  title: 'Book Your Reservation',
   description: 'Search private properties near you.',
   icon: '🔍',
   route: '/search',
 },
   {
+    title: 'Book Favorites',
+    description: 'Return to properties you love.',
+    icon: '♥',
+    route: '/favorites',
+  },
+  {
     title: 'My Reservations',
     description: 'View upcoming and previous visits.',
     icon: '📅',
     route: '/reservations',
-  },
-  {
-    title: 'Favorites',
-    description: 'Return to properties you love.',
-    icon: '♥',
-    route: '/favorites',
   },
   {
     title: 'Messages',
@@ -69,6 +74,12 @@ const dashboardActions: DashboardAction[] = [
     icon: '🐾',
     route: '/dog-profiles',
   },
+  {
+    title: 'Everything Dogs',
+    description: 'Explore helpful resources, services, and must-haves for your dog.',
+    icon: '🐶',
+    route: '/everything-dogs',
+  },
 ];
  
 export default function DashboardScreen() {
@@ -76,6 +87,8 @@ export default function DashboardScreen() {
   const { profileSaved } = useLocalSearchParams<{ profileSaved?: string }>();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
+  const [hasUnreadHostFeedback, setHasUnreadHostFeedback] = useState(false);
+  const [hasPendingSiteReviews, setHasPendingSiteReviews] = useState(false);
   const [memories, setMemories] = useState<MemoryPhoto[]>([]);
 
   const [hasLoadedMemories, setHasLoadedMemories] = useState(false);
@@ -152,14 +165,56 @@ export default function DashboardScreen() {
     }
   }, [session?.user.id]);
 
+  const loadUnreadHostFeedback = useCallback(async () => {
+    if (!session?.user.id) {
+      setHasUnreadHostFeedback(false);
+      return;
+    }
+
+    const { data } = await supabase
+      .from('booking_reviews')
+      .select('id')
+      .eq('reviewee_id', session.user.id)
+      .eq('review_type', 'host_to_guest')
+      .is('guest_feedback_viewed_at', null)
+      .limit(1);
+    setHasUnreadHostFeedback((data?.length ?? 0) > 0);
+  }, [session?.user.id]);
+
+  const loadPendingSiteReviews = useCallback(async () => {
+    if (!session?.user.id) {
+      setHasPendingSiteReviews(false);
+      return;
+    }
+
+    try {
+      const pendingReviews = await getPendingSiteReviews(session.user.id);
+      setHasPendingSiteReviews(pendingReviews.length > 0);
+    } catch {
+      // The dedicated screen gives a useful retry message. The dashboard must
+      // not show a false red work-to-do alert if its read fails.
+      setHasPendingSiteReviews(false);
+    }
+  }, [session?.user.id]);
+
   useEffect(() => {
     void loadUnreadMessages();
+    void loadUnreadHostFeedback();
+    void loadPendingSiteReviews();
     const refreshInterval = setInterval(
-      () => void loadUnreadMessages(),
+      () => {
+        void loadUnreadMessages();
+        void loadUnreadHostFeedback();
+        void loadPendingSiteReviews();
+      },
       15_000
     );
     return () => clearInterval(refreshInterval);
-  }, [loadUnreadMessages]);
+  }, [loadPendingSiteReviews, loadUnreadHostFeedback, loadUnreadMessages]);
+
+  useFocusEffect(useCallback(() => {
+    void loadPendingSiteReviews();
+  }, [loadPendingSiteReviews]));
 
   const handleNavigation = (route: string) => {
     router.push(route as never);
@@ -227,16 +282,20 @@ export default function DashboardScreen() {
   const handleSignOut = async () => {
     try {
       setIsSigningOut(true);
+
+      await markExplicitMemberSignOut();
  
-      const { error } = await supabase.auth.signOut();
+      const { error } = await supabase.auth.signOut({ scope: 'local' });
       if (error) {
+        await clearExplicitMemberSignOut();
         Alert.alert('Unable to sign out', error.message);
         return;
       }
  
       router.dismissAll();
-      router.replace('/');
+      router.replace('/choose-path');
     } catch {
+      await clearExplicitMemberSignOut();
       Alert.alert(
         'Something went wrong',
         'We could not sign you out. Please try again.'
@@ -247,39 +306,33 @@ export default function DashboardScreen() {
   };
  
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <View style={styles.safeArea}>
       <ScrollView
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <Image source={require('../../assets/images/k9-10.png')} style={styles.k9HeaderImage} />
+          <Image
+            accessibilityLabel="ROVAH private places, lasting memories, freedom for dogs"
+            resizeMode="contain"
+            source={require('../../assets/images/rovah-member-dashboard-hero.png')}
+            style={styles.k9HeaderImage}
+          />
         </View>
 
-        {profileSaved === 'true' ? (
-          <View accessibilityRole="alert" style={styles.profileSavedBanner}>
-            <Text style={styles.profileSavedTitle}>Profile saved</Text>
-            <Text style={styles.profileSavedText}>Your member profile is complete and ready for reservations.</Text>
-          </View>
-        ) : null}
-
+        <View style={styles.dashboardContent}>
         <Pressable
           accessibilityRole="button"
+          accessibilityLabel="Book Your Reservation"
           onPress={() => handleNavigation('/search')}
           style={({ pressed }) => [
             styles.featureCard,
             pressed && styles.cardPressed,
           ]}
         >
-          <View style={styles.featureIcon}>
-            <Text style={styles.featureIconText}>🔍</Text>
-          </View>
- 
           <View style={styles.featureContent}>
-            <Text style={styles.featureEyebrow}>START HERE</Text>
- 
             <Text style={styles.featureTitle}>
-              Find a private space
+              Book Your Reservation
             </Text>
  
             <Text style={styles.featureDescription}>
@@ -299,30 +352,42 @@ export default function DashboardScreen() {
               onPress={() => action.route && handleNavigation(action.route)}
               style={({ pressed }) => [
                 styles.actionCard,
+                action.title === 'Everything Dogs' && styles.everythingDogsActionCard,
                 pressed && styles.cardPressed,
               ]}
             >
-              {action.title === 'Messages' ? (
-                <UnreadMessageIcon
-                  hasUnread={hasUnreadMessages}
-                  style={styles.actionMessageIcon}
-                />
-              ) : action.title === 'Dog Profiles' ? (
-                <Image
-                  accessibilityLabel="Dog Profiles"
-                  resizeMode="contain"
-                  source={require('../../assets/images/member-sign-in-paw.png')}
-                  style={styles.dogProfilesActionPaw}
-                />
-              ) : (
-                <Text style={[styles.actionIcon, action.title === 'Favorites' && styles.favoriteActionIcon]}>{action.icon}</Text>
-              )}
- 
-              <Text style={styles.actionTitle}>{action.title}</Text>
- 
-              <Text style={styles.actionDescription}>
-                {action.description}
-              </Text>
+              <View style={styles.actionStack}>
+                <View style={styles.actionIconSlot}>
+                  {action.title === 'Messages' ? (
+                    <UnreadMessageIcon
+                      hasUnread={hasUnreadMessages}
+                      size="small"
+                      style={styles.actionMessageIcon}
+                    />
+                  ) : action.title === 'Dog Profiles' ? (
+                    <Image
+                      accessibilityLabel="Dog Profiles"
+                      resizeMode="contain"
+                      source={require('../../assets/images/member-sign-in-paw.png')}
+                      style={styles.dogProfilesActionPaw}
+                    />
+                  ) : action.title === 'Everything Dogs' ? (
+                    <Image
+                      accessibilityLabel="Everything Dogs"
+                      resizeMode="contain"
+                      source={require('../../assets/images/k9-everything-dogs-dashboard-icon.png')}
+                      style={styles.everythingDogsImage}
+                    />
+                  ) : (
+                    <Text style={[styles.actionIcon, action.title === 'Book Favorites' && styles.favoriteActionIcon]}>{action.icon}</Text>
+                  )}
+                </View>
+
+                <View style={styles.actionCopy}>
+                  <Text style={styles.actionTitle}>{action.title}</Text>
+                  <Text style={styles.actionDescription}>{action.description}</Text>
+                </View>
+              </View>
             </Pressable>
           ))}
         </View>
@@ -381,6 +446,34 @@ export default function DashboardScreen() {
 
           {memoryStatus ? <Text style={styles.memoryStatus}>{memoryStatus}</Text> : null}
         </View>
+
+        <View style={styles.feedbackReviewsArea}>
+          <HostFeedbackButton
+            hasUnread={hasUnreadHostFeedback}
+            onPress={() => handleNavigation('/host-feedback')}
+          />
+          <SiteReviewsButton
+            hasPendingReviews={hasPendingSiteReviews}
+            onPress={() => handleNavigation('/site-reviews')}
+          />
+        </View>
+
+        <View style={styles.memberDashboardGuide}>
+        <HostPageGuide
+          title="How to use your Member Dashboard"
+          intro="Follow these steps to keep your account ready, reserve a private space, and manage every visit."
+          tone="forest"
+          steps={[
+            { title: 'Keep profiles ready', text: 'Complete Parent Profile and add every dog that may attend a visit before you reserve.' },
+            { title: 'Find a private space', text: 'Open Book Your Reservation to browse available properties. Review the site details, rules, amenities, arrival information, and rate before choosing a visit.' },
+            { title: 'Choose a visit time', text: 'Select an available date, start time, end time, and every dog attending. A courtesy waiver, when available, can only be used at the host site that issued it.' },
+            { title: 'Confirm your reservation', text: 'Review the total and select Confirm Reservation. For a paid visit, your card is secured at confirmation and payment settles one hour before the visit begins. A zero-dollar courtesy visit confirms without payment.' },
+            { title: 'Manage upcoming or previous visits', text: 'Use My Reservations to check upcoming plans, completed visits, or cancellations. Cancel before the one-hour window when eligible for an automatic refund under the Cancellation and Refund Policy.' },
+            { title: 'Review and message', text: 'Open Messages when you need to contact a host. After a completed visit, use Site Reviews when it appears to share your feedback about the property.' },
+            { title: 'Explore Everything Dogs', text: 'Open Everything Dogs to browse dog services and products whenever you are ready.' },
+          ]}
+        />
+        </View>
  
         <View style={styles.accountSection}>
           <Text style={styles.accountLabel}>SIGNED IN AS</Text>
@@ -408,7 +501,7 @@ export default function DashboardScreen() {
 
           <View style={styles.accountLinksRow}>
             <Pressable accessibilityRole="link" onPress={() => router.push('/support' as never)} style={styles.accountLink}>
-              <Text style={styles.accountLinkText}>Safety & Support</Text>
+              <Text style={styles.accountLinkText}>Help & Support</Text>
             </Pressable>
             <Pressable accessibilityRole="link" onPress={() => router.push('/settings' as never)} style={styles.accountLink}>
               <Text style={styles.accountLinkText}>Settings & Privacy</Text>
@@ -416,36 +509,36 @@ export default function DashboardScreen() {
           </View>
         </View>
 
-        <Pressable accessibilityRole="link" onPress={() => router.push('/trust-safety' as never)} style={styles.trustSafetyLink}>
-          <Text style={styles.trustSafetyLinkTitle}>Trust & Safety</Text>
-          <Text style={styles.trustSafetyLinkText}>How K9 Country helps keep every visit safe</Text>
+        {profileSaved === 'true' ? (
+          <View accessibilityRole="alert" style={styles.profileSavedBanner}>
+            <Text style={styles.profileSavedTitle}>Profile saved</Text>
+            <Text style={styles.profileSavedText}>Your member profile is complete and ready for reservations.</Text>
+          </View>
+        ) : null}
+        <Pressable accessibilityRole="link" onPress={() => router.push('/legal' as never)} style={styles.trustSafetyLink}>
+          <Text style={styles.trustSafetyLinkTitle}>Legal Library</Text>
+          <Text style={styles.trustSafetyLinkText}>Terms, privacy, safety, pricing, and marketplace policies</Text>
         </Pressable>
-        <Pressable accessibilityRole="link" onPress={() => router.push('/pricing' as never)} style={[styles.trustSafetyLink, styles.pricingLink]}>
-          <Text style={styles.trustSafetyLinkTitle}>Pricing</Text>
-          <Text style={styles.trustSafetyLinkText}>Simple, fair, transparent pricing for members and hosts</Text>
-        </Pressable>
-        <Pressable accessibilityRole="link" onPress={() => router.push('/privacy' as never)} style={[styles.trustSafetyLink, styles.privacyLink]}>
-          <Text style={styles.trustSafetyLinkTitle}>Privacy Policy</Text>
-          <Text style={styles.trustSafetyLinkText}>How K9 Country collects, uses, and protects your information</Text>
-        </Pressable>
+        </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
  
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: colors.cream,
+    backgroundColor: '#F2E8DC',
   },
  
   container: {
-    paddingHorizontal: 20,
     paddingTop: 0,
-    paddingBottom: 36,
+    paddingBottom: 0,
   },
  
-  header: { alignItems: 'center', justifyContent: 'center', marginBottom: 0 },
+  // Deliberately full-bleed: this exact source ratio retains every pixel at the top edge.
+  header: { aspectRatio: 1024 / 1033, backgroundColor: '#F2E8DC', width: '100%' },
+  dashboardContent: { paddingBottom: 36, paddingHorizontal: 20 },
 
   userIntro: { marginBottom: 16, paddingHorizontal: 2 },
  
@@ -457,57 +550,46 @@ const styles = StyleSheet.create({
     marginTop: 0,
   },
  
-  k9HeaderImage: { height: 266, marginTop: 0, resizeMode: 'contain', transform: [{ translateX: 12 }], width: '121%' },
+  k9HeaderImage: { height: '100%', width: '100%' },
   profileSavedBanner: { backgroundColor: colors.lightGreen, borderColor: '#C4D2B6', borderRadius: 18, borderWidth: 1, marginBottom: 16, padding: 16 },
   profileSavedTitle: { color: colors.forest, fontSize: 17, fontWeight: '900', marginBottom: 4 },
   profileSavedText: { color: colors.muted, fontSize: 14, lineHeight: 20 },
 
-  featureCard: { backgroundColor: colors.forest, borderRadius: 22, flexDirection: 'row', marginBottom: 16, padding: 18, ...shadows.card },
- 
-  featureIcon: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.cream,
-    marginRight: 16,
-  },
- 
-  featureIconText: {
-    fontSize: 25,
+  featureCard: {
+    backgroundColor: colors.forest,
+    borderColor: '#315738',
+    borderRadius: 18,
+    borderWidth: 1,
+    marginBottom: 16,
+    marginTop: -26,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    ...shadows.card,
+    zIndex: 1,
   },
  
   featureContent: {
     flex: 1,
   },
  
-  featureEyebrow: {
-    color: '#D9C4A9',
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 1.3,
-    marginBottom: 6,
-  },
- 
   featureTitle: {
     color: colors.warmWhite,
-    fontSize: 23,
+    fontSize: 19,
     fontWeight: '900',
-    marginBottom: 8,
+    marginBottom: 6,
   },
  
   featureDescription: {
     color: colors.cream,
-    fontSize: 14,
-    lineHeight: 21,
+    fontSize: 13,
+    lineHeight: 19,
   },
  
   featureLink: {
     color: '#F0B56F',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '800',
-    marginTop: 13,
+    marginTop: 8,
   },
  
   sectionTitle: {
@@ -531,9 +613,11 @@ const styles = StyleSheet.create({
   trustSafetyLinkTitle: { color: colors.forest, fontSize: 15, fontWeight: '900', textDecorationLine: 'underline' },
   trustSafetyLinkText: { color: colors.muted, fontSize: 12, marginTop: 4, textAlign: 'center' },
  
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
 
   memoriesSection: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 18, borderWidth: 1, marginTop: 14, padding: 15, ...shadows.card },
+  feedbackReviewsArea: { gap: 18, marginTop: 18 },
+  memberDashboardGuide: { marginTop: -6 },
   memoriesHeader: { alignItems: 'center', flexDirection: 'row', gap: 12, marginBottom: 13 },
   memoriesCopy: { flex: 1 },
   memoriesTitle: { color: colors.forest, fontSize: 19, fontWeight: '900', marginBottom: 3 },
@@ -551,6 +635,7 @@ const styles = StyleSheet.create({
   memoryStatus: { color: colors.red, fontSize: 13, fontWeight: '700', marginTop: 10 },
  
   actionCard: {
+    alignItems: 'flex-start',
     width: '48%',
     minHeight: 134,
     backgroundColor: colors.warmWhite,
@@ -558,39 +643,34 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     padding: 13,
-    marginBottom: 10,
+    marginBottom: 5,
     ...shadows.card,
+    justifyContent: 'center',
   },
- 
+  everythingDogsActionCard: { backgroundColor: colors.lightGreen },
+
   actionIcon: {
-    fontSize: 26,
-    marginBottom: 8,
+    fontSize: 28,
+    height: 32,
+    lineHeight: 32,
   },
   dogProfilesActionPaw: {
-    height: 30,
-    marginBottom: 8,
-    width: 30,
+    height: 32,
+    width: 32,
   },
+  everythingDogsImage: { height: 32, width: 32 },
   favoriteActionIcon: {
     color: colors.red,
   },
 
-  actionMessageIcon: {
-    marginBottom: 8,
-  },
+  actionMessageIcon: {},
+  actionStack: { width: '100%' },
+  actionIconSlot: { alignItems: 'flex-start', height: 32, justifyContent: 'flex-start', marginBottom: 6, width: 32 },
+  actionCopy: { width: '100%' },
  
-  actionTitle: {
-    color: colors.forest,
-    fontSize: 17,
-    fontWeight: '900',
-    marginBottom: 4,
-  },
+  actionTitle: { ...memberUi.cardTitle, marginBottom: 0 },
  
-  actionDescription: {
-    color: colors.muted,
-    fontSize: 13,
-    lineHeight: 17,
-  },
+  actionDescription: { ...memberUi.cardDescription, minHeight: 40 },
  
   cardPressed: {
     opacity: 0.75,

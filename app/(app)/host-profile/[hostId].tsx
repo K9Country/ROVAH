@@ -57,7 +57,7 @@ export default function HostPublicProfileScreen() {
       return;
     }
     const avatar = ((avatarResult.data ?? []) as { bucket_id: string; profile_image_path: string; user_id: string }[])[0];
-    setHostName(profileResult.data?.display_name ?? 'K9 Country host');
+    setHostName(profileResult.data?.display_name ?? 'ROVAH host');
     setProfileImageUrl(avatar ? supabase.storage.from(avatar.bucket_id).getPublicUrl(avatar.profile_image_path).data.publicUrl : undefined);
     setSites(hostSites);
     setReviews((reviewRows ?? []) as BookingReview[]);

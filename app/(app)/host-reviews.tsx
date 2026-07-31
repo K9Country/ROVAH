@@ -41,8 +41,20 @@ function formatDate(value: string) {
   });
 }
 
-function formatAnswer(value: BookingReview['fence_security']) {
+function formatAnswer(value: 'yes' | 'no' | 'not_sure' | null) {
+  if (value == null) return 'Not answered';
   return value === 'not_sure' ? 'Not sure' : value === 'yes' ? 'Yes' : 'No';
+}
+
+function formatSafeReviewerName(displayName?: string) {
+  const nameParts = (displayName ?? '').trim().split(/\s+/).filter(Boolean);
+  if (nameParts.length === 0) return 'Guest';
+  if (nameParts.length === 1) return nameParts[0];
+  return `${nameParts[0]} ${nameParts[nameParts.length - 1].charAt(0).toUpperCase()}.`;
+}
+
+function formatReviewedDate(value: string) {
+  return `Reviewed ${formatDate(value)}`;
 }
 
 export default function HostReviewsScreen() {
@@ -56,6 +68,7 @@ export default function HostReviewsScreen() {
   const [reviews, setReviews] = useState<BookingReview[]>([]);
   const [guestVisits, setGuestVisits] = useState<GuestVisit[]>([]);
   const [hostReviews, setHostReviews] = useState<BookingReview[]>([]);
+  const [reviewerNames, setReviewerNames] = useState<Record<string, string>>({});
   const [guestNames, setGuestNames] = useState<Record<string, string>>({});
   const [activeTrack, setActiveTrack] = useState<ReviewTrack>(
     view === 'guest_records' ? 'guest_records' : 'site_feedback'
@@ -69,6 +82,7 @@ export default function HostReviewsScreen() {
       setReviews([]);
       setGuestVisits([]);
       setHostReviews([]);
+      setReviewerNames({});
       setGuestNames({});
       setIsLoading(false);
       return;
@@ -134,15 +148,19 @@ export default function HostReviewsScreen() {
         ? visit.properties[0] ?? null
         : visit.properties,
     })) as GuestVisit[];
-    const guestIds = [...new Set(visits.map((visit) => visit.guest_id))];
+    const reviewerIds = [...new Set((siteReviewsResult.data ?? []).map((review) => review.reviewer_id))];
+    const guestIds = [...new Set([...visits.map((visit) => visit.guest_id), ...reviewerIds])];
     if (guestIds.length > 0) {
       const { data: profiles, error: profilesError } = await supabase
         .from('messaging_profiles')
         .select('user_id, display_name')
         .in('user_id', guestIds);
       if (profilesError) setErrorMessage(profilesError.message);
-      setGuestNames(Object.fromEntries((profiles ?? []).map((profile) => [profile.user_id, profile.display_name])));
+      const names = Object.fromEntries((profiles ?? []).map((profile) => [profile.user_id, profile.display_name]));
+      setGuestNames(names);
+      setReviewerNames(names);
     } else {
+      setReviewerNames({});
       setGuestNames({});
     }
     setProperties(ownedProperties);
@@ -266,15 +284,18 @@ export default function HostReviewsScreen() {
               <View key={review.id} style={styles.reviewCard}>
                 <View style={styles.reviewHeader}>
                   <View>
-                    <Text style={styles.reviewTitle}>Guest site review</Text>
-                    <Text style={styles.reviewDate}>{formatDate(review.created_at)}</Text>
+                    <Text style={styles.reviewTitle}>{formatSafeReviewerName(reviewerNames[review.reviewer_id])}</Text>
+                    <Text style={styles.reviewDate}>{formatReviewedDate(review.created_at)}</Text>
                   </View>
                   <View style={styles.ratingBadge}><Text style={styles.ratingText}>★ {review.bone_rating}/5</Text></View>
                 </View>
-                {review.review_text ? <Text style={styles.reviewText}>{review.review_text}</Text> : <Text style={styles.mutedText}>No written note shared.</Text>}
+                <Text style={styles.reviewQuestionLabel}>Additional comments</Text>
+                {review.review_text ? <Text style={styles.reviewText}>{review.review_text}</Text> : <Text style={styles.mutedText}>No additional comments shared.</Text>}
                 <View style={styles.detailsGrid}>
-                  <Detail label="Fence security" value={formatAnswer(review.fence_security)} />
-                  <Detail label="Cleanliness" value={formatAnswer(review.cleanliness)} />
+                  <Detail label="Clean and well maintained" value={formatAnswer(review.cleanliness)} />
+                  <Detail label="Matched listing and photos" value={formatAnswer(review.property_matches_listing)} />
+                  <Detail label="Safe and secure for a dog" value={formatAnswer(review.fence_security)} />
+                  <Detail label="Would book again" value={formatAnswer(review.would_book_again)} />
                 </View>
                 {review.nearby_distractions.length > 0 ? <Detail label="Nearby distractions" value={review.nearby_distractions.join(', ')} /> : null}
                 {review.unexpected_encounters ? <Detail label="Unexpected encounters" value={review.unexpected_encounters} /> : null}
@@ -371,10 +392,11 @@ const styles = StyleSheet.create({
   reviewDate: { color: colors.muted, fontSize: 12, marginTop: 4 },
   ratingBadge: { backgroundColor: colors.lightGreen, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 7 },
   ratingText: { color: colors.forest, fontSize: 13, fontWeight: '900' },
-  reviewText: { color: colors.forest, fontSize: 15, lineHeight: 22, marginTop: 14 },
+  reviewQuestionLabel: { color: colors.brown, fontSize: 12, fontWeight: '800', marginTop: 14 },
+  reviewText: { color: colors.forest, fontSize: 15, lineHeight: 22, marginTop: 5 },
   mutedText: { color: colors.muted, fontSize: 14, fontStyle: 'italic', marginTop: 14 },
-  detailsGrid: { flexDirection: 'row', gap: 10, marginTop: 14 },
-  detail: { borderTopColor: colors.border, borderTopWidth: 1, flex: 1, marginTop: 12, paddingTop: 10 },
+  detailsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 14 },
+  detail: { borderTopColor: colors.border, borderTopWidth: 1, flexBasis: '47%', flexGrow: 1, marginTop: 12, paddingTop: 10 },
   detailLabel: { color: colors.brown, fontSize: 12, fontWeight: '800' },
   detailValue: { color: colors.forest, fontSize: 14, lineHeight: 20, marginTop: 4 },
   visitCard: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 18, borderWidth: 1, marginTop: 12, padding: 16 },

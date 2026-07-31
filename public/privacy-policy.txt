@@ -1,19 +1,19 @@
-K9 COUNTRY PRIVACY POLICY
+ROVAH PRIVACY POLICY
 Effective Date: July 18, 2026
 Last Updated: July 18, 2026
 
-K9 Country (â€œK9 Country,â€ â€œwe,â€ â€œus,â€ or â€œourâ€) operates an online marketplace that helps dog owners and other users locate and reserve privately owned yards, fields, enclosed areas, and other spaces offered by property owners or authorized operators (â€œHostsâ€). We provide our services through the K9 Country website, mobile applications, communications systems, and related products and services collectively referred to as the â€œPlatformâ€ or â€œServices.â€
+ROVAH (â€œROVAH,â€ â€œwe,â€ â€œus,â€ or â€œourâ€) operates an online marketplace that helps dog owners and other users locate and reserve privately owned yards, fields, enclosed areas, and other spaces offered by property owners or authorized operators (â€œHostsâ€). We provide our services through the ROVAH website, mobile applications, communications systems, and related products and services collectively referred to as the â€œPlatformâ€ or â€œServices.â€
 
-This Privacy Policy explains how we collect, use, disclose, retain, and protect personal information when you access or use the Services, create an account, offer or reserve a property, communicate through the Platform, make or receive a payment, participate in identity verification, contact us, or otherwise interact with K9 Country.
+This Privacy Policy explains how we collect, use, disclose, retain, and protect personal information when you access or use the Services, create an account, offer or reserve a property, communicate through the Platform, make or receive a payment, participate in identity verification, contact us, or otherwise interact with ROVAH.
 
 This Privacy Policy applies to Hosts, Members, property owners, visitors, prospective users, and other individuals whose personal information we process.
 
 By accessing or using the Services, you acknowledge that you have reviewed this Privacy Policy. Where required by law, we will request your consent before collecting or using certain information.
 
-This Privacy Policy is incorporated into and should be read together with the K9 Country Terms of Service and any additional notices presented when information is collected.
+This Privacy Policy is incorporated into and should be read together with the ROVAH Terms of Service and any additional notices presented when information is collected.
 
 1. INFORMATION WE COLLECT
-The information we collect depends on how you interact with K9 Country, which Services you use, the permissions you provide, and applicable legal requirements.
+The information we collect depends on how you interact with ROVAH, which Services you use, the permissions you provide, and applicable legal requirements.
 
 A. Account and Contact Information
 We may collect:
@@ -96,12 +96,12 @@ Identity documents;
 Date of birth;
 Business information; and
 Other information required for payment processing, fraud prevention, tax reporting, identity verification, or legal compliance.
-K9 Country generally does not receive or store complete payment-card numbers, complete bank-account credentials, or complete Social Security numbers. We may receive limited information such as the payment method type, last four digits, expiration information, transaction identifiers, verification results, payout status, and information necessary to administer transactions.
+ROVAH generally does not receive or store complete payment-card numbers, complete bank-account credentials, or complete Social Security numbers. We may receive limited information such as the payment method type, last four digits, expiration information, transaction identifiers, verification results, payout status, and information necessary to administer transactions.
 
 Payment providers process information under their own privacy policies and legal obligations.
 
 F. Identity Verification Information
-K9 Country may require Hosts, Members, property owners, or other users to verify their identity. Identity verification may be provided through Stripe Identity or another qualified provider.
+ROVAH may require Hosts, Members, property owners, or other users to verify their identity. Identity verification may be provided through Stripe Identity or another qualified provider.
 
 The verification provider may collect:
 
@@ -114,14 +114,14 @@ Device and browser information;
 Facial geometry or other biometric identifiers;
 Verification results; and
 Fraud, authenticity, and risk indicators.
-K9 Country may receive a verification status, limited identity details, risk indicators, or information necessary to resolve a verification problem. Unless specifically disclosed, K9 Country does not independently create or retain facial-recognition templates from identity-verification images.
+ROVAH may receive a verification status, limited identity details, risk indicators, or information necessary to resolve a verification problem. Unless specifically disclosed, ROVAH does not independently create or retain facial-recognition templates from identity-verification images.
 
 Where required by law, identity verification involving biometric information will be conducted only after an appropriate disclosure and consent process. The identity-verification provider may separately retain verification information according to its privacy policy, legal obligations, and user selections.
 
 Identity verification confirms that certain information or documentation matched the verification process. It does not guarantee a personâ€™s character, trustworthiness, safety, qualifications, or future conduct.
 
 G. Background-Check Information
-K9 Country may offer, require, or facilitate criminal-history, sex-offender-registry, identity, address-history, motor-vehicle, property, or other screening through a third-party screening provider.
+ROVAH may offer, require, or facilitate criminal-history, sex-offender-registry, identity, address-history, motor-vehicle, property, or other screening through a third-party screening provider.
 
 Where applicable, we may collect:
 
@@ -132,7 +132,7 @@ Records returned by the provider;
 Potential-match information;
 Dispute or correction information; and
 Eligibility or risk decisions based on the screening.
-When a background report is considered a â€œconsumer reportâ€ under the Fair Credit Reporting Act or a similar state law, K9 Country will provide any legally required standalone disclosures, obtain authorization, and follow applicable pre-adverse-action and adverse-action procedures. Those disclosures and authorizations are separate from this Privacy Policy.
+When a background report is considered a â€œconsumer reportâ€ under the Fair Credit Reporting Act or a similar state law, ROVAH will provide any legally required standalone disclosures, obtain authorization, and follow applicable pre-adverse-action and adverse-action procedures. Those disclosures and authorizations are separate from this Privacy Policy.
 
 A background check is not a guarantee that a user or property is safe or that a person has no undisclosed history.
 
@@ -268,7 +268,7 @@ Investigate complaints, accidents, injuries, property damage, animal incidents, 
 Detect, investigate, and prevent fraud, scams, abuse, trespassing, unsafe activity, and illegal conduct;
 Evaluate risk;
 Enforce property rules, Platform policies, and contractual obligations;
-Protect Members, Hosts, animals, property owners, K9 Country, and the public; and
+Protect Members, Hosts, animals, property owners, ROVAH, and the public; and
 Cooperate with insurers, emergency responders, and government authorities where appropriate.
 C. Communicate with You
 Send account notices;
@@ -309,12 +309,12 @@ Comply with legal, regulatory, insurance, and contractual requirements.
 F. Advertising and Marketing
 We may use information to:
 
-Promote K9 Country;
+Promote ROVAH;
 Measure marketing effectiveness;
 Provide offers, credits, referral programs, or promotions;
 Understand which advertisements led users to the Platform; and
-Provide relevant K9 Country advertising.
-K9 Country does not sell personal information for money as a regular part of its business.
+Provide relevant ROVAH advertising.
+ROVAH does not sell personal information for money as a regular part of its business.
 
 Some state laws define â€œsale,â€ â€œsharing,â€ or â€œtargeted advertisingâ€ broadly enough to include certain uses of advertising cookies or disclosure of identifiers to advertising partners. Where required, we will provide a method to opt out of these practices and will honor legally recognized browser-based opt-out preference signals.
 
@@ -346,7 +346,7 @@ Information necessary to evaluate or complete a reservation;
 Safety-related information;
 Property rules and instructions; and
 The property address and access instructions at the appropriate stage of a booking.
-Users should use information received through K9 Country only for legitimate Platform-related purposes.
+Users should use information received through ROVAH only for legitimate Platform-related purposes.
 
 B. Publicly Visible Information
 Information made public or visible to other users may include:
@@ -387,7 +387,7 @@ Legal and professional services; and
 Data storage and backup.
 These providers are authorized to process information for contracted purposes, subject to applicable agreements and law.
 
-K9 Country may use providers including Supabase, Stripe, Resend, mapping providers, mobile-platform providers, and other vendors necessary to operate the Services. The specific provider list may change as the Platform develops.
+ROVAH may use providers including Supabase, Stripe, Resend, mapping providers, mobile-platform providers, and other vendors necessary to operate the Services. The specific provider list may change as the Platform develops.
 
 D. Payment, Verification, and Financial Partners
 We may disclose information to banks, payment networks, payment processors, payout providers, identity-verification providers, and financial partners to process transactions, verify users, prevent fraud, comply with financial regulations, and issue required tax documents.
@@ -412,7 +412,7 @@ Protect a person or animal from imminent harm;
 Report suspected criminal conduct;
 Enforce agreements and policies;
 Detect or prevent fraud, abuse, or security incidents;
-Protect the rights, property, or safety of K9 Country, users, animals, property owners, or the public; or
+Protect the rights, property, or safety of ROVAH, users, animals, property owners, or the public; or
 Establish, exercise, or defend legal claims.
 We may challenge or limit a request when we believe it is unlawful or overly broad, but we are not required to do so.
 
@@ -449,13 +449,13 @@ Analytics Technologies
 These help us understand traffic, navigation, errors, feature use, and Platform performance.
 
 Advertising Technologies
-These may help measure marketing campaigns, prevent repetitive advertising, build advertising audiences, or present more relevant K9 Country advertisements.
+These may help measure marketing campaigns, prevent repetitive advertising, build advertising audiences, or present more relevant ROVAH advertisements.
 
 Where required, nonessential technologies will not be activated until you provide consent.
 
 You may manage cookies through:
 
-The K9 Country cookie-preference tool, when available;
+The ROVAH cookie-preference tool, when available;
 Your browser settings;
 Mobile-device advertising settings;
 Platform-specific privacy controls; and
@@ -463,7 +463,7 @@ Legally recognized universal opt-out mechanisms.
 Blocking cookies may prevent some Platform functions from operating correctly.
 
 6. MOBILE DEVICE PERMISSIONS
-Depending on your device and the features you use, the K9 Country application may request permission to access:
+Depending on your device and the features you use, the ROVAH application may request permission to access:
 
 Location;
 Camera;
@@ -496,7 +496,7 @@ B. Marketing Emails
 You may unsubscribe from marketing emails using the unsubscribe link in the message. We may continue sending nonmarketing communications required to operate your account or provide requested Services.
 
 C. Text Messages
-Where required by law, we will obtain your consent before sending automated or marketing text messages. Consent to marketing texts is not a condition of purchasing or using K9 Country Services.
+Where required by law, we will obtain your consent before sending automated or marketing text messages. Consent to marketing texts is not a condition of purchasing or using ROVAH Services.
 
 Message and data rates may apply. Message frequency may vary. You may opt out of marketing texts by replying STOP. You may request assistance by replying HELP.
 
@@ -544,7 +544,7 @@ When information is no longer needed, we may delete, anonymize, or de-identify i
 Closing an account does not necessarily result in immediate deletion of all information.
 
 9. HOW WE PROTECT YOUR INFORMATION
-K9 Country uses industry-standard security measures to help protect your information. Data is encrypted while it travels between your device and our platform and while it is securely stored. We also use secure sign-in protections and access controls to help ensure information is available only to authorized users.
+ROVAH uses industry-standard security measures to help protect your information. Data is encrypted while it travels between your device and our platform and while it is securely stored. We also use secure sign-in protections and access controls to help ensure information is available only to authorized users.
 
 We maintain administrative, technical, and physical safeguards designed to protect personal information. Depending on the nature of the information, these measures may include:
 
@@ -586,7 +586,7 @@ Take other legally required or reasonably appropriate action.
 Notifications will be made as required by applicable data-breach laws.
 
 11. YOUR PRIVACY CHOICES
-Depending on applicable law and your relationship with K9 Country, you may request to:
+Depending on applicable law and your relationship with ROVAH, you may request to:
 
 Access personal information;
 Confirm whether we process personal information;
@@ -647,7 +647,7 @@ This section supplements the rest of this Privacy Policy for residents of states
 
 Rights and business obligations vary by state and may depend on factors such as business size, revenue, data volume, and the nature of the processing.
 
-K9 Country will honor applicable rights even when a specific state is not named in this Policy.
+ROVAH will honor applicable rights even when a specific state is not named in this Policy.
 
 A. Categories of Personal Information
 During the preceding 12 months, we may have collected the following categories:
@@ -693,13 +693,13 @@ Government and law-enforcement authorities;
 Parties involved in business transactions; and
 Other recipients at your direction.
 C. Sale, Sharing, and Targeted Advertising
-K9 Country does not sell personal information for cash as a regular business practice.
+ROVAH does not sell personal information for cash as a regular business practice.
 
-K9 Country may use analytics or advertising technologies that constitute â€œsale,â€ â€œsharing,â€ or â€œtargeted advertisingâ€ under certain state laws. Where applicable, you may opt out through our cookie-preference system, an opt-out link, or by contacting Privacypolicy@k9country.net.
+ROVAH may use analytics or advertising technologies that constitute â€œsale,â€ â€œsharing,â€ or â€œtargeted advertisingâ€ under certain state laws. Where applicable, you may opt out through our cookie-preference system, an opt-out link, or by contacting Privacypolicy@k9country.net.
 
 We will process recognized opt-out preference signals where required and technically feasible.
 
-K9 Country does not knowingly sell or share the personal information of consumers under 16 for targeted advertising without legally required authorization.
+ROVAH does not knowingly sell or share the personal information of consumers under 16 for targeted advertising without legally required authorization.
 
 D. Sensitive Information
 We process sensitive personal information only as reasonably necessary to:
@@ -716,7 +716,7 @@ Provide other purposes disclosed at collection.
 Where an applicable law provides a right to limit additional uses of sensitive information, we will honor that right.
 
 E. Financial Incentives
-K9 Country may offer referral credits, promotional discounts, loyalty benefits, or other programs.
+ROVAH may offer referral credits, promotional discounts, loyalty benefits, or other programs.
 
 If a program qualifies as a financial incentive under applicable privacy law, we will provide the required notice describing:
 
@@ -735,26 +735,26 @@ Requests may be sent to Privacypolicy@k9country.net with the subject line Califo
 G. Nevada Residents
 Nevada residents may submit a verified request to opt out of certain sales of covered information by emailing Privacypolicy@k9country.net.
 
-K9 Country does not currently sell covered information for monetary consideration as defined by Nevada law.
+ROVAH does not currently sell covered information for monetary consideration as defined by Nevada law.
 
 15. BIOMETRIC INFORMATION NOTICE
-K9 Country may use a third-party identity-verification provider that processes facial images, facial geometry, document images, or other biometric information.
+ROVAH may use a third-party identity-verification provider that processes facial images, facial geometry, document images, or other biometric information.
 
 Where biometric privacy laws apply:
 
 You will receive an appropriate notice before collection;
 Consent or authorization will be obtained where required;
 Biometric information will be used only for disclosed verification, fraud-prevention, security, or legal-compliance purposes;
-K9 Country will not sell, lease, trade, or profit directly from biometric identifiers or biometric information;
+ROVAH will not sell, lease, trade, or profit directly from biometric identifiers or biometric information;
 Biometric information will not be disclosed except with consent, as necessary to complete the requested verification, as required by law, or as otherwise legally permitted;
 Reasonable security measures will be used; and
-Biometric information controlled by K9 Country will be permanently destroyed when the initial purpose has been satisfied or within the period required by applicable law, unless a longer period is legally required.
+Biometric information controlled by ROVAH will be permanently destroyed when the initial purpose has been satisfied or within the period required by applicable law, unless a longer period is legally required.
 The third-party verification provider may control or independently process certain biometric information under its own privacy policy and retention schedule.
 
 Additional biometric disclosures may be presented during the verification process and are incorporated into this Policy.
 
 16. AUTOMATED DECISION-MAKING AND PROFILING
-K9 Country may use automated tools to assist with:
+ROVAH may use automated tools to assist with:
 
 Fraud detection;
 Identity verification;
@@ -765,7 +765,7 @@ Listing recommendations;
 Search ranking;
 Suspected policy violations; and
 Safety-risk identification.
-Automated tools may flag activity for human review. Unless specifically disclosed, K9 Country does not use solely automated decisions to make decisions that produce legal or similarly significant effects concerning employment, housing, credit, education, healthcare, or insurance.
+Automated tools may flag activity for human review. Unless specifically disclosed, ROVAH does not use solely automated decisions to make decisions that produce legal or similarly significant effects concerning employment, housing, credit, education, healthcare, or insurance.
 
 Where applicable law provides a right to opt out of qualifying profiling or request information about automated decisions, you may contact Privacypolicy@k9country.net.
 
@@ -779,7 +779,7 @@ List property;
 enter a Host agreement;
 Receive payouts; or
 Independently enter a binding booking agreement.
-K9 Country does not knowingly permit children under 13 to create accounts or knowingly collect personal information directly from children under 13.
+ROVAH does not knowingly permit children under 13 to create accounts or knowingly collect personal information directly from children under 13.
 
 If we learn that we collected personal information from a child under 13 without legally valid parental consent, we will take reasonable steps to delete it.
 
@@ -787,12 +787,12 @@ Parents or guardians who believe a child provided information should contact Pri
 
 Users must not submit identifying information, photographs, precise location, or other personal information about a minor unless they are legally authorized to do so and the information is reasonably necessary for using the Services.
 
-K9 Country does not knowingly sell or share the personal information of anyone under 16 for cross-context behavioral advertising without legally required authorization.
+ROVAH does not knowingly sell or share the personal information of anyone under 16 for cross-context behavioral advertising without legally required authorization.
 
 18. THIRD-PARTY SERVICES AND LINKS
 The Services may contain links to or integrations with third-party websites, applications, maps, payment systems, social platforms, or other services.
 
-Third parties have their own privacy practices. K9 Country is not responsible for the privacy, security, content, or conduct of a third-party service except as required by law.
+Third parties have their own privacy practices. ROVAH is not responsible for the privacy, security, content, or conduct of a third-party service except as required by law.
 
 You should review the third partyâ€™s privacy policy before providing information.
 
@@ -802,11 +802,11 @@ The Platform may permit users to share listings, reviews, photographs, or other 
 Your use of a third-party sharing tool may permit the third party to collect information about your activity. Information posted through social media may become public and is governed by the social platformâ€™s privacy practices.
 
 20. INTERNATIONAL DATA TRANSFERS
-K9 Country is based in the United States. Information may be processed in the United States or other countries where K9 Country or its service providers operate.
+ROVAH is based in the United States. Information may be processed in the United States or other countries where ROVAH or its service providers operate.
 
 Those countries may have privacy laws different from those in your jurisdiction.
 
-Where required, K9 Country will use appropriate safeguards for international transfers, such as:
+Where required, ROVAH will use appropriate safeguards for international transfers, such as:
 
 Contractual protections;
 Standard contractual clauses;
@@ -852,10 +852,10 @@ Where required by law, we will obtain consent before applying a materially diffe
 
 Continued use of the Services after an updated Policy becomes effective constitutes acknowledgment of the updated Policy to the extent permitted by law.
 
-24. CONTACT K9 COUNTRY
+24. CONTACT ROVAH
 Questions, complaints, privacy requests, or security concerns may be directed to:
 
-K9 Country
+ROVAH
 Attn: Privacy and Data Protection
 Email: Privacypolicy@k9country.net
 For general customer-support questions, contact:
