@@ -45,9 +45,9 @@ const dashboardActions: DashboardAction[] = [
   route: '/search',
 },
   {
-    title: 'Book Favorites',
-    description: 'Return to properties you love.',
-    icon: '♥',
+    title: 'Followed Sites',
+    description: 'Return to private spaces you follow.',
+    icon: '✓',
     route: '/favorites',
   },
   {
@@ -379,7 +379,7 @@ export default function DashboardScreen() {
                       style={styles.everythingDogsImage}
                     />
                   ) : (
-                    <Text style={[styles.actionIcon, action.title === 'Book Favorites' && styles.favoriteActionIcon]}>{action.icon}</Text>
+                    <Text style={[styles.actionIcon, action.title === 'Followed Sites' && styles.favoriteActionIcon]}>{action.icon}</Text>
                   )}
                 </View>
 

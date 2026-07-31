@@ -40,9 +40,9 @@ export default function FavoritesScreen() {
     setErrorMessage(null);
 
     const { data: favoriteRows, error: favoritesError } = await supabase
-      .from('property_favorites')
+      .from('property_follows')
       .select('property_id, created_at')
-      .eq('user_id', memberId)
+      .eq('member_id', memberId)
       .order('created_at', { ascending: false });
 
     if (favoritesError) {
@@ -121,9 +121,9 @@ export default function FavoritesScreen() {
     try {
       setRemovingId(property.id);
       const { error } = await supabase
-        .from('property_favorites')
+        .from('property_follows')
         .delete()
-        .eq('user_id', memberId)
+        .eq('member_id', memberId)
         .eq('property_id', property.id);
 
       if (error) {
@@ -156,15 +156,15 @@ export default function FavoritesScreen() {
         keyExtractor={(item) => item.id}
         ListHeaderComponent={
           <>
-            <Text style={styles.title}>My Favorites</Text>
-            <Text style={styles.description}>Keep the private spaces you love in one easy-to-find place.</Text>
+            <Text style={styles.title}>Sites I Follow</Text>
+            <Text style={styles.description}>Keep up with private spaces you want to visit again.</Text>
           </>
         }
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Text style={styles.emptyIcon}>♡</Text>
-            <Text style={styles.emptyTitle}>{errorMessage ? 'Unable to load favorites' : 'No saved spaces yet'}</Text>
-            <Text style={styles.emptyText}>{errorMessage ?? 'Tap the heart on any private space to save it here.'}</Text>
+            <Text style={styles.emptyTitle}>{errorMessage ? 'Unable to load followed sites' : 'No followed sites yet'}</Text>
+            <Text style={styles.emptyText}>{errorMessage ?? 'Tap Follow on any private space to connect with it here.'}</Text>
             {!errorMessage ? (
               <Pressable onPress={() => router.replace('/search')} style={styles.primaryButton}>
                 <Text style={styles.primaryButtonText}>Find a Private Space</Text>
@@ -184,8 +184,8 @@ export default function FavoritesScreen() {
                 <Text style={styles.price}>${Number(item.price_per_hour).toFixed(0)} <Text style={styles.priceUnit}>/ hour</Text></Text>
               </View>
             </Pressable>
-            <Pressable accessibilityLabel={`Remove ${item.name} from favorites`} disabled={removingId === item.id} onPress={() => void removeFavorite(item)} style={styles.removeButton}>
-              {removingId === item.id ? <ActivityIndicator color={colors.red} size="small" /> : <Text style={styles.removeButtonText}>♥ Remove</Text>}
+            <Pressable accessibilityLabel={`Unfollow ${item.name}`} disabled={removingId === item.id} onPress={() => void removeFavorite(item)} style={styles.removeButton}>
+              {removingId === item.id ? <ActivityIndicator color={colors.red} size="small" /> : <Text style={styles.removeButtonText}>Unfollow</Text>}
             </Pressable>
           </View>
         )}

@@ -53,6 +53,22 @@ Deno.serve(async (req) => {
     if (promotion.amount_cents !== 200) {
       return json({ error: 'Promotion pricing is not configured correctly' }, 409);
     }
+    if (promotion.status === 'pending_payment' && promotion.stripe_checkout_session_id) {
+      const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY');
+      if (!stripeSecretKey) return json({ error: 'Promotion payments are not configured yet.' }, 503);
+      const existingCheckout = await new Stripe(stripeSecretKey).checkout.sessions.retrieve(promotion.stripe_checkout_session_id);
+      if (existingCheckout.status === 'open' && existingCheckout.url) return json({ checkoutUrl: existingCheckout.url, resumed: true });
+      if (existingCheckout.payment_status === 'paid') {
+        return json({ error: 'Stripe has confirmed payment for this promotion. It will show as paid and sent as soon as delivery is recorded.' }, 409);
+      }
+      const { error: expiredError } = await adminClient.rpc('mark_site_promotion_payment_not_completed', {
+        p_promotion_id: promotion.id,
+        p_checkout_session_id: promotion.stripe_checkout_session_id,
+        p_reason: 'Your $2 promotion checkout was not completed. No charge was made and no promotion was sent.',
+      });
+      if (expiredError) throw expiredError;
+      return json({ error: 'That checkout was not completed. No charge was made and no promotion was sent. Create a new promotion when you are ready.' }, 409);
+    }
     const { data: eligibleMembers, error: audienceError } = await adminClient.rpc('site_promotion_eligible_members', {
       p_property_id: promotion.property_id,
     });
@@ -120,6 +136,17 @@ Deno.serve(async (req) => {
       .eq('host_id', user.id)
       .eq('status', 'draft');
     if (updateError) throw updateError;
+
+    const { error: notificationError } = await adminClient
+      .from('host_promotion_notifications')
+      .upsert({
+        host_id: user.id,
+        promotion_id: promotion.id,
+        kind: 'payment_processing',
+        title: 'Promotion payment processing',
+        body: 'Your $2 promotion is waiting for Stripe confirmation. It will be sent only after payment succeeds.',
+      }, { onConflict: 'promotion_id,kind' });
+    if (notificationError) throw notificationError;
 
     return json({ checkoutUrl: checkout.url });
   } catch (error) {

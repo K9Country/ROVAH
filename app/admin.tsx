@@ -65,6 +65,7 @@ type PropertyReviewDetails = {
   amenities: string[];
   images: PropertyImage[];
 };
+type MemberAddressAudit = { member_id: string; member_name: string; address_line1: string | null; address_line2: string | null; city: string | null; state: string | null; postal_code: string | null; distance_miles: number | null; inside_50_miles: boolean | null; connected_to_site: boolean; local_promotions_enabled: boolean };
 
 const amenityLabels: Record<string, string> = {
   water: 'Water bowl', shade: 'Shade', picnic_table: 'Picnic table', restroom: 'Restroom', parking: 'Parking', tennis_ball: 'Tennis ball', frisbee: 'Frisbee', agility_equipment: 'Agility equipment', swimming_pool: 'Swimming pool', agility_course: 'Agility course', hiking_trails: 'Hiking trails', lake_access: 'Lake access', poop_bags: '💩 Poop bags', wheelchair_accessible: 'Wheelchair accessible',
@@ -81,6 +82,9 @@ export default function AdministratorScreen() {
   const [filter, setFilter] = useState<ApprovalStatus | 'all'>('pending');
   const [notesByProperty, setNotesByProperty] = useState<Record<string, string>>({});
   const [savingPropertyId, setSavingPropertyId] = useState<string | null>(null);
+  const [addressAuditPropertyId, setAddressAuditPropertyId] = useState<string | null>(null);
+  const [addressAuditRows, setAddressAuditRows] = useState<MemberAddressAudit[]>([]);
+  const [isLoadingAddressAudit, setIsLoadingAddressAudit] = useState(false);
 
   const loadReviewQueue = useCallback(async () => {
     if (!session?.user.id) {
@@ -151,6 +155,18 @@ export default function AdministratorScreen() {
   useEffect(() => {
     void loadReviewQueue();
   }, [loadReviewQueue]);
+
+  useEffect(() => {
+    const loadAddressAudit = async () => {
+      if (!isAdministrator || !addressAuditPropertyId) return;
+      setIsLoadingAddressAudit(true);
+      const { data, error } = await supabase.rpc('get_member_home_address_audit', { p_property_id: addressAuditPropertyId });
+      if (error) setErrorMessage(error.message);
+      else setAddressAuditRows((data ?? []) as MemberAddressAudit[]);
+      setIsLoadingAddressAudit(false);
+    };
+    void loadAddressAudit();
+  }, [addressAuditPropertyId, isAdministrator]);
 
   const visibleProperties = useMemo(
     () => properties.filter((property) => filter === 'all' || property.approval_status === filter),
@@ -228,7 +244,12 @@ export default function AdministratorScreen() {
         <Text style={styles.eyebrow}>ROVAH ADMINISTRATOR</Text>
         <Text style={styles.title}>Site review queue</Text>
         <Text style={styles.description}>Review each site before it becomes visible to guests. Approval publishes it; declining hides it.</Text>
-
+        <View style={styles.addressAuditCard}>
+          <Text style={styles.addressAuditTitle}>Private member home-address audit</Text>
+          <Text style={styles.addressAuditText}>Administrator-only. Use this to correct saved test addresses affecting the 50-mile promotion count.</Text>
+          <View style={styles.filterRow}>{properties.filter((property) => property.is_published).map((property) => <Pressable key={property.id} onPress={() => setAddressAuditPropertyId(property.id)} style={[styles.filterButton, addressAuditPropertyId === property.id && styles.filterButtonSelected]}><Text style={[styles.filterText, addressAuditPropertyId === property.id && styles.filterTextSelected]}>{property.name}</Text></Pressable>)}</View>
+          {isLoadingAddressAudit ? <ActivityIndicator color={colors.forest} style={{ marginTop: 14 }} /> : addressAuditRows.map((member) => <View key={member.member_id} style={styles.auditRow}><Text style={styles.auditName}>{member.member_name || 'Unnamed member'}</Text><Text style={styles.auditAddress}>{formatAddress(member.address_line1, member.city, member.state, member.postal_code)}</Text><Text style={styles.auditStatus}>{member.distance_miles === null ? 'Address needs geocoding' : `${member.distance_miles} mi · ${member.inside_50_miles ? 'Within 50 miles' : 'Outside 50 miles'}${member.connected_to_site ? ' · Connected' : ''}`}</Text></View>)}
+        </View>
         <View style={styles.filterRow}>
           {(['pending', 'approved', 'declined', 'all'] as const).map((value) => (
             <Pressable key={value} onPress={() => setFilter(value)} style={[styles.filterButton, filter === value && styles.filterButtonSelected]}>
@@ -339,6 +360,13 @@ const styles = StyleSheet.create({
   approved: { backgroundColor: '#E4F4E8', color: '#237A45' },
   declined: { backgroundColor: '#FDEBE9', color: '#A7463B' },
   reviewReminder: { backgroundColor: '#FFF0D1', borderColor: '#E8C779', borderRadius: 12, borderWidth: 1, marginTop: 15, padding: 12 },
+  addressAuditCard: { backgroundColor: '#FFF9EF', borderColor: '#D9C49D', borderRadius: 16, borderWidth: 1, marginTop: 18, padding: 15 },
+  addressAuditTitle: { color: colors.forest, fontSize: 17, fontWeight: '900' },
+  addressAuditText: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 4 },
+  auditRow: { borderTopColor: colors.border, borderTopWidth: 1, marginTop: 12, paddingTop: 12 },
+  auditName: { color: colors.forest, fontSize: 14, fontWeight: '900' },
+  auditAddress: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 3 },
+  auditStatus: { color: colors.brown, fontSize: 12, fontWeight: '800', marginTop: 3 },
   reviewReminderTitle: { color: '#8A4F17', fontSize: 13, fontWeight: '900' },
   reviewReminderText: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 4 },
   reviewSection: { borderTopColor: colors.border, borderTopWidth: 1, marginTop: 16, paddingTop: 16 },

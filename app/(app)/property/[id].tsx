@@ -142,6 +142,8 @@ export default function PropertyDetailsScreen() {
   const [isBooking, setIsBooking] = useState(false);
   const [reservationError, setReservationError] = useState<string | null>(null);
   const [needsGuestProfile, setNeedsGuestProfile] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [isFollowSaving, setIsFollowSaving] = useState(false);
   const recordedViewPropertyId = useRef<string | null>(null);
 
   useEffect(() => {
@@ -180,7 +182,7 @@ export default function PropertyDetailsScreen() {
       supabase.from('property_images').select('*').eq('property_id', id).order('display_order'),
       supabase.from('property_booking_blocks').select('start_at, end_at').eq('property_id', id).gte('end_at', new Date().toISOString()),
       supabase.from('property_date_availability').select('*').eq('property_id', id).order('availability_date'),
-      supabase.from('loyalty_pass_offers').select('id, name, credit_count, package_price, duration_months').eq('property_id', id).eq('is_active', true).order('created_at'),
+      supabase.from('loyalty_pass_offers').select('id, name, credit_count, package_price, duration_months').eq('property_id', id).order('created_at'),
       supabase.rpc('get_completed_reservation_count', { p_property_id: id }),
     ]);
 
@@ -208,6 +210,18 @@ export default function PropertyDetailsScreen() {
     setImages(imagesWithUrls);
     setIsLoading(false);
 
+    if (isMember && session?.user.id) {
+      const { data: follow } = await supabase
+        .from('property_follows')
+        .select('id')
+        .eq('property_id', id)
+        .eq('member_id', session.user.id)
+        .maybeSingle();
+      setIsFollowing(Boolean(follow));
+    } else {
+      setIsFollowing(false);
+    }
+
     if (propertyResult.data && session?.user.id) {
       const { data: reviewData } = await supabase
         .from('booking_reviews')
@@ -227,7 +241,7 @@ export default function PropertyDetailsScreen() {
       setHostReviews([]);
     }
 
-  }, [id, session?.user.id]);
+  }, [id, isMember, session?.user.id]);
 
   useEffect(() => { void loadListing(); }, [loadListing]);
 
@@ -626,6 +640,25 @@ export default function PropertyDetailsScreen() {
       { dialogTitle: 'Share this site' }
     );
   };
+
+  const toggleFollow = async () => {
+    if (!isMember || !session?.user.id) {
+      Alert.alert('Sign in to follow sites', 'Create or sign in to a member account to follow this private space.');
+      return;
+    }
+    try {
+      setIsFollowSaving(true);
+      const { error } = isFollowing
+        ? await supabase.from('property_follows').delete().eq('property_id', property.id).eq('member_id', session.user.id)
+        : await supabase.from('property_follows').insert({ property_id: property.id, member_id: session.user.id });
+      if (error) throw error;
+      setIsFollowing((current) => !current);
+    } catch (error) {
+      Alert.alert('Unable to update follow', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setIsFollowSaving(false);
+    }
+  };
   const siteRating = hostReviews.length > 0
     ? hostReviews.reduce((total, review) => total + review.bone_rating, 0) / hostReviews.length
     : null;
@@ -665,6 +698,16 @@ export default function PropertyDetailsScreen() {
             </View>
           </Pressable>
         ) : null}
+
+        <Pressable
+          accessibilityLabel={isFollowing ? `Unfollow ${property.name}` : `Follow ${property.name}`}
+          accessibilityRole="button"
+          disabled={isFollowSaving}
+          onPress={() => void toggleFollow()}
+          style={[styles.followButton, isFollowing && styles.followButtonActive]}
+        >
+          {isFollowSaving ? <ActivityIndicator color={colors.warmWhite} /> : <Text style={styles.followButtonText}>{isFollowing ? 'Following this site' : 'Follow this site'}</Text>}
+        </Pressable>
 
         <Pressable
           accessibilityLabel={`Message the host of ${property.name}`}
@@ -824,6 +867,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function InfoRow({ label, value, last = false }: { label: string; value: string; last?: boolean }) { return <View style={[styles.infoRow, !last && styles.infoRowDivider]}><Text style={styles.infoLabel}>{label}</Text><Text style={styles.infoValue}>{value}</Text></View>; }
 function ListingSummaryRow({ label, value, last = false }: { label: string; value: string; last?: boolean }) { return <View style={[styles.listingSummaryRow, !last && styles.listingSummaryRowDivider]}><Text style={styles.listingSummaryLabel}>{label}</Text><Text style={styles.listingSummaryValue}>{value}</Text></View>; }
 const styles = StyleSheet.create({
+  followButton: { alignItems: 'center', backgroundColor: colors.forest, borderRadius: 14, justifyContent: 'center', marginBottom: 10, minHeight: 52 }, followButtonActive: { backgroundColor: colors.olive }, followButtonText: { color: colors.warmWhite, fontSize: 16, fontWeight: '900' },
   safeArea: { flex: 1, backgroundColor: colors.cream }, container: { padding: 20, paddingBottom: 42 }, centeredState: { alignItems: 'center', flex: 1, justifyContent: 'center', padding: 28 }, stateTitle: { color: colors.forest, fontSize: 24, fontWeight: '900', textAlign: 'center' }, stateText: { color: colors.muted, fontSize: 15, lineHeight: 22, marginTop: 12, textAlign: 'center' }, backToSearchButton: { backgroundColor: colors.forest, borderRadius: 13, marginTop: 22, minHeight: 50, paddingHorizontal: 20, justifyContent: 'center' }, backToSearchText: { color: colors.warmWhite, fontSize: 15, fontWeight: '900' }, backButton: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center', marginBottom: 12 }, backButtonText: { color: colors.forest, fontSize: 16, fontWeight: '900' }, coverImage: { borderRadius: 20, height: 260, width: '100%' }, coverPlaceholder: { alignItems: 'center', backgroundColor: colors.lightGreen, borderRadius: 20, height: 260, justifyContent: 'center' }, coverPlaceholderText: { color: colors.muted, fontSize: 15, fontWeight: '800' }, photoStrip: { gap: 10, marginTop: 10 }, thumbnailButton: { borderColor: 'transparent', borderRadius: 12, borderWidth: 3, overflow: 'hidden' }, thumbnailButtonSelected: { borderColor: colors.forest }, thumbnail: { height: 70, width: 92 }, eyebrow: { color: colors.brown, fontSize: 11, fontWeight: '900', letterSpacing: 1.3, marginTop: 22 }, title: { color: colors.forest, fontSize: 30, fontWeight: '900', marginTop: 6 }, location: { color: colors.muted, fontSize: 16, marginTop: 5 }, listingSummary: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 16, borderWidth: 1, marginTop: 16, paddingHorizontal: 14 }, listingSummaryRow: { paddingVertical: 12 }, listingSummaryRowDivider: { borderBottomColor: colors.border, borderBottomWidth: 1 }, listingSummaryLabel: { color: colors.forest, fontSize: 13, fontWeight: '900' }, listingSummaryValue: { color: colors.muted, fontSize: 15, fontWeight: '800', marginTop: 4 }, listingSummaryLink: { color: colors.brown, fontSize: 15, fontWeight: '900', marginTop: 4, textDecorationLine: 'underline' }, description: { color: colors.muted, fontSize: 16, lineHeight: 24, marginBottom: 14, marginTop: 14 }, shareButton: { alignItems: 'center', backgroundColor: colors.warmWhite, borderColor: colors.brown, borderRadius: 14, borderWidth: 1, flexDirection: 'row', justifyContent: 'center', marginBottom: 10, minHeight: 52 }, shareButtonText: { color: colors.brown, fontSize: 16, fontWeight: '900' }, shareButtonIcon: { height: 22, marginLeft: 10, position: 'relative', width: 22 }, shareIconLine: { backgroundColor: colors.brown, height: 2, left: 5, position: 'absolute', width: 13 }, shareIconLineTop: { top: 7, transform: [{ rotate: '-27deg' }] }, shareIconLineBottom: { top: 14, transform: [{ rotate: '27deg' }] }, shareIconDot: { backgroundColor: colors.brown, borderRadius: 4, height: 7, position: 'absolute', width: 7 }, shareIconDotOrigin: { left: 0, top: 8 }, shareIconDotTop: { right: 0, top: 1 }, shareIconDotBottom: { bottom: 1, right: 0 }, messageHostButton: { alignItems: 'center', backgroundColor: colors.warmWhite, borderColor: colors.brown, borderRadius: 14, borderWidth: 1, flexDirection: 'row', justifyContent: 'center', marginBottom: 22, minHeight: 52 }, messageHostButtonText: { color: colors.brown, fontSize: 16, fontWeight: '900' }, messageHostButtonIcon: { fontSize: 18, marginLeft: 8 }, section: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 18, borderWidth: 1, marginBottom: 14, padding: 17 }, sectionTitle: { color: colors.forest, fontSize: 19, fontWeight: '900', marginBottom: 12 }, infoRow: { paddingVertical: 11 }, infoRowDivider: { borderBottomColor: colors.border, borderBottomWidth: 1 }, infoLabel: { color: colors.forest, fontSize: 14, fontWeight: '900' }, infoValue: { color: colors.muted, fontSize: 14, lineHeight: 20, marginTop: 4 }, amenityGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, amenityPill: { backgroundColor: colors.lightGreen, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8 }, amenityText: { color: colors.olive, fontSize: 13, fontWeight: '800' }, mapSection: { backgroundColor: '#E6EDE2', borderColor: '#C4D2B6', borderRadius: 18, borderWidth: 1, marginBottom: 14, overflow: 'hidden' }, embeddedMap: { height: 220, width: '100%' }, emptyText: { color: colors.muted, fontSize: 14, lineHeight: 21 }, rulesText: { color: colors.muted, fontSize: 15, lineHeight: 23 }, reviewIntro: { color: colors.muted, fontSize: 14, lineHeight: 20, marginBottom: 4 }, hostReview: { borderTopColor: colors.border, borderTopWidth: 1, marginTop: 12, paddingTop: 12 }, hostReviewBones: { fontSize: 20, letterSpacing: 1 }, emptyBones: { opacity: 0.18 }, hostReviewDate: { color: colors.brown, fontSize: 12, fontWeight: '800', marginTop: 7 }, hostReviewText: { color: colors.forest, fontSize: 14, lineHeight: 21, marginTop: 6 }, hostReviewEmpty: { color: colors.muted, fontSize: 13, fontStyle: 'italic', marginTop: 6 },
   bookingCard: { backgroundColor: colors.lightGreen, borderColor: '#CBD1BD', borderRadius: 20, borderWidth: 1, marginTop: 6, padding: 18 }, bookingEyebrow: { color: colors.brown, fontSize: 11, fontWeight: '900', letterSpacing: 1.2 }, bookingTitle: { color: colors.forest, fontSize: 22, fontWeight: '900', marginTop: 6 }, bookingText: { color: colors.muted, fontSize: 14, lineHeight: 21, marginBottom: 18, marginTop: 7 }, profileRequiredCard: { backgroundColor: colors.warmWhite, borderColor: colors.brown, borderRadius: 14, borderWidth: 1, marginBottom: 16, padding: 14 }, profileRequiredTitle: { color: colors.forest, fontSize: 15, fontWeight: '900' }, profileRequiredText: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 5 }, profileRequiredLink: { color: colors.brown, fontSize: 14, fontWeight: '900', marginTop: 10, textDecorationLine: 'underline' }, calendarHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }, monthButton: { alignItems: 'center', backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 16, borderWidth: 1, height: 32, justifyContent: 'center', width: 32 }, monthButtonText: { color: colors.forest, fontSize: 27, fontWeight: '700', lineHeight: 30 }, monthTitle: { color: colors.forest, fontSize: 16, fontWeight: '900' }, weekdayRow: { flexDirection: 'row', marginBottom: 5 }, weekdayLabel: { color: colors.muted, flex: 1, fontSize: 11, fontWeight: '900', textAlign: 'center' }, calendarGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 4 }, calendarDay: { alignItems: 'center', borderRadius: 16, height: 34, justifyContent: 'center', width: '13.2%' }, calendarDayAvailable: { backgroundColor: '#BFD8B9' }, calendarDayUnavailable: { backgroundColor: '#F0C5C0' }, calendarDaySelected: { backgroundColor: colors.forest, borderColor: colors.warmWhite, borderWidth: 2 }, calendarDayOutsideMonth: { opacity: 0.35 }, calendarDayText: { color: colors.forest, fontSize: 13, fontVariant: ['tabular-nums'], fontWeight: '900' }, calendarDayTextUnavailable: { color: '#95423A' }, calendarDayTextSelected: { color: colors.warmWhite }, selectedDateText: { color: colors.forest, fontSize: 14, fontWeight: '900', marginTop: 14, textAlign: 'center' }, fieldLabel: { color: colors.forest, fontSize: 14, fontWeight: '900', marginBottom: 7, marginTop: 14 }, selectorButton: { alignItems: 'center', backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 12, borderWidth: 1, flexDirection: 'row', justifyContent: 'space-between', minHeight: 50, paddingHorizontal: 14 }, selectorDisabled: { backgroundColor: '#ECE6D9', opacity: 0.7 }, selectorButtonText: { color: colors.forest, fontSize: 16, fontVariant: ['tabular-nums'], fontWeight: '900' }, selectorHint: { color: colors.brown, fontSize: 20, fontWeight: '900' }, minimumText: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 8 }, attendingDogsIntro: { color: colors.muted, fontSize: 13, lineHeight: 19 }, dogProfileLoading: { alignItems: 'center', minHeight: 52, justifyContent: 'center' }, attendingDogList: { gap: 8, marginTop: 11 }, attendingDogOption: { alignItems: 'center', backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 13, borderWidth: 1, flexDirection: 'row', minHeight: 58, padding: 10 }, attendingDogOptionSelected: { backgroundColor: '#E7F0E3', borderColor: colors.forest, borderWidth: 2 }, attendingDogCheck: { alignItems: 'center', borderColor: colors.brown, borderRadius: 12, borderWidth: 1, height: 24, justifyContent: 'center', marginRight: 10, width: 24 }, attendingDogCheckText: { color: colors.forest, fontSize: 15, fontWeight: '900' }, attendingDogCopy: { flex: 1 }, attendingDogName: { color: colors.forest, fontSize: 15, fontWeight: '900' }, attendingDogDetails: { color: colors.muted, fontSize: 13, marginTop: 2 }, addDogProfileCard: { backgroundColor: colors.warmWhite, borderColor: colors.brown, borderRadius: 13, borderWidth: 1, marginTop: 10, padding: 13 }, addDogProfileTitle: { color: colors.forest, fontSize: 15, fontWeight: '900' }, addDogProfileText: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 3 }, dogFeeText: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 10, textAlign: 'center' }, estimateRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginTop: 18 }, estimateLabel: { color: colors.muted, fontSize: 14, fontWeight: '800' }, estimateValue: { color: colors.forest, fontSize: 21, fontWeight: '900' }, bookingButton: { alignItems: 'center', backgroundColor: colors.brown, borderRadius: 14, justifyContent: 'center', marginTop: 18, minHeight: 54 }, bookingButtonText: { color: colors.warmWhite, fontSize: 16, fontWeight: '900' }, buttonDisabled: { opacity: 0.55 },
   courtesyVisitCard: { backgroundColor: colors.warmWhite, borderColor: '#91B58D', borderRadius: 14, borderWidth: 1, marginTop: 15, padding: 12 }, courtesyVisitTitle: { color: colors.forest, fontSize: 15, fontWeight: '900' }, courtesyVisitText: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 3 }, courtesyVisitLimit: { color: colors.brown, fontSize: 12, fontWeight: '800', lineHeight: 18, marginTop: 8 }, courtesyVisitOption: { borderColor: colors.border, borderRadius: 10, borderWidth: 1, marginTop: 10, padding: 10 }, courtesyVisitOptionSelected: { backgroundColor: colors.lightGreen, borderColor: colors.forest, borderWidth: 2 }, courtesyVisitOptionTitle: { color: colors.forest, fontSize: 13, fontWeight: '900' }, courtesyVisitOptionText: { color: colors.muted, fontSize: 12, lineHeight: 17, marginTop: 3 }, courtesyVisitStatus: { color: colors.muted, fontSize: 12, fontStyle: 'italic', lineHeight: 18, marginTop: 10 }, courtesyVisitUnavailable: { backgroundColor: '#FFF3D6', borderColor: '#D5B071', borderRadius: 10, borderWidth: 1, color: colors.brown, fontSize: 12, fontWeight: '800', lineHeight: 18, marginTop: 10, padding: 10 }, reservationError: { backgroundColor: '#FFF1EE', borderColor: '#B85F52', borderRadius: 12, borderWidth: 1, marginTop: 14, padding: 12 }, reservationErrorText: { color: '#8C3A31', fontSize: 13, fontWeight: '700', lineHeight: 19 }, paymentConsentText: { color: colors.muted, fontSize: 11, lineHeight: 16, marginTop: 10, textAlign: 'center' },

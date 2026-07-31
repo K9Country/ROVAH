@@ -17,7 +17,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../../constants/theme';
 import { getAuthEmailRedirectUrl } from '../../lib/auth-redirect';
-import { continueWithGoogle } from '../../lib/google-auth';
 import { legalDocumentBySlug, legalDocumentVersions } from '../../lib/legal-content';
 import { formatUsPhoneNumber, hasValidUsPhoneNumber, phoneNumberHelpText } from '../../lib/phone-number';
 import { supabase } from '../../lib/supabase';
@@ -84,7 +83,6 @@ export default function SignUpScreen() {
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isResendingVerification, setIsResendingVerification] = useState(false);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [legalAccepted, setLegalAccepted] = useState(false);
   // Retained temporarily for the hidden legacy JSX block below. The active
   // account-creation flow uses the single, combined `legalAccepted` control.
@@ -138,21 +136,6 @@ export default function SignUpScreen() {
         ? 'Passwords do not match.'
         : undefined,
     }));
-  };
-
-  const handleGoogleSignUp = async () => {
-    try {
-      setIsGoogleLoading(true);
-      setSignupError(null);
-      const { error } = await continueWithGoogle(intent === 'host' ? 'host' : 'guest');
-      if (error) throw error;
-    } catch (error) {
-      const message = getSignupErrorMessage(error);
-      setSignupError(message);
-      Alert.alert('Google sign-in could not start', message);
-    } finally {
-      setIsGoogleLoading(false);
-    }
   };
 
   const handleSignUp = async () => {
@@ -450,22 +433,6 @@ export default function SignUpScreen() {
               <Text style={styles.accountDetailsTitle}>Account sign in</Text>
             </> : null}
 
-            <Pressable
-              accessibilityLabel="Continue with Google"
-              accessibilityRole="button"
-              disabled={isLoading || isGoogleLoading}
-              onPress={() => void handleGoogleSignUp()}
-              style={({ pressed }) => [styles.googleButton, pressed && styles.buttonPressed, (isLoading || isGoogleLoading) && styles.buttonDisabled]}
-            >
-              {isGoogleLoading ? <ActivityIndicator color={colors.forest} /> : <><Text style={styles.googleMark}>G</Text><Text style={styles.googleButtonText}>Continue with Google</Text></>}
-            </Pressable>
-            <View style={styles.authDivider}>
-              <View style={styles.authDividerLine} />
-              <Text style={styles.authDividerText}>or create an account with email</Text>
-              <View style={styles.authDividerLine} />
-            </View>
-            <Text style={styles.googleNote}>New Google accounts will review and accept ROVAH&apos;s required agreements before the profile opens.</Text>
- 
             <View>
               <Text style={styles.label}>Email address</Text>
  
@@ -998,24 +965,6 @@ const styles = StyleSheet.create({
   buttonDisabled: {
     opacity: 0.65,
   },
-
-  googleButton: {
-    alignItems: 'center',
-    backgroundColor: colors.warmWhite,
-    borderColor: colors.forest,
-    borderRadius: 14,
-    borderWidth: 1.25,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    minHeight: 54,
-    paddingHorizontal: 18,
-  },
-  googleMark: { color: '#4285F4', fontSize: 20, fontWeight: '900', marginRight: 10 },
-  googleButtonText: { color: colors.forest, fontSize: 16, fontWeight: '800' },
-  authDivider: { alignItems: 'center', flexDirection: 'row', gap: 9, marginVertical: 2 },
-  authDividerLine: { backgroundColor: colors.border, flex: 1, height: 1 },
-  authDividerText: { color: colors.muted, fontSize: 12, fontWeight: '700' },
-  googleNote: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: -4 },
 
   waiverCard: {
     backgroundColor: '#FFF9EF',

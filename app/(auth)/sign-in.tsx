@@ -20,7 +20,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../../constants/theme';
 import { getAccountType } from '../../lib/account-role';
 import { getAuthEmailRedirectUrl } from '../../lib/auth-redirect';
-import { continueWithGoogle } from '../../lib/google-auth';
 import { clearExplicitMemberSignOut } from '../../lib/member-entry';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../services/auth-context';
@@ -42,7 +41,6 @@ export default function SignInScreen() {
   const [rememberEmail, setRememberEmail] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [isResendingVerification, setIsResendingVerification] = useState(false);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [signInError, setSignInError] = useState<string | null>(null);
   const [isMemberSignInExpanded, setIsMemberSignInExpanded] = useState(false);
   const signInScrollRef = useRef<ScrollView>(null);
@@ -90,19 +88,6 @@ export default function SignInScreen() {
   const showSignInError = (message: string) => {
     setSignInError(message);
     Alert.alert('Sign in failed', message);
-  };
-
-  const handleGoogleSignIn = async () => {
-    try {
-      setIsGoogleLoading(true);
-      setSignInError(null);
-      const { error } = await continueWithGoogle(intent === 'host' ? 'host' : 'guest');
-      if (error) showSignInError(error.message);
-    } catch {
-      showSignInError('We could not start Google sign-in. Please try again.');
-    } finally {
-      setIsGoogleLoading(false);
-    }
   };
 
   const handleSignIn = async () => {
@@ -255,25 +240,6 @@ export default function SignInScreen() {
     });
   };
 
-  const googleSignInOption = (
-    <>
-      <Pressable
-        accessibilityLabel="Continue with Google"
-        accessibilityRole="button"
-        disabled={isLoading || isGoogleLoading}
-        onPress={() => void handleGoogleSignIn()}
-        style={({ pressed }) => [styles.googleButton, pressed && styles.buttonPressed, (isLoading || isGoogleLoading) && styles.buttonDisabled]}
-      >
-        {isGoogleLoading ? <ActivityIndicator color={colors.forest} /> : <><Text style={styles.googleMark}>G</Text><Text style={styles.googleButtonText}>Continue with Google</Text></>}
-      </Pressable>
-      <View style={styles.authDivider}>
-        <View style={styles.authDividerLine} />
-        <Text style={styles.authDividerText}>or continue with email</Text>
-        <View style={styles.authDividerLine} />
-      </View>
-    </>
-  );
-
   const signInFormFields = (
     <>
       {signInError ? (
@@ -281,8 +247,6 @@ export default function SignInScreen() {
           <Text style={styles.signInErrorText}>{signInError}</Text>
         </View>
       ) : null}
-
-      {googleSignInOption}
 
       <View>
         <Text style={styles.label}>Email address</Text>
@@ -455,8 +419,6 @@ export default function SignInScreen() {
                 <Text style={styles.signInErrorText}>{signInError}</Text>
               </View>
             ) : null}
-
-            {googleSignInOption}
 
             <View>
               <Text style={styles.label}>Email address</Text>
@@ -971,24 +933,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     textDecorationLine: 'underline',
   },
-
-  googleButton: {
-    alignItems: 'center',
-    backgroundColor: colors.warmWhite,
-    borderColor: colors.forest,
-    borderRadius: 14,
-    borderWidth: 1.25,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    minHeight: 54,
-    paddingHorizontal: 18,
-  },
-
-  googleMark: { color: '#4285F4', fontSize: 20, fontWeight: '900', marginRight: 10 },
-  googleButtonText: { color: colors.forest, fontSize: 16, fontWeight: '800' },
-  authDivider: { alignItems: 'center', flexDirection: 'row', gap: 9, marginVertical: 2 },
-  authDividerLine: { backgroundColor: colors.border, flex: 1, height: 1 },
-  authDividerText: { color: colors.muted, fontSize: 12, fontWeight: '700' },
 
   resendVerificationButton: {
     alignItems: 'center',

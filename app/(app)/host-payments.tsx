@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors } from '../../constants/theme';
+import { HostPageGuide } from '../../components/host-page-guide';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../services/auth-context';
 
@@ -256,6 +257,7 @@ export default function HostPaymentsScreen() {
             </View>
           </>
         )}
+        <HostPageGuide title="How to use Payments" intro="This page shows the money from your reservations and whether Stripe is ready to pay you." steps={[{ title: 'Finish Stripe setup', text: 'If you see a setup button, tap it and answer Stripe’s questions. You cannot receive payouts until Stripe says your account is active.' }, { title: 'Read the totals', text: 'Completed reservations add to the totals. Final host payout is the money left after ROVAH and Stripe fees.' }, { title: 'Watch pending reservations', text: 'Pending means the reservation is protected but not paid. Finish any Stripe setup shown on this page to solve it.' }]} />
       </ScrollView>
     </SafeAreaView>
   );

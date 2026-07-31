@@ -135,6 +135,17 @@ Deno.serve(async (req) => {
         if (error) throw error;
         await cancelPendingLoyaltyPass(admin, bookingId);
       }
+      const promotionId = session.metadata?.local_promotion_id;
+      if (promotionId) {
+        const { error } = await admin.rpc('mark_site_promotion_payment_not_completed', {
+          p_promotion_id: promotionId,
+          p_checkout_session_id: session.id,
+          p_reason: event.type === 'checkout.session.expired'
+            ? 'Your $2 promotion payment expired before it was completed. No promotion was sent.'
+            : 'Your $2 promotion payment was not completed. No promotion was sent.',
+        });
+        if (error) throw error;
+      }
     }
 
     if (event.type === 'charge.refunded') {

@@ -224,9 +224,9 @@ export default function SearchScreen() {
         .in('property_id', propertyIds),
       memberId
         ? supabase
-            .from('property_favorites')
+            .from('property_follows')
             .select('property_id')
-            .eq('user_id', memberId)
+            .eq('member_id', memberId)
             .in('property_id', propertyIds)
         : Promise.resolve({ data: [], error: null }),
       supabase
@@ -461,8 +461,8 @@ export default function SearchScreen() {
   const toggleFavorite = async (propertyId: string) => {
     if (!memberId) {
       Alert.alert(
-        'Sign in to save favorites',
-        'Create or sign in to a member account to save private spaces to your Favorites folder.',
+        'Sign in to follow sites',
+        'Create or sign in to a member account to follow private spaces.',
         [
           { text: 'Not now', style: 'cancel' },
           { text: 'Sign In', onPress: () => router.push('/sign-in') },
@@ -478,16 +478,16 @@ export default function SearchScreen() {
 
       const { error } = isFavorite
         ? await supabase
-            .from('property_favorites')
+            .from('property_follows')
             .delete()
-            .eq('user_id', memberId)
+            .eq('member_id', memberId)
             .eq('property_id', propertyId)
         : await supabase
-            .from('property_favorites')
-            .insert({ user_id: memberId, property_id: propertyId });
+            .from('property_follows')
+            .insert({ member_id: memberId, property_id: propertyId });
 
       if (error) {
-        Alert.alert('Unable to update favorite', error.message);
+        Alert.alert('Unable to update follow', error.message);
         return;
       }
 
@@ -572,8 +572,8 @@ export default function SearchScreen() {
         <Pressable
           accessibilityLabel={
             isFavorite
-              ? `Remove ${item.name} from favorites`
-              : `Save ${item.name} to favorites`
+              ? `Unfollow ${item.name}`
+              : `Follow ${item.name}`
           }
           accessibilityRole="button"
           disabled={favoriteSavingId === item.id}
@@ -588,7 +588,7 @@ export default function SearchScreen() {
             <ActivityIndicator color={isFavorite ? colors.red : colors.brown} size="small" />
           ) : (
             <Text style={[styles.favoriteIcon, isFavorite && styles.favoriteIconSelected]}>
-              {isFavorite ? '♥' : '♡'}
+              {isFavorite ? 'Following' : 'Follow'}
             </Text>
           )}
         </Pressable>
@@ -1341,7 +1341,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 12,
     top: 12,
-    width: 40,
+    minWidth: 72,
+    paddingHorizontal: 10,
   },
 
   favoriteButtonSelected: {
@@ -1350,12 +1351,13 @@ const styles = StyleSheet.create({
 
   favoriteIcon: {
     color: colors.brown,
-    fontSize: 25,
-    lineHeight: 28,
+    fontSize: 12,
+    fontWeight: '900',
+    lineHeight: 16,
   },
 
   favoriteIconSelected: {
-    color: colors.red,
+    color: colors.forest,
   },
 
   photoCounterText: {

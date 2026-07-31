@@ -10,10 +10,10 @@ function RootNavigator() {
   const { isLoading } = useAuth();
   const pathname = usePathname();
  
-  // Keep the OAuth/email callback mounted while the authentication provider
+  // Keep the email callback mounted while the authentication provider
   // finishes loading the new session. Returning only a loading view here
-  // unmounts the navigator, loses /auth/callback, and can send a new Google
-  // user back through the public welcome route before their role is created.
+  // unmounts the navigator and loses /auth/callback before a new account's
+  // role has been created.
   if (isLoading && pathname !== '/auth/callback' && pathname !== '/reset-password') {
     return (
       <View style={styles.loadingScreen}>

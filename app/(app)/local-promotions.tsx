@@ -7,6 +7,7 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, Text
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors } from '../../constants/theme';
+import { HostPageGuide } from '../../components/host-page-guide';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../services/auth-context';
 
@@ -27,6 +28,7 @@ type LocalPromotion = {
   ends_at: string | null;
   moderation_status: 'pending' | 'approved' | 'rejected';
 };
+type HostPromotionNotification = { id: string; title: string; body: string };
 
 const samples = [
   'Give your dog room to run, sniff, and play in a private outdoor space. Reserve your visit today.',
@@ -51,6 +53,7 @@ export default function LocalPromotionsScreen() {
   const [isStartingCheckout, setIsStartingCheckout] = useState<string | null>(null);
   const [isSyncingSiteAddress, setIsSyncingSiteAddress] = useState(false);
   const [siteAddressReady, setSiteAddressReady] = useState(false);
+  const [currentOpportunityCount, setCurrentOpportunityCount] = useState<number | null>(null);
   const [notice, setNotice] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
 
   const selectedProperty = useMemo(
@@ -72,14 +75,23 @@ export default function LocalPromotionsScreen() {
     return { promotion: currentPromotion, nextAvailableAt, daysRemaining };
   }, [promotions, selectedPropertyId]);
 
+  const currentPromotion = useMemo(() => promotions.find((promotion) =>
+    promotion.property_id === selectedPropertyId
+    && promotion.status === 'active'
+    && Boolean(promotion.ends_at)
+    && new Date(promotion.ends_at!).getTime() > Date.now()
+  ) ?? null, [promotions, selectedPropertyId]);
+
   const load = useCallback(async () => {
     if (!session?.user.id) return;
-    const [propertyResult, promotionResult] = await Promise.all([
+    const [propertyResult, promotionResult, notificationResult] = await Promise.all([
       supabase.from('properties').select('id, name, site_address, city, state, postal_code').eq('host_id', session.user.id).eq('is_published', true).order('created_at', { ascending: false }),
       supabase.from('local_promotions').select('id, property_id, message, status, amount_cents, image_path, eligible_member_count, delivered_count, viewed_count, property_open_count, created_at, ends_at, moderation_status').order('created_at', { ascending: false }),
+      supabase.from('host_promotion_notifications').select('id, title, body').is('read_at', null).order('created_at', { ascending: true }),
     ]);
     if (propertyResult.error) throw propertyResult.error;
     if (promotionResult.error) throw promotionResult.error;
+    if (notificationResult.error) throw notificationResult.error;
 
     const loadedProperties = (propertyResult.data ?? []) as PropertyOption[];
     const promotionRows = (promotionResult.data ?? []) as LocalPromotion[];
@@ -92,6 +104,11 @@ export default function LocalPromotionsScreen() {
     setProperties(loadedProperties);
     setPromotions(promotionRows.map((promotion) => ({ ...promotion, image_url: promotion.image_path ? urlsByPath.get(promotion.image_path) ?? null : null })));
     setSelectedPropertyId((current) => current ?? (typeof params.propertyId === 'string' && loadedProperties.some((property) => property.id === params.propertyId) ? params.propertyId : loadedProperties[0]?.id ?? null));
+    const newestNotification = (notificationResult.data ?? [])[0] as HostPromotionNotification | undefined;
+    if (newestNotification) {
+      Alert.alert(newestNotification.title, newestNotification.body);
+      void supabase.from('host_promotion_notifications').update({ read_at: new Date().toISOString() }).eq('id', newestNotification.id);
+    }
   }, [params.propertyId, session?.user.id]);
 
   useEffect(() => {
@@ -120,6 +137,30 @@ export default function LocalPromotionsScreen() {
     })();
     return () => { active = false; };
   }, [selectedPropertyId]);
+
+  useEffect(() => {
+    let active = true;
+    if (!selectedPropertyId || currentPromotion) {
+      setCurrentOpportunityCount(null);
+      return () => { active = false; };
+    }
+    void (async () => {
+      setCurrentOpportunityCount(null);
+      // Catch up pre-existing completed profiles automatically. New profiles
+      // are already geocoded when saved; this only fills in older records and
+      // returns no member address or coordinates to the host.
+      const { error: backfillError } = await supabase.functions.invoke('backfill-member-promotion-locations', { body: {} });
+      if (backfillError) console.warn('Promotion audience address backfill was not available', backfillError.message);
+      const { data, error } = await supabase.rpc('get_site_promotion_opportunity', { p_property_id: selectedPropertyId });
+      if (!active) return;
+      if (error) {
+        setNotice({ tone: 'error', message: 'We could not calculate your current new-guest opportunity. Please refresh.' });
+        return;
+      }
+      setCurrentOpportunityCount(typeof data === 'number' ? data : 0);
+    })();
+    return () => { active = false; };
+  }, [currentPromotion, selectedPropertyId]);
 
   const choosePromotionImage = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -241,6 +282,7 @@ export default function LocalPromotionsScreen() {
     </View>
     <View style={styles.benefitCard}>
       <Text style={styles.benefitTitle}>Private, local, and site-specific</Text>
+      <Text style={styles.benefitText}>Following a site or completing a confirmed reservation creates a connection, so that member is no longer counted as a new promotion opportunity.</Text>
       <Text style={styles.benefitText}>• Registered dog-owner accounts with a verified saved location within 50 miles are eligible.</Text>
       <Text style={styles.benefitText}>• Past visitors and currently booked guests at this site are excluded.</Text>
       <Text style={styles.benefitText}>• You see an audience count and results—not member names, contact details, or locations.</Text>
@@ -268,8 +310,20 @@ export default function LocalPromotionsScreen() {
       <Pressable accessibilityRole="button" disabled={!selectedPropertyId || !message.trim() || !siteAddressReady || isSaving || Boolean(isStartingCheckout) || Boolean(promotionCooldown && promotionCooldown.promotion.status !== 'pending_payment')} onPress={() => void buyPromotion()} style={[styles.saveButton, styles.buyButton, (!selectedPropertyId || !message.trim() || !siteAddressReady || isSaving || Boolean(isStartingCheckout) || Boolean(promotionCooldown && promotionCooldown.promotion.status !== 'pending_payment')) && styles.disabledButton]}>{isSaving || isStartingCheckout ? <ActivityIndicator color={colors.warmWhite} /> : <Text style={styles.saveButtonText}>{promotionCooldown?.promotion.status === 'pending_payment' ? 'Resume $2 Payment' : promotionCooldown ? `Next promotion available in ${promotionCooldown.daysRemaining} day${promotionCooldown.daysRemaining === 1 ? '' : 's'}` : 'Buy It — $2'}</Text>}</Pressable>
       <Text style={styles.saveNote}>{promotionCooldown?.promotion.status === 'pending_payment' ? 'Your site has a $2 payment waiting in Stripe. Resume checkout to send the message; no member message has been sent yet.' : promotionCooldown ? `One site promotion is available every 7 days. Your next promotion opens ${promotionCooldown.nextAvailableAt.toLocaleDateString()}.` : siteAddressReady ? 'No money is charged unless eligible local members are available. A private record is kept below for every promotion.' : 'ROVAH uses the saved property address—not your phone location—to calculate the 50-mile audience.'}</Text>
     </>}
+    <View style={styles.currentResultsCard}>
+      <Text style={styles.currentResultsEyebrow}>{currentPromotion ? 'CURRENT PROMOTION RESULTS' : 'YOUR 50-MILE NEW GUEST OPPORTUNITY'}</Text>
+      {currentPromotion ? <>
+        <Text style={styles.currentResultsTitle}>Your promotion is reaching new local guests</Text>
+        <View style={styles.resultsRow}><Result label="New guests" value={currentPromotion.eligible_member_count} /><Result label="Delivered" value={currentPromotion.delivered_count} /><Result label="Views" value={currentPromotion.viewed_count} /><Result label="Opens" value={currentPromotion.property_open_count} /></View>
+        <Text style={styles.currentResultsText}>Results continue until {new Date(currentPromotion.ends_at!).toLocaleString()}.</Text>
+      </> : <>
+        <Text style={styles.currentResultsTitle}>{currentOpportunityCount === null ? 'Calculating your opportunity…' : `${currentOpportunityCount} new local guest${currentOpportunityCount === 1 ? '' : 's'} available to reach`}</Text>
+        <Text style={styles.currentResultsText}>This count includes eligible members within 50 miles who have not followed this site or made a confirmed reservation here.</Text>
+      </>}
+    </View>
     <Text style={styles.historyHeading}>Promotion History</Text>
     {promotions.length === 0 ? <View style={styles.emptyCard}><Text style={styles.emptyTitle}>No promotions yet</Text><Text style={styles.emptyText}>Preview your message, then choose Buy It — $2 when you are ready.</Text></View> : promotions.map((promotion) => <PromotionHistoryCard key={promotion.id} promotion={promotion} />)}
+    <HostPageGuide title="How to use Promotion Center" intro="Use this page to send one short message to new local dog owners near your site." steps={[{ title: 'Choose the site', text: 'Tap the site you want to promote. The green box tells you how many new local guests are within 50 miles.' }, { title: 'Write and check your message', text: 'Pick a sample or write your own message. Add a photo if you want. Tap Preview Promotion before paying.' }, { title: 'Pay and send', text: 'Tap Buy It — $2. After Stripe confirms payment, ROVAH sends the promotion. You are not charged when there are no eligible guests.' }, { title: 'Read your results', text: 'New guests is the starting audience. Delivered shows messages sent. Views and Opens show what guests did during the seven-day promotion.' }]} />
   </ScrollView></SafeAreaView>;
 }
 
@@ -295,12 +349,16 @@ function PromotionHistoryCard({ promotion }: { promotion: LocalPromotion }) {
     <View style={styles.historyHeader}><Text style={styles.historyStatus}>{statusLabel}</Text><Text style={styles.historyPrice}>$2.00</Text></View>
     {promotion.image_url ? <Image accessibilityLabel="Promotion spot photo" contentFit="cover" source={{ uri: promotion.image_url }} style={styles.historyImage} /> : null}
     <Text numberOfLines={3} style={styles.historyMessage}>{promotion.message}</Text>
-    <View style={styles.resultsRow}><Result label="Eligible" value={promotion.eligible_member_count} /><Result label="Views" value={promotion.viewed_count} /><Result label="Opens" value={promotion.property_open_count} /></View>
+    <View style={styles.resultsRow}><Result label="New guests" value={promotion.eligible_member_count} /><Result label="Delivered" value={promotion.delivered_count} /><Result label="Views" value={promotion.viewed_count} /><Result label="Opens" value={promotion.property_open_count} /></View>
     <Text style={styles.historyNote}>{note}</Text>
   </View>;
 }
 
 const styles = StyleSheet.create({
+  currentResultsCard: { backgroundColor: colors.lightGreen, borderColor: '#9BB58E', borderRadius: 18, borderWidth: 1, marginTop: 22, padding: 16 },
+  currentResultsEyebrow: { color: colors.brown, fontSize: 11, fontWeight: '900', letterSpacing: 1.05 },
+  currentResultsTitle: { color: colors.forest, fontSize: 18, fontWeight: '900', lineHeight: 24, marginTop: 6 },
+  currentResultsText: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 12 },
   buyButton: { backgroundColor: colors.forest },
   locationCard: { backgroundColor: colors.cream, borderColor: colors.border, borderRadius: 13, borderWidth: 1, marginTop: 12, padding: 13 },
   locationCardVerified: { backgroundColor: colors.lightGreen, borderColor: '#9BB58E' },

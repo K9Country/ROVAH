@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { UnreadMessageIcon } from '../../components/unread-message-icon';
+import { HostPageGuide } from '../../components/host-page-guide';
 import { colors, shadows } from '../../constants/theme';
 import { getUnreadConversationIds } from '../../lib/messaging';
 import { supabase } from '../../lib/supabase';
@@ -370,6 +371,17 @@ export default function HostDashboardScreen() {
                 <DashboardAction icon="↗" label="Communicate With Your Guest" detail="Send a site-only broadcast to guests connected to this private space." onPress={() => router.push(`/host-guest-message?propertyId=${property.id}&propertyName=${encodeURIComponent(property.name)}` as never)} />
               </View>
 
+              <HostPageGuide
+                title="How to grow this site"
+                intro="Use these four tools to help new guests find your private space and to keep your listing easy to trust."
+                steps={[
+                  { title: 'Get discovered', text: 'Tap Get Discovered to see how many new guests live within 50 miles of this site. Write one short message, preview it, and pay $2 only when guests are available. ROVAH sends the promotion after Stripe confirms the payment.' },
+                  { title: 'Set up subscriptions', text: 'Tap Subscriptions to make a repeat-visit package. Choose the number of visits, the price, and whether new guests can still buy it. Ending an offer stops new purchases; it does not take away visits that guests already paid for.' },
+                  { title: 'Keep your listing honest', text: 'Tap Make Your Site Stand Out whenever a photo, rule, price, gate instruction, amenity, or available time changes. Guests should always see the same information they will find when they arrive.' },
+                  { title: 'Send a site message', text: 'Tap Communicate With Your Guest when you need to send one update about this site, such as a gate reminder or a weather change. Read the message before you send it.' },
+                ]}
+              />
+
               <View style={styles.dashboardSection}>
                 <Text style={styles.dashboardSectionEyebrow}>MANAGE YOUR SITE</Text>
                 <Text style={styles.dashboardSectionTitle}>These tools stay connected to {property.name} only.</Text>
@@ -401,6 +413,17 @@ export default function HostDashboardScreen() {
                 />
               </View>
               </View>
+
+              <HostPageGuide
+                title="How to manage visits at this site"
+                intro="These tools belong only to the site shown above. They help you prepare for each visit and learn from it afterward."
+                steps={[
+                  { title: 'Check reservations first', text: 'Tap Reservations before a visit. Read the date, time, guest name, dog details, and any arrival notes. Use the site schedule to make sure two guests are not expected at the same time.' },
+                  { title: 'Use Messages for questions', text: 'Tap Messages to answer a guest or send a polite update. Keep messages about the visit, the dogs, and the private space so everyone has a clear record.' },
+                  { title: 'Read site reviews', text: 'Tap Site Reviews after guests visit. Their comments can show what is working well and what needs to be clearer, cleaner, or safer.' },
+                  { title: 'Review completed guests fairly', text: 'Tap Guest Reviews after a visit is complete. Write only what you personally know about that visit. You can also view the host-only track record before you write a review.' },
+                ]}
+              />
               {false && property.is_published ? (
                 <Pressable
                   accessibilityLabel={`Promote ${property.name}`}
@@ -467,6 +490,16 @@ export default function HostDashboardScreen() {
           <Text style={styles.earningsAction}>View payouts {'>'}</Text>
         </Pressable>
 
+        <HostPageGuide
+          title="How payments and earnings work"
+          intro="Stripe handles money safely. ROVAH does not store your bank details."
+          steps={[
+            { title: 'Finish Stripe setup', text: 'If this page says Set Up Stripe Payouts, tap it and follow the steps from Stripe. Stripe needs this information before it can send earnings to your bank account.' },
+            { title: 'Read the earnings number', text: 'The Earnings card is a quick total for your host account. Tap View payouts to see the payment details, including completed reservations and payout status.' },
+            { title: 'Know when a site is ready', text: 'A site can accept paid reservations only after a ROVAH administrator approves it and Stripe payouts are ready. If either step is missing, finish that step before sharing the site.' },
+          ]}
+        />
+
         <Text style={styles.sectionTitle}>Analytics</Text>
         {dashboardData.properties.length === 0 ? (
           <View style={styles.analyticsEmptyCard}>
@@ -507,6 +540,16 @@ export default function HostDashboardScreen() {
           })
         )}
 
+        <HostPageGuide
+          title="How to understand analytics"
+          intro="Analytics tells you what guests did after they saw your listing. It is a simple way to see what needs attention."
+          steps={[
+            { title: 'Look at clicks', text: 'Clicks count the times guests opened the listing. If clicks are low, improve the first photo, title, and description, or try a local promotion.' },
+            { title: 'Look at bookings', text: 'Bookings count confirmed visits. If guests click but do not book, check that the price, photos, rules, and availability are easy to understand.' },
+            { title: 'Use the details button', text: 'Tap View detailed analytics to see more information for the selected site. Change one small thing at a time so you can tell what helped.' },
+          ]}
+        />
+
         <View style={styles.hostGuide}>
           <Text style={styles.hostGuideTitle}>How to use your Host Dashboard</Text>
           <Text style={styles.hostGuideIntro}>Use this dashboard to manage the selected site, prepare it for guests, and choose your next action.</Text>
@@ -528,7 +571,7 @@ export default function HostDashboardScreen() {
             <Text style={styles.hostGuideNumber}>3</Text>
             <View style={styles.hostGuideCopy}>
               <Text style={styles.hostGuideStepTitle}>Upcoming visitors</Text>
-              <Text style={styles.hostGuideStepText}>Open Reservations to review upcoming visits, attending dogs, arrival details, and the site schedule. Payment Pending means the reservation is secured and payment will settle one hour before the visit begins.</Text>
+              <Text style={styles.hostGuideStepText}>Open Reservations to review upcoming visits, attending dogs, arrival details, and the site schedule. If a payment needs attention, open the reservation or Payments page to see the next step.</Text>
             </View>
           </View>
           <View style={styles.hostGuideStep}>

@@ -84,8 +84,15 @@ export default function PropertyMessageThreadScreen() {
   const [activeUserId, setActiveUserId] = useState<string | null>(
     session?.user.id ?? null
   );
+  const messageListRef = useRef<ScrollView | null>(null);
   const composerInputRef = useRef<TextInput | null>(null);
   const activeConversationId = conversation?.id ?? null;
+
+  const scrollToNewestMessage = useCallback((animated = true) => {
+    requestAnimationFrame(() => {
+      messageListRef.current?.scrollToEnd({ animated });
+    });
+  }, []);
 
   const loadMessages = useCallback(async (activeConversationId: string) => {
     const { data, error } = await supabase
@@ -281,9 +288,29 @@ export default function PropertyMessageThreadScreen() {
 
   useEffect(() => {
     if (!conversation) return;
+    const channel = supabase
+      .channel(`property-messages-${conversation.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'property_messages',
+          filter: `conversation_id=eq.${conversation.id}`,
+        },
+        () => void loadMessages(conversation.id)
+      )
+      .subscribe();
     const refresh = setInterval(() => void loadMessages(conversation.id), 10_000);
-    return () => clearInterval(refresh);
+    return () => {
+      clearInterval(refresh);
+      void supabase.removeChannel(channel);
+    };
   }, [conversation, loadMessages]);
+
+  useEffect(() => {
+    if (!isLoading) scrollToNewestMessage(messages.length > 0);
+  }, [isLoading, messages.length, scrollToNewestMessage]);
 
   useEffect(() => {
     if (!activeConversationId) return;
@@ -545,7 +572,14 @@ export default function PropertyMessageThreadScreen() {
           {isHostViewer ? <Pressable accessibilityLabel="Special / Gift" accessibilityRole="button" onPress={() => setShowResolutionOffer(true)} style={styles.resolutionHeaderButton}><Text style={styles.resolutionHeaderButtonText}>Special / Gift</Text></Pressable> : null}
         </View>
 
-        <ScrollView contentContainerStyle={styles.messageList} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          ref={messageListRef}
+          contentContainerStyle={styles.messageList}
+          keyboardShouldPersistTaps="handled"
+          onContentSizeChange={() => scrollToNewestMessage(false)}
+          onLayout={() => scrollToNewestMessage(false)}
+          showsVerticalScrollIndicator={false}
+        >
           {messages.length === 0 ? <View style={styles.emptyCard}><Text style={styles.emptyTitle}>Start the conversation</Text><Text style={styles.emptyText}>This is your shared conversation with the host, across all of their private spaces.</Text></View> : null}
           {messages.map((message) => {
             const sentByMe = message.sender_id === activeUserId;
@@ -598,6 +632,7 @@ export default function PropertyMessageThreadScreen() {
             maxLength={2000}
             multiline
             onChangeText={setDraft}
+            onFocus={() => setTimeout(() => scrollToNewestMessage(true), 100)}
             placeholder="Write a message..."
             placeholderTextColor="#8A877D"
             style={styles.composerInput}

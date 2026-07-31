@@ -1,10 +1,8 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
-import * as Location from 'expo-location';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   KeyboardAvoidingView,
   Modal,
@@ -72,7 +70,6 @@ export default function GuestProfileScreen() {
   const [profile, setProfile] = useState<ProfileForm>(emptyProfile);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [isVerifyingPromotionLocation, setIsVerifyingPromotionLocation] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDeleteWarningOpen, setIsDeleteWarningOpen] = useState(false);
   const [isDogProfileRequiredOpen, setIsDogProfileRequiredOpen] = useState(false);
@@ -160,25 +157,15 @@ export default function GuestProfileScreen() {
     void loadProfile();
   }, [isMember, session?.user.id, session?.user.email, session?.user.user_metadata]);
 
-  const verifyPromotionLocation = async () => {
-    if (!session?.user.id || isVerifyingPromotionLocation) return;
+  const syncPromotionAddress = async () => {
+    if (!session?.user.id) return;
     try {
-      setIsVerifyingPromotionLocation(true);
-      const permission = await Location.requestForegroundPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert('Location access needed', 'Allow location access to receive nearby site promotions. Hosts never see your address or location.');
-        return;
-      }
-      const currentLocation = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       const { error } = await supabase.functions.invoke('save-member-promotion-location', {
-        body: { latitude: currentLocation.coords.latitude, longitude: currentLocation.coords.longitude },
+        body: {},
       });
       if (error) throw error;
-      Alert.alert('Nearby promotions enabled', 'Your private nearby location has been verified. You can now receive qualifying site promotions in ROVAH Messages.');
     } catch (error) {
-      Alert.alert('We could not verify your location', error instanceof Error ? error.message : 'Please try again with location access enabled.');
-    } finally {
-      setIsVerifyingPromotionLocation(false);
+      console.warn('Saved home address was not verified for promotions', error);
     }
   };
 
@@ -317,21 +304,9 @@ export default function GuestProfileScreen() {
         throw authUpdateError;
       }
 
-      // This is intentionally separate from saving the private address: a host
-      // never receives either the member's address or their device coordinates.
-      // If permission is declined, the profile still saves and reservations work.
-      try {
-        const permission = await Location.requestForegroundPermissionsAsync();
-        if (permission.granted) {
-          const currentLocation = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-          const { error: locationError } = await supabase.functions.invoke('save-member-promotion-location', {
-            body: { latitude: currentLocation.coords.latitude, longitude: currentLocation.coords.longitude },
-          });
-          if (locationError) console.warn('Local promotion location was not saved', locationError.message);
-        }
-      } catch (locationError) {
-        console.warn('Local promotion location was not saved', locationError);
-      }
+      // The required saved home address is privately geocoded on the server.
+      // Hosts receive only audience counts, never an address or coordinates.
+      await syncPromotionAddress();
 
       setIsComplete(true);
       setStatusMessage('');
@@ -451,7 +426,7 @@ export default function GuestProfileScreen() {
           </ProfileSection>
 
           <ProfileSection title="Private home address">
-            <Text style={styles.privateNote}>Used only for your private reservation record. It is never shared with a host. When you save, ROVAH may ask to privately verify your device location so you can receive nearby site promotions. Hosts never see your address or location.</Text>
+            <Text style={styles.privateNote}>Used for your private reservation record and to privately calculate nearby site promotions. It is never shared with a host. Hosts never see your address or location.</Text>
             <Field label="Street address" required error={fieldErrors.address_line1} value={profile.address_line1} onChangeText={(value) => updateProfile('address_line1', value)} autoComplete="street-address" autoCapitalize="words" />
             <Field label="Apartment, suite, or unit" value={profile.address_line2} onChangeText={(value) => updateProfile('address_line2', value)} autoCapitalize="words" />
             <View style={styles.row}>
@@ -461,10 +436,7 @@ export default function GuestProfileScreen() {
             <Field label="ZIP code" required error={fieldErrors.postal_code} value={profile.postal_code} onChangeText={(value) => updateProfile('postal_code', value)} autoComplete="postal-code" keyboardType="number-pad" />
             <View style={styles.promotionLocationCard}>
               <Text style={styles.promotionLocationTitle}>Nearby promotions</Text>
-              <Text style={styles.promotionLocationText}>Verify your current device location to receive eligible site promotions. It stays private and is never shared with a host.</Text>
-              <Pressable accessibilityRole="button" disabled={isVerifyingPromotionLocation} onPress={() => void verifyPromotionLocation()} style={[styles.promotionLocationButton, isVerifyingPromotionLocation && styles.primaryButtonDisabled]}>
-                {isVerifyingPromotionLocation ? <ActivityIndicator color={colors.warmWhite} /> : <Text style={styles.promotionLocationButtonText}>Verify My Location</Text>}
-              </Pressable>
+              <Text style={styles.promotionLocationText}>When you save this required home address, ROVAH privately uses it to determine whether a site is within 50 miles. No device location permission or additional approval is needed.</Text>
             </View>
           </ProfileSection>
 
