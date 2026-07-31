@@ -14,9 +14,20 @@ export default function Root({ children }: PropsWithChildren) {
         <meta name="apple-mobile-web-app-title" content="ROVAH" />
         <link rel="manifest" href="/manifest.json" />
         <link rel="apple-touch-icon" href="/rovah-pwa-192.png" />
+        <script dangerouslySetInnerHTML={{ __html: serviceWorkerBootstrap }} />
         <ScrollViewStyleReset />
       </head>
       <body>{children}</body>
     </html>
   );
 }
+
+const serviceWorkerBootstrap = `
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch(() => {
+        // ROVAH remains usable in a normal browser if registration is blocked.
+      });
+    });
+  }
+`;
