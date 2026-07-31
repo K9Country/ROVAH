@@ -449,7 +449,7 @@ export default function HostDashboardScreen() {
           onPress={() => router.push('/create-property')}
           style={({ pressed }) => [styles.primaryButton, styles.addPrivateSpaceButton, pressed && styles.buttonPressed]}
         >
-          <Text style={styles.primaryButtonText}>+ Add a Private Space</Text>
+          <Text style={styles.primaryButtonText}>Add a Private Space</Text>
         </Pressable>
 
         <Pressable
@@ -760,7 +760,7 @@ const styles = StyleSheet.create({
   secondaryButtonText: { color: colors.forest, fontSize: 16, fontWeight: '800' },
   buttonPressed: { opacity: 0.76 },
   buttonDisabled: { opacity: 0.55 },
-  addPrivateSpaceButton: { marginTop: 24 },
+  addPrivateSpaceButton: { backgroundColor: colors.forest, marginBottom: 7, marginTop: 12 },
   payoutSetupCard: { alignItems: 'center', backgroundColor: colors.forest, borderRadius: 18, flexDirection: 'row', marginTop: 5, padding: 17 },
   payoutSetupCopy: { flex: 1, paddingRight: 12 },
   payoutSetupEyebrow: { color: '#D8E8C8', fontSize: 10, fontWeight: '900', letterSpacing: 1.05 },
@@ -781,7 +781,7 @@ const styles = StyleSheet.create({
   emptyCard: { backgroundColor: colors.lightGreen, borderColor: '#CBD1BD', borderRadius: 18, borderWidth: 1, padding: 18 },
   emptyCardTitle: { color: colors.forest, fontSize: 17, fontWeight: '900', marginBottom: 6 },
   emptyCardText: { color: colors.muted, fontSize: 14, lineHeight: 21 },
-  propertyCard: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 18, borderWidth: 1, marginBottom: 12, overflow: 'hidden' },
+  propertyCard: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 18, borderWidth: 1, marginBottom: 0, overflow: 'hidden' },
   propertyMainAction: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', padding: 16 },
   propertyCardContent: { flex: 1, paddingRight: 12 },
   propertyName: { color: colors.forest, fontSize: 17, fontWeight: '900' },
