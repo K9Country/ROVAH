@@ -31,12 +31,20 @@ function isAlreadyInstalled() {
 export function InstallRovahPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isDismissed, setIsDismissed] = useState(false);
+  const [showIphoneGuide, setShowIphoneGuide] = useState(false);
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined' || isAlreadyInstalled()) return;
 
     if (window.sessionStorage.getItem(DISMISSED_KEY) === 'true') {
       setIsDismissed(true);
+      return;
+    }
+
+    const isIphone = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const isSafari = /^((?!chrome|android|crios|fxios).)*safari/i.test(navigator.userAgent);
+    if (isIphone && isSafari) {
+      setShowIphoneGuide(true);
       return;
     }
 
@@ -58,6 +66,7 @@ export function InstallRovahPrompt() {
   const dismiss = () => {
     window.sessionStorage.setItem(DISMISSED_KEY, 'true');
     setIsDismissed(true);
+    setShowIphoneGuide(false);
   };
 
   const install = async () => {
@@ -70,18 +79,24 @@ export function InstallRovahPrompt() {
     if (choice.outcome === 'dismissed') dismiss();
   };
 
-  if (!deferredPrompt || isDismissed) return null;
+  if ((!deferredPrompt && !showIphoneGuide) || isDismissed) return null;
 
   return (
     <View style={styles.card} accessibilityLiveRegion="polite">
       <View style={styles.copy}>
         <Text style={styles.title}>Install ROVAH</Text>
-        <Text style={styles.description}>Put ROVAH on your phone home screen for one-tap access.</Text>
+        <Text style={styles.description}>
+          {showIphoneGuide
+            ? 'Tap Share, then Add to Home Screen, to put ROVAH on your iPhone home screen.'
+            : 'Put ROVAH on your phone home screen for one-tap access.'}
+        </Text>
       </View>
       <View style={styles.actions}>
-        <Pressable accessibilityRole="button" onPress={install} style={styles.installButton}>
-          <Text style={styles.installLabel}>Install app</Text>
-        </Pressable>
+        {!showIphoneGuide && (
+          <Pressable accessibilityRole="button" onPress={install} style={styles.installButton}>
+            <Text style={styles.installLabel}>Install app</Text>
+          </Pressable>
+        )}
         <Pressable accessibilityRole="button" onPress={dismiss} hitSlop={8} style={styles.notNowButton}>
           <Text style={styles.notNowLabel}>Not now</Text>
         </Pressable>
