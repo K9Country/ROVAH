@@ -57,7 +57,12 @@ Deno.serve(async (req) => {
     const visitStart = new Date(startAt);
     const latestSecureBookingStart = Date.now() + 6 * 24 * 60 * 60 * 1000;
     if (Number.isNaN(visitStart.getTime())) return json({ error: 'Choose a valid visit time' }, 400);
-    const needsScheduledCard = visitStart.getTime() > latestSecureBookingStart;
+    // A subscription is a prepaid package: its credits can be used whenever
+    // the member visits, so the entire package must be captured at checkout.
+    // Only regular reservations scheduled beyond the authorization window save
+    // a card for the later, one-hour-before-visit charge.
+    const isSubscriptionPurchase = Boolean(loyaltyPassOfferId);
+    const needsScheduledCard = !isSubscriptionPurchase && visitStart.getTime() > latestSecureBookingStart;
 
     const adminClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -219,10 +224,15 @@ Deno.serve(async (req) => {
             unit_amount: amount,
           },
         }],
-        metadata: { booking_id: booking.id, payment_flow: 'authorization_hold' },
+        metadata: {
+          booking_id: booking.id,
+          payment_flow: isSubscriptionPurchase ? 'subscription_purchase' : 'authorization_hold',
+        },
         payment_intent_data: {
-          capture_method: 'manual',
           metadata: { booking_id: booking.id },
+          // Omit manual capture for prepaid subscriptions so Stripe captures
+          // the full package price immediately after successful checkout.
+          ...(isSubscriptionPurchase ? {} : { capture_method: 'manual' as const }),
         },
         success_url: `${appUrl}/reservations?payment=success&session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${appUrl}/property/${propertyId}?payment=cancelled`,

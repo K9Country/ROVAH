@@ -7,6 +7,7 @@ import {
     FlatList,
     Image,
     Modal,
+    Platform,
     Pressable,
     RefreshControl,
     ScrollView,
@@ -71,6 +72,7 @@ export default function SearchScreen() {
   const { isMember, session } = useAuth();
   const [query, setQuery] = useState('');
   const [isLocating, setIsLocating] = useState(false);
+  const [nearbyPropertyIds, setNearbyPropertyIds] = useState<string[]>([]);
   const [properties, setProperties] = useState<DiscoverProperty[]>([]);
   const [promotionsByProperty, setPromotionsByProperty] = useState<
     Record<string, GuestPromotion>
@@ -94,9 +96,14 @@ export default function SearchScreen() {
     useState<GuestPromotion | null>(null);
 
   const normalizedQuery = query.trim().toLowerCase();
+  const isZipSearch = /^\d{5}(?:-\d{4})?$/.test(normalizedQuery);
 
   const filteredProperties = useMemo(() => {
-    return properties.filter((property) => {
+    const nearbyPropertyPositions = new Map(
+      nearbyPropertyIds.map((propertyId, index) => [propertyId, index])
+    );
+
+    const matchingProperties = properties.filter((property) => {
       const searchableText = [
         property.name,
         property.short_description,
@@ -107,8 +114,9 @@ export default function SearchScreen() {
         .join(' ')
         .toLowerCase();
 
-      const matchesQuery =
-        !normalizedQuery || searchableText.includes(normalizedQuery);
+      const matchesQuery = isZipSearch
+        ? nearbyPropertyPositions.has(property.id)
+        : !normalizedQuery || searchableText.includes(normalizedQuery);
       const matchesFence =
         !requiresFullFence || property.is_fully_fenced;
       const matchesFenceHeight =
@@ -128,13 +136,23 @@ export default function SearchScreen() {
         matchesAmenities
       );
     });
+
+    return isZipSearch
+      ? matchingProperties.sort(
+          (left, right) =>
+            (nearbyPropertyPositions.get(left.id) ?? Number.MAX_SAFE_INTEGER) -
+            (nearbyPropertyPositions.get(right.id) ?? Number.MAX_SAFE_INTEGER)
+        )
+      : matchingProperties;
   }, [
     minimumAcreage,
     minimumFenceHeight,
+    nearbyPropertyIds,
     normalizedQuery,
     properties,
     requiresFullFence,
     selectedAmenities,
+    isZipSearch,
   ]);
 
   const memberId = isMember ? session?.user.id : undefined;
@@ -317,6 +335,43 @@ export default function SearchScreen() {
     void initialize();
   }, [loadProperties]);
 
+  useEffect(() => {
+    let isActive = true;
+
+    if (!isZipSearch) {
+      setNearbyPropertyIds([]);
+      return () => {
+        isActive = false;
+      };
+    }
+
+    const loadNearbyProperties = async () => {
+      const { data, error } = await supabase.functions.invoke('search-properties-near-location', {
+        body: { query: normalizedQuery },
+      });
+
+      if (!isActive) return;
+      if (error || data?.error) {
+        setNearbyPropertyIds([]);
+        setErrorMessage(data?.error ?? error?.message ?? 'We could not search this ZIP code.');
+        return;
+      }
+
+      setErrorMessage(null);
+      setNearbyPropertyIds(
+        Array.isArray(data?.propertyIds)
+          ? data.propertyIds.filter((propertyId: unknown): propertyId is string => typeof propertyId === 'string')
+          : []
+      );
+    };
+
+    void loadNearbyProperties();
+
+    return () => {
+      isActive = false;
+    };
+  }, [isZipSearch, normalizedQuery]);
+
   const handleRefresh = async () => {
     try {
       setIsRefreshing(true);
@@ -344,8 +399,9 @@ export default function SearchScreen() {
       const location = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       });
-      const [address] = await Location.reverseGeocodeAsync(location.coords);
-      const searchTerm = address?.postalCode ?? address?.city;
+      const searchTerm = Platform.OS === 'web'
+        ? await resolveWebSearchLocation(location.coords.latitude, location.coords.longitude)
+        : await resolveNativeSearchLocation(location.coords);
 
       if (!searchTerm) {
         Alert.alert(
@@ -364,6 +420,21 @@ export default function SearchScreen() {
     } finally {
       setIsLocating(false);
     }
+  };
+
+  const resolveNativeSearchLocation = async (coords: Location.LocationObjectCoords) => {
+    const [address] = await Location.reverseGeocodeAsync(coords);
+    return address?.postalCode ?? address?.city ?? null;
+  };
+
+  const resolveWebSearchLocation = async (latitude: number, longitude: number) => {
+    const { data, error } = await supabase.functions.invoke('resolve-search-location', {
+      body: { latitude, longitude },
+    });
+    if (error || data?.error) {
+      throw new Error(data?.error ?? error?.message ?? 'Unable to look up this location.');
+    }
+    return typeof data?.searchTerm === 'string' ? data.searchTerm : null;
   };
 
   const activeFilterCount =
@@ -714,6 +785,12 @@ export default function SearchScreen() {
                 </Text>
               </Pressable>
 
+              {isZipSearch ? (
+                <Text style={styles.zipSearchHint}>
+                  Showing spaces within 50 miles, nearest first.
+                </Text>
+              ) : null}
+
             </View>
 
             <View style={styles.resultsHeading}>
@@ -1059,6 +1136,12 @@ const styles = StyleSheet.create({
     color: colors.brown,
     fontSize: 14,
     fontWeight: '800',
+  },
+
+  zipSearchHint: {
+    color: colors.muted,
+    fontSize: 13,
+    marginTop: 6,
   },
 
   resultsHeading: {
