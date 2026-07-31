@@ -1,0 +1,27 @@
+{
+  "id": "/",
+  "name": "ROVAH — Private Dog Spaces",
+  "short_name": "ROVAH",
+  "description": "Find and reserve private spaces where dogs can run, play, and be themselves.",
+  "lang": "en-US",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#0F3B24",
+  "background_color": "#0F3B24",
+  "icons": [
+    {
+      "src": "/rovah-pwa-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/rovah-pwa-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

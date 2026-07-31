@@ -27,7 +27,14 @@
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "name": "ROVAH — Private Dog Spaces",
+      "shortName": "ROVAH",
+      "themeColor": "#0F3B24",
+      "backgroundColor": "#0F3B24",
+      "display": "standalone",
+      "startUrl": "/",
+      "orientation": "portrait"
     },
     "plugins": [
       "expo-router",
