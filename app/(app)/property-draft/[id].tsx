@@ -20,6 +20,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors } from '../../../constants/theme';
+import { propertyTimeZones, type PropertyTimeZone } from '../../../constants/property-time-zones';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../services/auth-context';
 import type {
@@ -76,6 +77,7 @@ type PropertyBasicsDraft = {
   acreage: string;
   isFullyFenced: boolean;
   fenceHeightFeet: string;
+  timeZone: PropertyTimeZone;
 };
 
 const defaultSchedule = (): DaySchedule[] =>
@@ -97,6 +99,7 @@ const propertyBasicsFrom = (property: Property): PropertyBasicsDraft => ({
   acreage: property.acreage === null ? '' : String(property.acreage),
   isFullyFenced: property.is_fully_fenced,
   fenceHeightFeet: property.fence_height_feet === null ? '' : String(property.fence_height_feet),
+  timeZone: property.time_zone as PropertyTimeZone,
 });
 
 const halfHourTimes = Array.from({ length: 48 }, (_, index) => {
@@ -588,7 +591,7 @@ export default function PropertyDraftScreen() {
         !/^\d{2}:\d{2}$/.test(day.end_time) ||
         day.start_time >= day.end_time
     );
-    if (propertyBasics.name.trim().length < 3 || propertyBasics.shortDescription.trim().length < 20 || !propertyBasics.siteAddress.trim() || !propertyBasics.city.trim() || propertyBasics.state.trim().length !== 2 || !propertyBasics.postalCode.trim() || !Number.isFinite(hourlyRate) || hourlyRate <= 0 || acreage === null || !Number.isFinite(acreage) || acreage < 0 || (propertyBasics.isFullyFenced && (fenceHeight === null || !Number.isFinite(fenceHeight) || fenceHeight <= 0))) {
+    if (propertyBasics.name.trim().length < 3 || propertyBasics.shortDescription.trim().length < 20 || !propertyBasics.siteAddress.trim() || !propertyBasics.city.trim() || propertyBasics.state.trim().length !== 2 || !propertyBasics.postalCode.trim() || !propertyBasics.timeZone || !Number.isFinite(hourlyRate) || hourlyRate <= 0 || acreage === null || !Number.isFinite(acreage) || acreage < 0 || (propertyBasics.isFullyFenced && (fenceHeight === null || !Number.isFinite(fenceHeight) || fenceHeight <= 0))) {
       Alert.alert('Complete property basics', 'Add a property name, description, full address, a valid hourly rate, and valid acreage or fence details before saving.');
       return;
     }
@@ -708,6 +711,7 @@ export default function PropertyDraftScreen() {
           acreage,
           is_fully_fenced: propertyBasics.isFullyFenced,
           fence_height_feet: propertyBasics.isFullyFenced ? fenceHeight : null,
+          time_zone: propertyBasics.timeZone,
           is_published: submitForReview ? false : property.is_published,
           approval_status: submitForReview ? 'pending' : property.approval_status,
           hero_image_url: primaryPhoto?.storage_path ?? property.hero_image_url,
@@ -848,6 +852,9 @@ export default function PropertyDraftScreen() {
               <View style={styles.propertyBasicsNarrowField}><DraftField label="State" value={propertyBasics.state} onChangeText={(state) => { setPropertyBasics((current) => current ? { ...current, state: state.toUpperCase() } : current); setHasUnsavedChanges(true); }} placeholder="MI" requiredForReview maxLength={2} /></View>
             </View>
             <DraftField label="ZIP or postal code" value={propertyBasics.postalCode} onChangeText={(postalCode) => { setPropertyBasics((current) => current ? { ...current, postalCode } : current); setHasUnsavedChanges(true); }} placeholder="ZIP or postal code" requiredForReview />
+            <Text style={styles.propertyToggleTitle}>Site time zone</Text>
+            <Text style={styles.propertyToggleText}>Required. Guests use this time zone for reservation times and subscription expiration.</Text>
+            <View style={styles.timeZoneChoices}>{propertyTimeZones.map((option) => <Pressable accessibilityRole="radio" accessibilityState={{ checked: propertyBasics.timeZone === option.value }} key={option.value} onPress={() => { setPropertyBasics((current) => current ? { ...current, timeZone: option.value } : current); setHasUnsavedChanges(true); }} style={[styles.timeZoneChoice, propertyBasics.timeZone === option.value && styles.timeZoneChoiceSelected]}><Text style={[styles.timeZoneChoiceText, propertyBasics.timeZone === option.value && styles.timeZoneChoiceTextSelected]}>{option.label}</Text></Pressable>)}</View>
             <View style={styles.propertyBasicsRow}>
               <View style={styles.propertyBasicsWideField}><DraftField keyboardType="decimal-pad" label="Standard hourly rate" value={propertyBasics.pricePerHour} onChangeText={(pricePerHour) => { setPropertyBasics((current) => current ? { ...current, pricePerHour: pricePerHour.replace(/[^0-9.]/g, '') } : current); setHasUnsavedChanges(true); }} placeholder="$15" requiredForReview /></View>
               <View style={styles.propertyBasicsNarrowField}><DraftField keyboardType="decimal-pad" label="Acreage" value={propertyBasics.acreage} onChangeText={(acreage) => { setPropertyBasics((current) => current ? { ...current, acreage: acreage.replace(/[^0-9.]/g, '') } : current); setHasUnsavedChanges(true); }} placeholder="Example: 2" requiredForReview /></View>
@@ -1438,6 +1445,11 @@ const styles = StyleSheet.create({
   propertyToggleCopy: { flex: 1, paddingRight: 14 },
   propertyToggleTitle: { color: colors.forest, fontSize: 16, fontWeight: '900' },
   propertyToggleText: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 4 },
+  timeZoneChoices: { gap: 8, marginTop: 12 },
+  timeZoneChoice: { backgroundColor: colors.cream, borderColor: colors.border, borderRadius: 12, borderWidth: 1, minHeight: 44, justifyContent: 'center', paddingHorizontal: 13 },
+  timeZoneChoiceSelected: { backgroundColor: colors.forest, borderColor: colors.forest },
+  timeZoneChoiceText: { color: colors.forest, fontSize: 14, fontWeight: '800' },
+  timeZoneChoiceTextSelected: { color: colors.warmWhite },
   loyaltyToggleRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   loyaltyToggleCopy: { flex: 1, paddingRight: 14 },
   loyaltyToggleTitle: { color: colors.forest, fontSize: 16, fontWeight: '900' },

@@ -50,7 +50,7 @@ export default function HostAnalyticsScreen() {
     if (!session?.user.id) return;
     setIsLoading(true);
     setErrorMessage('');
-    let bookingQuery = supabase.from('bookings').select('id, property_id, start_at, total_amount').eq('status', 'confirmed');
+    let bookingQuery = supabase.from('bookings').select('id, property_id, start_at, total_amount').in('status', ['confirmed', 'completed']);
     let viewQuery = supabase.from('property_view_events').select('property_id, viewed_at');
     if (propertyId) {
       bookingQuery = bookingQuery.eq('property_id', propertyId);

@@ -25,7 +25,13 @@ import type { Property } from '../../types/property';
 
 type HostDashboardData = {
   profile: HostProfile | null;
-  properties: (Property & { booking_count: number; booking_total: number })[];
+  properties: (Property & {
+    booking_count: number;
+    booking_total: number;
+    settled_booking_count: number;
+    settled_host_earnings: number;
+  })[];
+  total_host_earnings: number;
 };
 
 function isJwtIssuedInFutureError(error: { message?: string } | null) {
@@ -37,6 +43,7 @@ export default function HostDashboardScreen() {
   const [dashboardData, setDashboardData] = useState<HostDashboardData>({
     profile: null,
     properties: [],
+    total_host_earnings: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -47,7 +54,7 @@ export default function HostDashboardScreen() {
 
   const loadDashboard = useCallback(async () => {
     if (!session?.user.id) {
-      setDashboardData({ profile: null, properties: [] });
+      setDashboardData({ profile: null, properties: [], total_host_earnings: 0 });
       setIsLoading(false);
       return;
     }
@@ -95,27 +102,43 @@ export default function HostDashboardScreen() {
 
     const properties = (propertiesResult.data ?? []) as Property[];
     const propertyIds = properties.map((property) => property.id);
-    const { data: bookingsData, error: bookingsError } = propertyIds.length
-      ? await supabase
-          .from('bookings')
-          .select('property_id, total_amount')
-          .eq('status', 'confirmed')
-          .in('property_id', propertyIds)
-      : { data: [], error: null };
+    const [bookingsResult, settlementsResult] = await Promise.all([
+      propertyIds.length
+        ? supabase
+            .from('bookings')
+            .select('id, property_id, total_amount')
+            .eq('status', 'confirmed')
+            .in('property_id', propertyIds)
+        : Promise.resolve({ data: [], error: null }),
+      supabase
+        .from('booking_payout_settlements')
+        .select('booking_id, host_payout_amount')
+        .eq('host_id', session.user.id)
+        .eq('settlement_status', 'settled'),
+    ]);
 
-    if (bookingsError) {
-      setErrorMessage(bookingsError.message);
+    if (bookingsResult.error || settlementsResult.error) {
+      setErrorMessage(bookingsResult.error?.message ?? settlementsResult.error?.message ?? 'We could not load your earnings.');
       setIsLoading(false);
       return;
     }
 
-    const bookingTotalsByProperty = (bookingsData ?? []).reduce<Record<string, { count: number; total: number }>>((totals, booking) => {
+    const settledPayoutByBooking = new Map(
+      (settlementsResult.data ?? []).map((settlement) => [settlement.booking_id, Number(settlement.host_payout_amount ?? 0)]),
+    );
+    const bookingTotalsByProperty = (bookingsResult.data ?? []).reduce<Record<string, { count: number; total: number; settledCount: number; settledHostEarnings: number }>>((totals, booking) => {
       if (!booking.property_id) {
         return totals;
       }
 
-      const current = totals[booking.property_id] ?? { count: 0, total: 0 };
-      totals[booking.property_id] = { count: current.count + 1, total: current.total + Number(booking.total_amount ?? 0) };
+      const current = totals[booking.property_id] ?? { count: 0, total: 0, settledCount: 0, settledHostEarnings: 0 };
+      const settledPayout = settledPayoutByBooking.get(booking.id);
+      totals[booking.property_id] = {
+        count: current.count + 1,
+        total: current.total + Number(booking.total_amount ?? 0),
+        settledCount: current.settledCount + (settledPayout === undefined ? 0 : 1),
+        settledHostEarnings: current.settledHostEarnings + (settledPayout ?? 0),
+      };
       return totals;
     }, {});
 
@@ -123,11 +146,14 @@ export default function HostDashboardScreen() {
       ...property,
       booking_count: bookingTotalsByProperty[property.id]?.count ?? 0,
       booking_total: bookingTotalsByProperty[property.id]?.total ?? 0,
+      settled_booking_count: bookingTotalsByProperty[property.id]?.settledCount ?? 0,
+      settled_host_earnings: bookingTotalsByProperty[property.id]?.settledHostEarnings ?? 0,
     }));
 
     setDashboardData({
       profile: profileResult.data as HostProfile | null,
       properties: propertiesWithBookingCounts,
+      total_host_earnings: propertiesWithBookingCounts.reduce((total, property) => total + property.settled_host_earnings, 0),
     });
     const { data: conversationData } = await supabase
       .from('property_conversations')
@@ -482,9 +508,9 @@ export default function HostDashboardScreen() {
         >
           <View>
             <Text style={styles.earningsLabel}>TOTAL HOST EARNINGS</Text>
-            <Text style={styles.earningsValue}>$0.00</Text>
+            <Text style={styles.earningsValue}>${dashboardData.total_host_earnings.toFixed(2)}</Text>
             <Text style={styles.earningsText}>
-              Earnings from every property will be combined here.
+              Final Stripe payouts from every property are combined here.
             </Text>
           </View>
           <Text style={styles.earningsAction}>View payouts {'>'}</Text>
@@ -495,12 +521,12 @@ export default function HostDashboardScreen() {
           intro="Stripe handles money safely. ROVAH does not store your bank details."
           steps={[
             { title: 'Finish Stripe setup', text: 'If this page says Set Up Stripe Payouts, tap it and follow the steps from Stripe. Stripe needs this information before it can send earnings to your bank account.' },
-            { title: 'Read the earnings number', text: 'The Earnings card is a quick total for your host account. Tap View payouts to see the payment details, including completed reservations and payout status.' },
+            { title: 'Read the earnings number', text: 'The Earnings card combines final settled Stripe payouts for your host account. Tap View payouts to see reservation-by-reservation details and payout status.' },
             { title: 'Know when a site is ready', text: 'A site can accept paid reservations only after a ROVAH administrator approves it and Stripe payouts are ready. If either step is missing, finish that step before sharing the site.' },
           ]}
         />
 
-        <Text style={styles.sectionTitle}>Analytics</Text>
+        <Text style={[styles.sectionTitle, styles.sectionTitleAfterGuide]}>Analytics</Text>
         {dashboardData.properties.length === 0 ? (
           <View style={styles.analyticsEmptyCard}>
             <Text style={styles.analyticsEmptyText}>
@@ -511,7 +537,7 @@ export default function HostDashboardScreen() {
           dashboardData.properties.filter((property) => property.id === selectedProperty?.id).map((property) => {
             const viewCount = property.view_count ?? 0;
             const bookingCount = property.booking_count ?? 0;
-            const averageHostEarnings = bookingCount ? (property.booking_total * 0.82) / bookingCount : 0;
+            const averageHostEarnings = property.settled_booking_count ? property.settled_host_earnings / property.settled_booking_count : 0;
             const conversionText = viewCount > 0
               ? `${Math.round((bookingCount / viewCount) * 100)}% of clicks became bookings`
               : 'Clicks will appear here once guests open your listing';
@@ -529,8 +555,8 @@ export default function HostDashboardScreen() {
                     <Text style={styles.analyticsMetricLabel}>Bookings</Text>
                   </View>
                   <View style={styles.analyticsMetricBlock}>
-                    <Text style={styles.analyticsMetricValue}>${averageHostEarnings.toFixed(0)}</Text>
-                    <Text style={styles.analyticsMetricLabel}>Avg. host earnings</Text>
+                    <Text style={styles.analyticsMetricValue}>${averageHostEarnings.toFixed(2)}</Text>
+                    <Text style={styles.analyticsMetricLabel}>Avg. settled earnings</Text>
                   </View>
                 </View>
                 <Text style={styles.analyticsHint}>{conversionText}</Text>
@@ -772,6 +798,7 @@ const styles = StyleSheet.create({
   reviewNoticeText: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 4 },
   sectionHeader: { marginBottom: 12, marginTop: 18 },
   sectionTitle: { color: colors.forest, fontSize: 21, fontWeight: '900', marginTop: 28, marginBottom: 12 },
+  sectionTitleAfterGuide: { marginTop: 16 },
   sectionTitleNoMargin: { color: colors.forest, fontSize: 21, fontWeight: '900' },
   siteSwitcher: { gap: 8, paddingBottom: 12 },
   siteSwitchButton: { backgroundColor: colors.cream, borderColor: colors.border, borderRadius: 999, borderWidth: 1, maxWidth: 180, minHeight: 40, justifyContent: 'center', paddingHorizontal: 14 },
@@ -788,7 +815,7 @@ const styles = StyleSheet.create({
   propertyLocation: { color: colors.muted, fontSize: 14, marginTop: 4 },
   propertyMeta: { color: colors.olive, fontSize: 13, fontWeight: '700', marginTop: 9 },
   propertyAction: { color: colors.brown, fontSize: 13, fontWeight: '900', marginTop: 12 },
-  dashboardSection: { borderTopColor: colors.border, borderTopWidth: 1, paddingTop: 16 },
+  dashboardSection: { borderTopColor: colors.border, borderTopWidth: 1, marginTop: 16, paddingTop: 16 },
   dashboardSectionEyebrow: { color: colors.brown, fontSize: 11, fontWeight: '900', letterSpacing: 1.1, marginHorizontal: 16 },
   dashboardSectionTitle: { color: colors.muted, fontSize: 13, lineHeight: 19, marginHorizontal: 16, marginTop: 5, marginBottom: 10 },
   growthAction: { alignItems: 'center', borderTopColor: colors.border, borderTopWidth: 1, flexDirection: 'row', minHeight: 62, paddingHorizontal: 16 },
@@ -797,7 +824,7 @@ const styles = StyleSheet.create({
   growthActionLabel: { color: colors.forest, fontSize: 15, fontWeight: '900' },
   growthActionDetail: { color: colors.muted, fontSize: 12, lineHeight: 17, marginTop: 2 },
   growthActionArrow: { color: colors.brown, fontSize: 23, fontWeight: '700', marginLeft: 10 },
-  propertyTools: { borderTopColor: colors.border, borderTopWidth: 1, gap: 10, padding: 14 },
+  propertyTools: { borderTopColor: colors.border, borderTopWidth: 1, gap: 16, padding: 16 },
   propertyTool: { alignItems: 'center', backgroundColor: colors.cream, borderColor: colors.border, borderRadius: 18, borderWidth: 1, flexDirection: 'row', minHeight: 92, paddingHorizontal: 15, paddingVertical: 14, ...shadows.card },
   propertyToolIconWrap: { alignItems: 'center', justifyContent: 'center', marginRight: 13, minHeight: 34, minWidth: 34 },
   propertyToolIcon: { fontSize: 27 },

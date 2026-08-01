@@ -38,7 +38,7 @@ Deno.serve(async (req) => {
     );
     const { data: booking, error: bookingError } = await admin
       .from('bookings')
-      .select('id, guest_id, status, start_at, total_amount, payment_status, stripe_payment_intent_id, member_loyalty_pass_id, loyalty_pass_credit_hours_applied, properties(host_id)')
+      .select('id, guest_id, status, start_at, total_amount, payment_status, stripe_payment_intent_id, loyalty_pass_offer_id, member_loyalty_pass_id, loyalty_pass_credit_hours_applied, properties(host_id)')
       .eq('id', bookingId)
       .maybeSingle();
     if (bookingError) throw bookingError;
@@ -51,7 +51,12 @@ Deno.serve(async (req) => {
       return json({ error: 'The cancellation window closed one hour before this visit.' }, 409);
     }
 
-    if (booking.payment_status === 'authorized' && booking.stripe_payment_intent_id) {
+    const isSubscriptionReservation = Boolean(booking.member_loyalty_pass_id || booking.loyalty_pass_offer_id);
+    if (!isSubscriptionReservation && booking.payment_status === 'paid') {
+      return json({ error: 'Payment has already been captured, so this reservation can no longer be cancelled online.' }, 409);
+    }
+
+    if (!isSubscriptionReservation && booking.payment_status === 'authorized' && booking.stripe_payment_intent_id) {
       const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY');
       if (!stripeSecretKey) return json({ error: 'Payments are not configured yet' }, 503);
       const stripe = new Stripe(stripeSecretKey);
@@ -59,7 +64,7 @@ Deno.serve(async (req) => {
       if (paymentIntent.status === 'requires_capture' || paymentIntent.status === 'requires_payment_method' || paymentIntent.status === 'requires_confirmation') {
         await stripe.paymentIntents.cancel(paymentIntent.id, { cancellation_reason: 'requested_by_customer' });
       } else if (paymentIntent.status === 'succeeded') {
-        return json({ error: 'Payment was already captured. This reservation can no longer be cancelled online.' }, 409);
+        return json({ error: 'Payment has already been captured, so this reservation can no longer be cancelled online.' }, 409);
       }
     }
 

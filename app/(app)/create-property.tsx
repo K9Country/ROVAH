@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors } from '../../constants/theme';
+import { propertyTimeZones, type PropertyTimeZone } from '../../constants/property-time-zones';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../services/auth-context';
 
@@ -40,6 +41,7 @@ type PreviousSite = {
   acreage: number | null;
   is_fully_fenced: boolean;
   fence_height_feet: number | null;
+  time_zone: string;
 };
 
 type PreviousSiteDetails = {
@@ -59,7 +61,8 @@ type PropertyFieldName =
   | 'postalCode'
   | 'pricePerHour'
   | 'acreage'
-  | 'fenceHeightFeet';
+  | 'fenceHeightFeet'
+  | 'timeZone';
 
 export default function CreatePropertyScreen() {
   const { session } = useAuth();
@@ -81,6 +84,7 @@ export default function CreatePropertyScreen() {
   const [acreage, setAcreage] = useState('');
   const [isFullyFenced, setIsFullyFenced] = useState(false);
   const [fenceHeightFeet, setFenceHeightFeet] = useState('');
+  const [timeZone, setTimeZone] = useState<PropertyTimeZone | null>(null);
   const clearFieldError = (field: PropertyFieldName) => {
     setFieldErrors((current) => {
       if (!current[field]) return current;
@@ -105,7 +109,7 @@ export default function CreatePropertyScreen() {
           .maybeSingle(),
         supabase
           .from('properties')
-          .select('id, name, short_description, site_address, city, state, postal_code, price_per_hour, acreage, is_fully_fenced, fence_height_feet')
+          .select('id, name, short_description, site_address, city, state, postal_code, price_per_hour, acreage, is_fully_fenced, fence_height_feet, time_zone')
           .eq('host_id', session.user.id)
           .order('created_at', { ascending: false }),
       ]);
@@ -143,6 +147,7 @@ export default function CreatePropertyScreen() {
     setAcreage(site.acreage === null ? '' : String(site.acreage));
     setIsFullyFenced(site.is_fully_fenced);
     setFenceHeightFeet(site.fence_height_feet === null ? '' : String(site.fence_height_feet));
+    setTimeZone(site.time_zone as PropertyTimeZone);
     setFieldErrors({});
   };
 
@@ -213,6 +218,7 @@ export default function CreatePropertyScreen() {
     if (!city.trim()) validationErrors.city = 'Enter the city where this private space is located.';
     if (state.trim().length !== 2) validationErrors.state = 'Use the two-letter state abbreviation, such as MI.';
     if (!postalCode.trim()) validationErrors.postalCode = 'Enter the ZIP or postal code.';
+    if (!timeZone) validationErrors.timeZone = 'Choose the local time zone for this private space.';
 
     if (!Number.isFinite(price) || price <= 0) {
       validationErrors.pricePerHour = 'Enter an hourly price greater than $0.';
@@ -275,6 +281,7 @@ export default function CreatePropertyScreen() {
           fence_height_feet: parsedFenceHeight,
           is_published: false,
           approval_status: 'draft',
+          time_zone: timeZone,
         })
         .select('id')
         .single();
@@ -446,6 +453,15 @@ export default function CreatePropertyScreen() {
               placeholder="ZIP or postal code"
               keyboardType="number-pad"
             />
+            <Text style={styles.label}>Site time zone <Text style={styles.requiredMark}>Required</Text></Text>
+            <Text style={styles.timeZoneHelp}>Guests see reservation times and subscription expiration in this site’s local time.</Text>
+            <View style={[styles.timeZoneOptions, fieldErrors.timeZone && styles.fieldErrorBorder]}>
+              {propertyTimeZones.map((option) => {
+                const selected = timeZone === option.value;
+                return <Pressable key={option.value} accessibilityRole="radio" accessibilityState={{ checked: selected }} onPress={() => { setTimeZone(option.value); clearFieldError('timeZone'); }} style={[styles.timeZoneOption, selected && styles.timeZoneOptionSelected]}><Text style={[styles.timeZoneOptionText, selected && styles.timeZoneOptionTextSelected]}>{option.label}</Text></Pressable>;
+              })}
+            </View>
+            {fieldErrors.timeZone ? <Text style={styles.fieldErrorText}>{fieldErrors.timeZone}</Text> : null}
             <View style={styles.row}>
               <View style={styles.priceField}>
                 <Field
@@ -639,6 +655,14 @@ const styles = StyleSheet.create({
   multilineInput: { minHeight: 106, paddingTop: 14 },
   prefix: { color: colors.forest, fontSize: 16, fontWeight: '800', paddingLeft: 15 },
   fieldErrorText: { color: '#B42318', fontSize: 13, fontWeight: '700', lineHeight: 18, marginTop: 6 },
+  requiredMark: { color: '#B42318' },
+  timeZoneHelp: { color: colors.muted, fontSize: 13, lineHeight: 18, marginBottom: 9 },
+  timeZoneOptions: { gap: 8 },
+  fieldErrorBorder: { borderColor: '#B42318', borderRadius: 13, borderWidth: 1, padding: 8 },
+  timeZoneOption: { backgroundColor: colors.cream, borderColor: colors.border, borderRadius: 12, borderWidth: 1, minHeight: 46, justifyContent: 'center', paddingHorizontal: 13 },
+  timeZoneOptionSelected: { backgroundColor: colors.forest, borderColor: colors.forest },
+  timeZoneOptionText: { color: colors.forest, fontSize: 14, fontWeight: '800' },
+  timeZoneOptionTextSelected: { color: colors.warmWhite },
   row: { flexDirection: 'row', gap: 12 },
   cityField: { flex: 1 },
   stateField: { width: 80 },

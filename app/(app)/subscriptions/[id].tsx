@@ -162,7 +162,7 @@ export default function SubscriptionsScreen() {
         <MathRow label="Subscription price" value={`$${subscriptionPrice.toFixed(2)}`} />
         <MathRow label="Guest savings" value={`$${Math.max(0, guestSavings).toFixed(2)}`} />
         <MathRow label="ROVAH fee (18%)" value={`$${platformFee.toFixed(2)}`} />
-        <MathRow emphasis label="Your payout" value={`$${hostPayout.toFixed(2)}`} />
+        <MathRow emphasis label="Estimated payout before Stripe fee" value={`$${hostPayout.toFixed(2)}`} />
       </View>
       <Pressable accessibilityRole="button" disabled={isSaving} onPress={() => void save()} style={[styles.primaryButton, isSaving && styles.disabled]}>{isSaving ? <ActivityIndicator color={colors.warmWhite} /> : <Text style={styles.primaryButtonText}>{draft.id ? 'Save Subscription Changes' : 'Create Subscription'}</Text>}</Pressable>
       {draft.id ? <Pressable accessibilityRole="button" onPress={startNew} style={styles.secondaryButton}><Text style={styles.secondaryButtonText}>Create Another Subscription</Text></Pressable> : null}
@@ -170,6 +170,8 @@ export default function SubscriptionsScreen() {
 
     <View style={styles.guideCard}>
       <Text style={styles.guideTitle}>How to manage subscriptions</Text>
+      <Text style={styles.guideText}><Text style={styles.guideStrong}>What guests buy:</Text> Each credit covers one hour at this site. A one-hour booking uses one credit; a two-hour booking uses two.</Text>
+      <Text style={styles.guideText}><Text style={styles.guideStrong}>Expiration:</Text> Credits remain usable through 10:00 p.m. on the final valid day in this site’s local time zone.</Text>
       <Text style={styles.guideText}><Text style={styles.guideStrong}>Create or modify:</Text> Active subscriptions are packages guests can choose for this private space. Changes apply to future purchases.</Text>
       <Text style={styles.guideText}><Text style={styles.guideStrong}>End subscription:</Text> Stops new purchases. Members who already bought the package keep their recorded credits and expiration date.</Text>
     </View>

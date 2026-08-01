@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { colors } from '../constants/theme';
 
@@ -19,12 +20,16 @@ export function HostPageGuide({
   tone?: 'default' | 'forest';
 }) {
   const isForest = tone === 'forest';
+  const [isOpen, setIsOpen] = useState(false);
 
   return (
     <View style={[styles.card, isForest && styles.forestCard]}>
-      <Text style={[styles.title, isForest && styles.forestText]}>{title}</Text>
-      {intro ? <Text style={[styles.intro, isForest && styles.forestMutedText]}>{intro}</Text> : null}
-      {steps.map((step, index) => (
+      <Pressable accessibilityRole="button" accessibilityState={{ expanded: isOpen }} onPress={() => setIsOpen((current) => !current)} style={styles.header}>
+        <Text style={[styles.title, isForest && styles.forestText]}>{title}</Text>
+        <Text style={[styles.arrow, isForest && styles.forestText]}>{isOpen ? '⌃' : '⌄'}</Text>
+      </Pressable>
+      {isOpen && intro ? <Text style={[styles.intro, isForest && styles.forestMutedText]}>{intro}</Text> : null}
+      {isOpen && steps.map((step, index) => (
         <View key={step.title} style={styles.step}>
           <Text style={[styles.number, isForest && styles.forestNumber]}>{index + 1}</Text>
           <View style={styles.copy}>
@@ -38,9 +43,10 @@ export function HostPageGuide({
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 18, borderWidth: 1, marginTop: 24, padding: 17 },
+  card: { backgroundColor: '#F1F2EF', borderColor: colors.border, borderRadius: 18, borderWidth: 1, marginTop: 16, padding: 17 },
   forestCard: { backgroundColor: colors.forest, borderColor: '#315738' },
-  title: { color: colors.forest, fontSize: 19, fontWeight: '900' },
+  header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', minHeight: 40 },
+  title: { color: colors.forest, flex: 1, fontSize: 19, fontWeight: '900', paddingRight: 12 }, arrow: { color: colors.forest, fontSize: 24, fontWeight: '900' },
   intro: { color: colors.muted, fontSize: 14, lineHeight: 20, marginTop: 5 },
   step: { flexDirection: 'row', marginTop: 16 },
   number: { alignItems: 'center', backgroundColor: colors.lightGreen, borderColor: '#CBD1BD', borderRadius: 13, borderWidth: 1, color: colors.forest, fontSize: 13, fontWeight: '900', height: 26, lineHeight: 24, marginRight: 10, textAlign: 'center', width: 26 },

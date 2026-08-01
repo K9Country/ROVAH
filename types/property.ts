@@ -7,6 +7,7 @@ export type Property = {
   state: string;
   postal_code: string;
   site_address: string;
+  time_zone: string;
   price_per_hour: number;
   acreage: number | null;
   is_fully_fenced: boolean;

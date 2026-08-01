@@ -20,7 +20,7 @@ import { useAuth } from '../../services/auth-context';
 type PaymentBooking = {
   id: string;
   total_amount: number;
-  status: 'confirmed' | 'cancelled';
+  status: 'confirmed' | 'completed' | 'cancelled';
   payment_status: 'pending_configuration' | 'processing' | 'paid' | 'refunded' | 'failed' | 'cancelled';
 };
 
@@ -56,7 +56,7 @@ export default function HostPaymentsScreen() {
     }
 
     const [bookingsResult, profileResult, settlementsResult, payoutStatusResult] = await Promise.all([
-      supabase.from('bookings').select('id, total_amount, status, payment_status').eq('status', 'confirmed'),
+      supabase.from('bookings').select('id, total_amount, status, payment_status').in('status', ['confirmed', 'completed']),
       supabase.from('host_profiles').select('payout_status').eq('user_id', session.user.id).maybeSingle(),
       supabase
         .from('booking_payout_settlements')
@@ -169,13 +169,14 @@ export default function HostPaymentsScreen() {
     () => bookings.reduce((total, booking) => total + Number(booking.total_amount), 0),
     [bookings],
   );
+  const settledBookingIds = useMemo(() => new Set(bookings.map((booking) => booking.id)), [bookings]);
   const paidValue = useMemo(
-    () => settlements.reduce((total, settlement) => total + Number(settlement.host_payout_amount), 0),
-    [settlements],
+    () => settlements.reduce((total, settlement) => settledBookingIds.has(settlement.booking_id) ? total + Number(settlement.host_payout_amount) : total, 0),
+    [settledBookingIds, settlements],
   );
   const stripeProcessingFees = useMemo(
-    () => settlements.reduce((total, settlement) => total + Number(settlement.stripe_processing_fee_amount), 0),
-    [settlements],
+    () => settlements.reduce((total, settlement) => settledBookingIds.has(settlement.booking_id) ? total + Number(settlement.stripe_processing_fee_amount) : total, 0),
+    [settledBookingIds, settlements],
   );
   const pendingCount = useMemo(
     () => bookings.filter((booking) => booking.payment_status === 'pending_configuration').length,

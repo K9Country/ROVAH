@@ -20,6 +20,7 @@ import GooglePropertyMap from '../../../components/google-property-map';
 import { HostPageGuide } from '../../../components/host-page-guide';
 import { memberUi } from '../../../constants/member-ui';
 import { colors } from '../../../constants/theme';
+import { propertyTimeZoneLabel } from '../../../constants/property-time-zones';
 import { ensureMessagingSession } from '../../../lib/anonymous-session';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../services/auth-context';
@@ -789,7 +790,7 @@ export default function PropertyDetailsScreen() {
                 {selected && subscriptionDurationUnsupported ? <Text style={styles.subscriptionWarning}>This visit is longer than this subscription. Choose a shorter visit or Pay regular rate.</Text> : null}
               </Pressable>;
             })}
-            <Text style={styles.loyaltyPassNote}>Choose one rate only. Your selected subscription or regular rate will be shown in the total and used at checkout.</Text>
+            <Text style={styles.loyaltyPassNote}>Choose one rate only. Each subscription credit covers one hour, so a two-hour visit uses two credits. Credits are valid through 10:00 p.m. on the final valid day in this site’s local time zone. Your selected subscription or regular rate will be shown in the total and used at checkout.</Text>
           </View> : null}
           <View style={styles.calendarHeader}><Pressable accessibilityLabel="Previous month" onPress={() => setCalendarMonth((month) => new Date(month.getFullYear(), month.getMonth() - 1, 1))} style={styles.monthButton}><Text style={styles.monthButtonText}>‹</Text></Pressable><Text style={styles.monthTitle}>{monthNames[calendarMonth.getMonth()]} {calendarMonth.getFullYear()}</Text><Pressable accessibilityLabel="Next month" onPress={() => setCalendarMonth((month) => new Date(month.getFullYear(), month.getMonth() + 1, 1))} style={styles.monthButton}><Text style={styles.monthButtonText}>›</Text></Pressable></View>
           <View style={styles.weekdayRow}>{['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => <Text key={`${day}-${index}`} style={styles.weekdayLabel}>{day}</Text>)}</View>
@@ -805,6 +806,7 @@ export default function PropertyDetailsScreen() {
           <Text style={styles.fieldLabel}>End time</Text>
           <Pressable disabled={!startTime || availableEndSlots.length === 0} onPress={() => setSlotPicker('end')} style={[styles.selectorButton, (!startTime || availableEndSlots.length === 0) && styles.selectorDisabled]}><Text style={styles.selectorButtonText}>{endTime ? formatMilitaryTime(endTime) : 'Select end time'}</Text><Text style={styles.selectorHint}>⌄</Text></Pressable>
           <Text style={styles.minimumText}>One-hour minimum; times are offered only on the hour and half hour.</Text>
+          <Text style={styles.minimumText}>All reservation times use this site’s local time: {propertyTimeZoneLabel(property.time_zone)}.</Text>
           <Text style={styles.fieldLabel}>Select attending dogs</Text>
           <Text style={styles.attendingDogsIntro}>Choose every dog coming to this visit. Your host will receive each selected dog’s name, breed, size, and behavior traits.</Text>
           {isDogProfilesLoading ? <View style={styles.dogProfileLoading}><ActivityIndicator color={colors.forest} /></View> : null}

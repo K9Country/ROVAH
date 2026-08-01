@@ -5,7 +5,6 @@ import '../global.css';
  
 import { colors } from '../constants/theme';
 import { AuthProvider, useAuth } from '../services/auth-context';
-import { InstallRovahPrompt } from '../components/install-rovah-prompt';
  
 function RootNavigator() {
   const { isLoading } = useAuth();
@@ -50,7 +49,6 @@ export default function RootLayout() {
       <AuthProvider>
         <RootNavigator />
       </AuthProvider>
-      <InstallRovahPrompt />
     </View>
   );
 }
