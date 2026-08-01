@@ -36,6 +36,7 @@ type MemoryPhoto = {
   path: string;
   url: string;
 };
+type SubscriptionPass = { id: string; property_id: string; credit_hours_total: number; credit_hours_remaining: number; properties: { name: string } | null };
  
 const dashboardActions: DashboardAction[] = [
 {
@@ -95,6 +96,15 @@ export default function DashboardScreen() {
   const [isLoadingMemories, setIsLoadingMemories] = useState(false);
   const [isUploadingMemories, setIsUploadingMemories] = useState(false);
   const [memoryStatus, setMemoryStatus] = useState('');
+  const [subscriptionPasses, setSubscriptionPasses] = useState<SubscriptionPass[]>([]);
+
+  const loadSubscriptionPasses = useCallback(async () => {
+    if (!session?.user.id) { setSubscriptionPasses([]); return; }
+    const { data } = await supabase.from('member_loyalty_passes')
+      .select('id, property_id, credit_hours_total, credit_hours_remaining, properties(name)')
+      .eq('status', 'active').gt('credit_hours_remaining', 0).gt('expires_at', new Date().toISOString());
+    setSubscriptionPasses((data ?? []).map((pass) => ({ ...pass, properties: Array.isArray(pass.properties) ? pass.properties[0] ?? null : pass.properties })) as SubscriptionPass[]);
+  }, [session?.user.id]);
 
   const loadUnreadMessages = useCallback(async () => {
     if (!session?.user.id) {
@@ -201,16 +211,18 @@ export default function DashboardScreen() {
     void loadUnreadMessages();
     void loadUnreadHostFeedback();
     void loadPendingSiteReviews();
+    void loadSubscriptionPasses();
     const refreshInterval = setInterval(
       () => {
         void loadUnreadMessages();
         void loadUnreadHostFeedback();
         void loadPendingSiteReviews();
+        void loadSubscriptionPasses();
       },
       15_000
     );
     return () => clearInterval(refreshInterval);
-  }, [loadPendingSiteReviews, loadUnreadHostFeedback, loadUnreadMessages]);
+  }, [loadPendingSiteReviews, loadSubscriptionPasses, loadUnreadHostFeedback, loadUnreadMessages]);
 
   useFocusEffect(useCallback(() => {
     void loadPendingSiteReviews();
@@ -343,6 +355,15 @@ export default function DashboardScreen() {
             <Text style={styles.featureLink}>Search properties →</Text>
           </View>
         </Pressable>
+
+        {subscriptionPasses.map((pass) => (
+          <Pressable key={pass.id} accessibilityRole="button" onPress={() => handleNavigation(`/property/${pass.property_id}`)} style={styles.subscriptionCard}>
+            <Text style={styles.subscriptionEyebrow}>SUBSCRIPTION VISITS REMAINING</Text>
+            <Text style={styles.subscriptionSite}>{pass.properties?.name ?? 'Your private space'}</Text>
+            <Text style={styles.subscriptionCount}>{Number(pass.credit_hours_remaining)} of {Number(pass.credit_hours_total)} visits remaining</Text>
+            <Text style={styles.subscriptionNote}>Your next Subscription Reservation uses 1 visit credit. $0 due.</Text>
+          </Pressable>
+        ))}
 
         <View style={styles.grid}>
           {memberActions.map((action) => (
@@ -614,6 +635,11 @@ const styles = StyleSheet.create({
   trustSafetyLinkText: { color: colors.muted, fontSize: 12, marginTop: 4, textAlign: 'center' },
  
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
+  subscriptionCard: { backgroundColor: colors.lightGreen, borderColor: colors.forest, borderRadius: 18, borderWidth: 1, marginTop: 14, padding: 16, ...shadows.card },
+  subscriptionEyebrow: { color: colors.brown, fontSize: 11, fontWeight: '900', letterSpacing: 1.1 },
+  subscriptionSite: { color: colors.forest, fontSize: 18, fontWeight: '900', marginTop: 5 },
+  subscriptionCount: { color: colors.forest, fontSize: 22, fontWeight: '900', marginTop: 8 },
+  subscriptionNote: { color: colors.muted, fontSize: 13, fontWeight: '700', lineHeight: 19, marginTop: 5 },
 
   memoriesSection: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 18, borderWidth: 1, marginTop: 14, padding: 15, ...shadows.card },
   feedbackReviewsArea: { gap: 18, marginTop: 18 },
