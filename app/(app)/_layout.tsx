@@ -88,7 +88,7 @@ export default function AppLayout() {
     );
   }
 
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return <Stack screenOptions={{ gestureEnabled: false, headerShown: false }} />;
 }
 
 const styles = StyleSheet.create({

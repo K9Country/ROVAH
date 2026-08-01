@@ -204,7 +204,7 @@ export default function HostDashboardScreen() {
       }
 
       router.dismissAll();
-      router.replace('/');
+      router.replace('/choose-path');
     } catch {
       Alert.alert(
         'Something went wrong',

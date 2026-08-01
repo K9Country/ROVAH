@@ -4,6 +4,7 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import '../global.css';
  
 import { colors } from '../constants/theme';
+import { SideBackNavigation } from '../components/side-back-navigation';
 import { AuthProvider, useAuth } from '../services/auth-context';
  
 function RootNavigator() {
@@ -26,7 +27,7 @@ function RootNavigator() {
   }
  
   return (
-      <Stack screenOptions={{ headerShown: false }}>
+      <Stack screenOptions={{ gestureEnabled: false, headerShown: false }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="choose-path" />
       <Stack.Screen name="host-info" />
@@ -48,6 +49,7 @@ export default function RootLayout() {
     <View style={styles.appShell}>
       <AuthProvider>
         <RootNavigator />
+        <SideBackNavigation />
       </AuthProvider>
     </View>
   );

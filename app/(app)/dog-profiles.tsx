@@ -12,6 +12,14 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../services/auth-context';
 
 type DogProfile = { id: string; name: string; breed: string; age: string; size: string; temperament: string; behavior_traits: string[]; notes: string; photo_path: string | null; photo_url: string | null };
+
+function normalizeBreedSearch(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+}
 type DogForm = Omit<DogProfile, 'id' | 'photo_path' | 'photo_url'>;
 type DogFieldName = 'name' | 'breed' | 'age' | 'size' | 'behavior_traits';
 
@@ -36,7 +44,8 @@ export default function DogProfilesScreen() {
   const [breedSearch, setBreedSearch] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<DogFieldName, string>>>({});
-  const matchingBreeds = dogBreeds.filter((breed) => breed.toLowerCase().includes(breedSearch.trim().toLowerCase()));
+  const normalizedBreedSearch = normalizeBreedSearch(breedSearch);
+  const matchingBreeds = dogBreeds.filter((breed) => normalizeBreedSearch(breed).includes(normalizedBreedSearch));
   const requestedDogCount = Math.max(1, Number(dogCount) || 1);
   const isOnboarding = onboarding === 'true' && dogs.length === 0;
 
@@ -287,7 +296,7 @@ export default function DogProfilesScreen() {
           <Field error={fieldErrors.name} label="Dog’s name" onChangeText={(value) => updateForm('name', value)} placeholder="For example, Scout" required value={form.name} />
           <View style={styles.fieldGroup}>
             <Text style={styles.label}>Breed or mix <Text style={styles.required}>Required</Text></Text>
-            <Pressable accessibilityRole="button" onPress={() => setIsBreedPickerOpen(true)} style={[styles.breedPickerButton, fieldErrors.breed && styles.pickerError]}>
+            <Pressable accessibilityRole="button" onPress={() => { setBreedSearch(''); setIsBreedPickerOpen(true); }} style={[styles.breedPickerButton, fieldErrors.breed && styles.pickerError]}>
               <Text style={[styles.breedPickerText, !form.breed && styles.breedPickerPlaceholder]}>{form.breed || 'Select a breed or mix'}</Text>
               <Text style={styles.breedPickerChevron}>⌄</Text>
             </Pressable>
@@ -338,9 +347,9 @@ export default function DogProfilesScreen() {
         <View style={styles.breedModal}>
           <View style={styles.breedModalHeader}>
             <Text style={styles.breedModalTitle}>Select a breed or mix</Text>
-            <Pressable accessibilityLabel="Close breed list" accessibilityRole="button" onPress={() => setIsBreedPickerOpen(false)} style={styles.closeButton}><Text style={styles.closeButtonText}>Close</Text></Pressable>
+            <Pressable accessibilityLabel="Close breed list" accessibilityRole="button" onPress={() => { setBreedSearch(''); setIsBreedPickerOpen(false); }} style={styles.closeButton}><Text style={styles.closeButtonText}>Close</Text></Pressable>
           </View>
-          <TextInput autoCapitalize="words" autoCorrect={false} onChangeText={setBreedSearch} placeholder="Search breeds" placeholderTextColor="#8A877D" style={styles.breedSearchInput} value={breedSearch} />
+          <TextInput autoCapitalize="words" autoCorrect={false} autoFocus onChangeText={setBreedSearch} placeholder="Search breeds" placeholderTextColor="#8A877D" style={styles.breedSearchInput} value={breedSearch} />
           <ScrollView keyboardShouldPersistTaps="always" showsVerticalScrollIndicator={false} style={styles.breedList}>
             {matchingBreeds.map((breed) => <Pressable key={breed} accessibilityRole="button" onPress={() => { updateForm('breed', breed); setBreedSearch(''); setIsBreedPickerOpen(false); }} style={[styles.breedOption, form.breed === breed && styles.breedOptionSelected]}><Text style={[styles.breedOptionText, form.breed === breed && styles.breedOptionTextSelected]}>{breed}</Text></Pressable>)}
             {matchingBreeds.length === 0 ? <Text style={styles.noBreedsText}>No matching breed found. Try a different search.</Text> : null}

@@ -20,7 +20,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors } from '../../../constants/theme';
-import { propertyTimeZones, type PropertyTimeZone } from '../../../constants/property-time-zones';
+import { propertyTimeZoneLabel, propertyTimeZones, type PropertyTimeZone } from '../../../constants/property-time-zones';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../services/auth-context';
 import type {
@@ -176,6 +176,7 @@ export default function PropertyDraftScreen() {
   const [deletedSiteName, setDeletedSiteName] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [timeZonePickerOpen, setTimeZonePickerOpen] = useState(false);
 
   const loadDraft = useCallback(async () => {
     if (!id || !session?.user.id) {
@@ -854,7 +855,8 @@ export default function PropertyDraftScreen() {
             <DraftField label="ZIP or postal code" value={propertyBasics.postalCode} onChangeText={(postalCode) => { setPropertyBasics((current) => current ? { ...current, postalCode } : current); setHasUnsavedChanges(true); }} placeholder="ZIP or postal code" requiredForReview />
             <Text style={styles.propertyToggleTitle}>Site time zone</Text>
             <Text style={styles.propertyToggleText}>Required. Guests use this time zone for reservation times and subscription expiration.</Text>
-            <View style={styles.timeZoneChoices}>{propertyTimeZones.map((option) => <Pressable accessibilityRole="radio" accessibilityState={{ checked: propertyBasics.timeZone === option.value }} key={option.value} onPress={() => { setPropertyBasics((current) => current ? { ...current, timeZone: option.value } : current); setHasUnsavedChanges(true); }} style={[styles.timeZoneChoice, propertyBasics.timeZone === option.value && styles.timeZoneChoiceSelected]}><Text style={[styles.timeZoneChoiceText, propertyBasics.timeZone === option.value && styles.timeZoneChoiceTextSelected]}>{option.label}</Text></Pressable>)}</View>
+            <Pressable accessibilityRole="button" onPress={() => setTimeZonePickerOpen(true)} style={styles.timeZoneSelect}><Text style={styles.timeZoneSelectText}>{propertyTimeZoneLabel(propertyBasics.timeZone)}</Text><Text style={styles.timeZoneChevron}>⌄</Text></Pressable>
+            <Modal animationType="slide" transparent visible={timeZonePickerOpen} onRequestClose={() => setTimeZonePickerOpen(false)}><Pressable style={styles.timeZoneBackdrop} onPress={() => setTimeZonePickerOpen(false)}><View style={styles.timeZoneSheet}><Text style={styles.timeZoneSheetTitle}>Choose site time zone</Text>{propertyTimeZones.map((option) => <Pressable accessibilityRole="radio" accessibilityState={{ checked: propertyBasics.timeZone === option.value }} key={option.value} onPress={() => { setPropertyBasics((current) => current ? { ...current, timeZone: option.value } : current); setHasUnsavedChanges(true); setTimeZonePickerOpen(false); }} style={[styles.timeZoneSheetOption, propertyBasics.timeZone === option.value && styles.timeZoneSheetOptionSelected]}><Text style={styles.timeZoneChoiceText}>{option.label}</Text></Pressable>)}</View></Pressable></Modal>
             <View style={styles.propertyBasicsRow}>
               <View style={styles.propertyBasicsWideField}><DraftField keyboardType="decimal-pad" label="Standard hourly rate" value={propertyBasics.pricePerHour} onChangeText={(pricePerHour) => { setPropertyBasics((current) => current ? { ...current, pricePerHour: pricePerHour.replace(/[^0-9.]/g, '') } : current); setHasUnsavedChanges(true); }} placeholder="$15" requiredForReview /></View>
               <View style={styles.propertyBasicsNarrowField}><DraftField keyboardType="decimal-pad" label="Acreage" value={propertyBasics.acreage} onChangeText={(acreage) => { setPropertyBasics((current) => current ? { ...current, acreage: acreage.replace(/[^0-9.]/g, '') } : current); setHasUnsavedChanges(true); }} placeholder="Example: 2" requiredForReview /></View>
@@ -1445,11 +1447,15 @@ const styles = StyleSheet.create({
   propertyToggleCopy: { flex: 1, paddingRight: 14 },
   propertyToggleTitle: { color: colors.forest, fontSize: 16, fontWeight: '900' },
   propertyToggleText: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 4 },
-  timeZoneChoices: { gap: 8, marginTop: 12 },
-  timeZoneChoice: { backgroundColor: colors.cream, borderColor: colors.border, borderRadius: 12, borderWidth: 1, minHeight: 44, justifyContent: 'center', paddingHorizontal: 13 },
-  timeZoneChoiceSelected: { backgroundColor: colors.forest, borderColor: colors.forest },
+  timeZoneSelect: { alignItems: 'center', backgroundColor: colors.cream, borderColor: colors.border, borderRadius: 12, borderWidth: 1, flexDirection: 'row', justifyContent: 'space-between', marginTop: 12, minHeight: 48, paddingHorizontal: 13 },
+  timeZoneSelectText: { color: colors.forest, fontSize: 14, fontWeight: '800' },
+  timeZoneChevron: { color: colors.forest, fontSize: 20, fontWeight: '900' },
   timeZoneChoiceText: { color: colors.forest, fontSize: 14, fontWeight: '800' },
-  timeZoneChoiceTextSelected: { color: colors.warmWhite },
+  timeZoneBackdrop: { backgroundColor: 'rgba(18, 34, 23, 0.5)', flex: 1, justifyContent: 'flex-end' },
+  timeZoneSheet: { backgroundColor: colors.warmWhite, borderTopLeftRadius: 22, borderTopRightRadius: 22, gap: 8, padding: 20, paddingBottom: 34 },
+  timeZoneSheetTitle: { color: colors.forest, fontSize: 19, fontWeight: '900', marginBottom: 5 },
+  timeZoneSheetOption: { backgroundColor: colors.cream, borderColor: colors.border, borderRadius: 12, borderWidth: 1, minHeight: 46, justifyContent: 'center', paddingHorizontal: 13 },
+  timeZoneSheetOptionSelected: { borderColor: colors.forest, borderWidth: 2 },
   loyaltyToggleRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   loyaltyToggleCopy: { flex: 1, paddingRight: 14 },
   loyaltyToggleTitle: { color: colors.forest, fontSize: 16, fontWeight: '900' },

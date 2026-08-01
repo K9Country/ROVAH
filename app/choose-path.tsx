@@ -1,29 +1,35 @@
 import { Image } from 'expo-image';
 import { router, Stack } from 'expo-router';
+import { useEffect } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors } from '../constants/theme';
-import { hasExplicitMemberSignOut } from '../lib/member-entry';
 import { useAuth } from '../services/auth-context';
 
 export default function ChoosePathScreen() {
   const { isHost, isLoading, isMember, session } = useAuth();
-  const openMemberPath = async () => {
+  useEffect(() => {
+    if (isLoading || !session) return;
+    if (isHost) {
+      router.replace('/host-dashboard' as never);
+      return;
+    }
+    if (isMember) router.replace('/dashboard' as never);
+  }, [isHost, isLoading, isMember, session]);
+
+  const openMemberPath = () => {
     if (isLoading) return;
     if (session && isMember) {
       router.replace('/dashboard' as never);
       return;
     }
 
-    // This generic device marker is only for choosing the next public screen;
-    // it is never used as authentication or authorization.
-    const signedOutHere = await hasExplicitMemberSignOut();
-    router.replace((signedOutHere ? '/sign-in?intent=member' : '/sign-up?intent=member') as never);
+    router.replace('/sign-in?intent=member' as never);
   };
 
   const openHostPath = () => {
-    router.push(isHost ? '/host-dashboard' : '/sign-in?intent=host');
+    router.replace(isHost ? '/host-dashboard' : '/sign-in?intent=host');
   };
 
   return (
@@ -42,7 +48,7 @@ export default function ChoosePathScreen() {
             accessibilityHint="Opens space search or member sign in"
             accessibilityLabel="Find a Space"
             accessibilityRole="button"
-            onPress={() => void openMemberPath()}
+            onPress={openMemberPath}
             style={({ pressed }) => [styles.findSpaceButton, pressed && styles.buttonPressed]}
           />
 

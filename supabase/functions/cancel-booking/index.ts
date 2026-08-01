@@ -38,7 +38,7 @@ Deno.serve(async (req) => {
     );
     const { data: booking, error: bookingError } = await admin
       .from('bookings')
-      .select('id, guest_id, status, start_at, total_amount, payment_status, stripe_payment_intent_id, loyalty_pass_offer_id, member_loyalty_pass_id, loyalty_pass_credit_hours_applied, properties(host_id)')
+      .select('id, guest_id, status, start_at, total_amount, payment_status, stripe_payment_intent_id, stripe_checkout_session_id, loyalty_pass_offer_id, member_loyalty_pass_id, loyalty_pass_credit_hours_applied, properties(host_id)')
       .eq('id', bookingId)
       .maybeSingle();
     if (bookingError) throw bookingError;
@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
     const isGuest = booking?.guest_id === user.id;
     const isHost = property?.host_id === user.id;
     if (!booking || (!isGuest && !isHost)) return json({ error: 'You do not have permission to cancel this reservation' }, 403);
-    if (booking.status !== 'confirmed') return json({ error: 'This reservation is no longer available to cancel' }, 409);
+    if (booking.status !== 'confirmed' && booking.status !== 'payment_pending') return json({ error: 'This reservation is no longer available to cancel' }, 409);
     if (new Date(booking.start_at).getTime() <= Date.now() + 60 * 60 * 1000) {
       return json({ error: 'The cancellation window closed one hour before this visit.' }, 409);
     }
@@ -54,6 +54,21 @@ Deno.serve(async (req) => {
     const isSubscriptionReservation = Boolean(booking.member_loyalty_pass_id || booking.loyalty_pass_offer_id);
     if (!isSubscriptionReservation && booking.payment_status === 'paid') {
       return json({ error: 'Payment has already been captured, so this reservation can no longer be cancelled online.' }, 409);
+    }
+
+    // A payment-pending booking can still have an open Stripe Checkout page.
+    // Expire it first, so the guest cannot complete payment after cancellation.
+    if (!isSubscriptionReservation && booking.status === 'payment_pending' && booking.stripe_checkout_session_id) {
+      const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY');
+      if (!stripeSecretKey) return json({ error: 'Payments are not configured yet' }, 503);
+      const stripe = new Stripe(stripeSecretKey);
+      const checkoutSession = await stripe.checkout.sessions.retrieve(booking.stripe_checkout_session_id);
+      if (checkoutSession.status === 'complete') {
+        return json({ error: 'Payment was already completed. Refresh this page and try again.' }, 409);
+      }
+      if (checkoutSession.status === 'open') {
+        await stripe.checkout.sessions.expire(checkoutSession.id);
+      }
     }
 
     if (!isSubscriptionReservation && booking.payment_status === 'authorized' && booking.stripe_payment_intent_id) {
@@ -78,7 +93,7 @@ Deno.serve(async (req) => {
         payment_updated_at: now,
       })
       .eq('id', booking.id)
-      .eq('status', 'confirmed');
+      .in('status', ['confirmed', 'payment_pending']);
     if (updateError) throw updateError;
 
     // Restore any already-spent subscription credits when a confirmed visit is

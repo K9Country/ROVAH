@@ -811,7 +811,12 @@ export default function SearchScreen() {
         }
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>🐾</Text>
+            <Image
+              accessibilityLabel="Dog searching for a private space"
+              resizeMode="contain"
+              source={require('../../assets/images/k9-8.png')}
+              style={styles.emptySearchImage}
+            />
 
             <Text style={styles.emptyTitle}>
               {errorMessage
@@ -1583,9 +1588,7 @@ const styles = StyleSheet.create({
     paddingBottom: 60,
   },
 
-  emptyIcon: {
-    fontSize: 50,
-  },
+  emptySearchImage: { height: 140, marginBottom: 4, width: 180 },
 
   emptyTitle: {
     color: colors.forest,

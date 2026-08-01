@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -16,7 +17,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors } from '../../constants/theme';
-import { propertyTimeZones, type PropertyTimeZone } from '../../constants/property-time-zones';
+import { propertyTimeZoneLabel, propertyTimeZones, type PropertyTimeZone } from '../../constants/property-time-zones';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../services/auth-context';
 
@@ -85,6 +86,7 @@ export default function CreatePropertyScreen() {
   const [isFullyFenced, setIsFullyFenced] = useState(false);
   const [fenceHeightFeet, setFenceHeightFeet] = useState('');
   const [timeZone, setTimeZone] = useState<PropertyTimeZone | null>(null);
+  const [timeZonePickerOpen, setTimeZonePickerOpen] = useState(false);
   const clearFieldError = (field: PropertyFieldName) => {
     setFieldErrors((current) => {
       if (!current[field]) return current;
@@ -455,12 +457,7 @@ export default function CreatePropertyScreen() {
             />
             <Text style={styles.label}>Site time zone <Text style={styles.requiredMark}>Required</Text></Text>
             <Text style={styles.timeZoneHelp}>Guests see reservation times and subscription expiration in this site’s local time.</Text>
-            <View style={[styles.timeZoneOptions, fieldErrors.timeZone && styles.fieldErrorBorder]}>
-              {propertyTimeZones.map((option) => {
-                const selected = timeZone === option.value;
-                return <Pressable key={option.value} accessibilityRole="radio" accessibilityState={{ checked: selected }} onPress={() => { setTimeZone(option.value); clearFieldError('timeZone'); }} style={[styles.timeZoneOption, selected && styles.timeZoneOptionSelected]}><Text style={[styles.timeZoneOptionText, selected && styles.timeZoneOptionTextSelected]}>{option.label}</Text></Pressable>;
-              })}
-            </View>
+            <Pressable accessibilityRole="button" onPress={() => setTimeZonePickerOpen(true)} style={[styles.timeZoneSelect, fieldErrors.timeZone && styles.fieldErrorBorder]}><Text style={[styles.timeZoneSelectText, !timeZone && styles.timeZonePlaceholder]}>{timeZone ? propertyTimeZoneLabel(timeZone) : 'Choose a time zone'}</Text><Text style={styles.timeZoneChevron}>⌄</Text></Pressable>
             {fieldErrors.timeZone ? <Text style={styles.fieldErrorText}>{fieldErrors.timeZone}</Text> : null}
             <View style={styles.row}>
               <View style={styles.priceField}>
@@ -524,6 +521,7 @@ export default function CreatePropertyScreen() {
               <Text style={styles.primaryButtonText}>Save Property</Text>
             )}
           </Pressable>
+          <Modal animationType="slide" transparent visible={timeZonePickerOpen} onRequestClose={() => setTimeZonePickerOpen(false)}><Pressable style={styles.timeZoneBackdrop} onPress={() => setTimeZonePickerOpen(false)}><View style={styles.timeZoneSheet}><Text style={styles.timeZoneSheetTitle}>Choose site time zone</Text>{propertyTimeZones.map((option) => <Pressable key={option.value} accessibilityRole="radio" accessibilityState={{ checked: timeZone === option.value }} onPress={() => { setTimeZone(option.value); clearFieldError('timeZone'); setTimeZonePickerOpen(false); }} style={[styles.timeZoneSheetOption, timeZone === option.value && styles.timeZoneSheetOptionSelected]}><Text style={styles.timeZoneOptionText}>{option.label}</Text></Pressable>)}</View></Pressable></Modal>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -657,12 +655,17 @@ const styles = StyleSheet.create({
   fieldErrorText: { color: '#B42318', fontSize: 13, fontWeight: '700', lineHeight: 18, marginTop: 6 },
   requiredMark: { color: '#B42318' },
   timeZoneHelp: { color: colors.muted, fontSize: 13, lineHeight: 18, marginBottom: 9 },
-  timeZoneOptions: { gap: 8 },
-  fieldErrorBorder: { borderColor: '#B42318', borderRadius: 13, borderWidth: 1, padding: 8 },
-  timeZoneOption: { backgroundColor: colors.cream, borderColor: colors.border, borderRadius: 12, borderWidth: 1, minHeight: 46, justifyContent: 'center', paddingHorizontal: 13 },
-  timeZoneOptionSelected: { backgroundColor: colors.forest, borderColor: colors.forest },
+  fieldErrorBorder: { borderColor: '#B42318', borderWidth: 2 },
+  timeZoneSelect: { alignItems: 'center', backgroundColor: colors.cream, borderColor: colors.border, borderRadius: 13, borderWidth: 1, flexDirection: 'row', justifyContent: 'space-between', minHeight: 54, paddingHorizontal: 15 },
+  timeZoneSelectText: { color: colors.forest, fontSize: 16, fontWeight: '700' },
+  timeZonePlaceholder: { color: colors.muted, fontWeight: '500' },
+  timeZoneChevron: { color: colors.forest, fontSize: 20, fontWeight: '900' },
   timeZoneOptionText: { color: colors.forest, fontSize: 14, fontWeight: '800' },
-  timeZoneOptionTextSelected: { color: colors.warmWhite },
+  timeZoneBackdrop: { backgroundColor: 'rgba(18, 34, 23, 0.5)', flex: 1, justifyContent: 'flex-end' },
+  timeZoneSheet: { backgroundColor: colors.warmWhite, borderTopLeftRadius: 22, borderTopRightRadius: 22, gap: 8, padding: 20, paddingBottom: 34 },
+  timeZoneSheetTitle: { color: colors.forest, fontSize: 19, fontWeight: '900', marginBottom: 5 },
+  timeZoneSheetOption: { backgroundColor: colors.cream, borderColor: colors.border, borderRadius: 12, borderWidth: 1, minHeight: 46, justifyContent: 'center', paddingHorizontal: 13 },
+  timeZoneSheetOptionSelected: { borderColor: colors.forest, borderWidth: 2 },
   row: { flexDirection: 'row', gap: 12 },
   cityField: { flex: 1 },
   stateField: { width: 80 },

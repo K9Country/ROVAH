@@ -13,6 +13,22 @@ async function cancelPendingLoyaltyPass(admin: ReturnType<typeof createClient>, 
   if (error) throw error;
 }
 
+async function notifyReservationParties(bookingId: string) {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+  if (!supabaseUrl || !serviceRoleKey) return;
+  const response = await fetch(`${supabaseUrl}/functions/v1/notify-app-email`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${serviceRoleKey}`,
+      apikey: serviceRoleKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ type: 'reservation_created', resourceId: bookingId }),
+  });
+  if (!response.ok) console.error('Reservation email notification failed', await response.text());
+}
+
 async function markSettlementReversed({
   admin,
   chargeId,
@@ -70,9 +86,13 @@ Deno.serve(async (req) => {
       const paymentIntentId = stripeId(session.payment_intent);
       if (bookingId && session.mode === 'setup') {
         const setupIntentId = stripeId(session.setup_intent);
-        if (setupIntentId) await markBookingPaymentScheduled({ admin, bookingId, checkoutSessionId: session.id, setupIntentId, stripe });
+        if (setupIntentId) {
+          await markBookingPaymentScheduled({ admin, bookingId, checkoutSessionId: session.id, setupIntentId, stripe });
+          await notifyReservationParties(bookingId);
+        }
       } else if (bookingId && paymentIntentId) {
         await markBookingAuthorized({ admin, bookingId, checkoutSessionId: session.id, paymentIntentId, stripe });
+        await notifyReservationParties(bookingId);
       }
       const promotionId = session.metadata?.local_promotion_id;
       if (promotionId && session.payment_status === 'paid') {
@@ -88,13 +108,19 @@ Deno.serve(async (req) => {
     if (event.type === 'payment_intent.amount_capturable_updated') {
       const paymentIntent = event.data.object as Stripe.PaymentIntent;
       const bookingId = paymentIntent.metadata?.booking_id;
-      if (bookingId) await markBookingAuthorized({ admin, bookingId, checkoutSessionId: null, paymentIntentId: paymentIntent.id, stripe });
+      if (bookingId) {
+        await markBookingAuthorized({ admin, bookingId, checkoutSessionId: null, paymentIntentId: paymentIntent.id, stripe });
+        await notifyReservationParties(bookingId);
+      }
     }
 
     if (event.type === 'payment_intent.succeeded') {
       const paymentIntent = event.data.object as Stripe.PaymentIntent;
       const bookingId = paymentIntent.metadata?.booking_id;
-      if (bookingId) await settleCapturedBooking({ admin, bookingId, checkoutSessionId: null, paymentIntentId: paymentIntent.id, stripe });
+      if (bookingId) {
+        await settleCapturedBooking({ admin, bookingId, checkoutSessionId: null, paymentIntentId: paymentIntent.id, stripe });
+        await notifyReservationParties(bookingId);
+      }
     }
 
     if (event.type === 'payment_intent.canceled') {

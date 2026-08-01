@@ -343,15 +343,10 @@ export default function DashboardScreen() {
           ]}
         >
           <View style={styles.featureContent}>
-            <Text style={styles.featureTitle}>
-              Book Your Reservation
-            </Text>
- 
+            <Text style={styles.featureTitle}>Book Your Reservation</Text>
             <Text style={styles.featureDescription}>
-              Discover secure outdoor properties where your family and dog can
-              relax without crowds or unfamiliar dogs.
+              Discover secure outdoor properties where your family and dog can relax without crowds or unfamiliar dogs.
             </Text>
- 
             <Text style={styles.featureLink}>Search properties →</Text>
           </View>
         </Pressable>
@@ -559,7 +554,7 @@ const styles = StyleSheet.create({
  
   // Deliberately full-bleed: this exact source ratio retains every pixel at the top edge.
   header: { aspectRatio: 1024 / 1033, backgroundColor: '#F2E8DC', width: '100%' },
-  dashboardContent: { paddingBottom: 36, paddingHorizontal: 20 },
+  dashboardContent: { marginTop: -25, paddingBottom: 36, paddingHorizontal: 20 },
 
   userIntro: { marginBottom: 16, paddingHorizontal: 2 },
  
@@ -634,7 +629,7 @@ const styles = StyleSheet.create({
   trustSafetyLinkTitle: { color: colors.forest, fontSize: 15, fontWeight: '900', textDecorationLine: 'underline' },
   trustSafetyLinkText: { color: colors.muted, fontSize: 12, marginTop: 4, textAlign: 'center' },
  
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 12 },
   subscriptionCard: { backgroundColor: colors.lightGreen, borderColor: colors.forest, borderRadius: 18, borderWidth: 1, marginTop: 14, padding: 16, ...shadows.card },
   subscriptionEyebrow: { color: colors.brown, fontSize: 11, fontWeight: '900', letterSpacing: 1.1 },
   subscriptionSite: { color: colors.forest, fontSize: 18, fontWeight: '900', marginTop: 5 },
@@ -662,14 +657,14 @@ const styles = StyleSheet.create({
  
   actionCard: {
     alignItems: 'flex-start',
-    width: '48%',
+    width: '48.5%',
     minHeight: 134,
     backgroundColor: colors.warmWhite,
     borderRadius: 18,
     borderWidth: 1,
     borderColor: colors.border,
     padding: 13,
-    marginBottom: 5,
+    marginBottom: 0,
     ...shadows.card,
     justifyContent: 'center',
   },

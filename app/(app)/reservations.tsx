@@ -33,7 +33,7 @@ type GuestBooking = {
   end_at: string;
   dog_count: number;
   total_amount: number;
-  status: 'confirmed' | 'cancelled';
+  status: 'confirmed' | 'payment_pending' | 'cancelled';
   payment_status: 'pending_configuration' | 'processing' | 'authorized' | 'scheduled' | 'paid' | 'refunded' | 'failed' | 'cancelled';
   stripe_checkout_session_id: string | null;
   properties: BookingProperty | null;
@@ -261,8 +261,8 @@ export default function ReservationsScreen() {
     () =>
       bookings.filter(
         (booking) =>
-          booking.status === 'confirmed' &&
-          new Date(booking.start_at).getTime() > currentTime
+          booking.status === 'payment_pending' ||
+          (booking.status === 'confirmed' && new Date(booking.start_at).getTime() > currentTime)
       ),
     [bookings, currentTime]
   );
@@ -300,7 +300,7 @@ export default function ReservationsScreen() {
   };
 
   const canCancel = (booking: GuestBooking) =>
-    booking.status === 'confirmed' &&
+    (booking.status === 'confirmed' || booking.status === 'payment_pending') &&
     new Date(booking.start_at).getTime() - currentTime >= cancellationWindowMs;
 
   const cancelBooking = async (booking: GuestBooking) => {
@@ -369,7 +369,7 @@ export default function ReservationsScreen() {
                   : styles.confirmedStatusText,
               ]}
             >
-              {booking.status === 'cancelled' ? 'Cancelled' : isStarted ? 'Started' : 'Confirmed'}
+              {booking.status === 'cancelled' ? 'Cancelled' : booking.status === 'payment_pending' ? 'Payment pending' : isStarted ? 'Started' : 'Confirmed'}
             </Text>
           </View>
         </View>
@@ -405,7 +405,7 @@ export default function ReservationsScreen() {
           </View>
         </View> : null}
 
-        {(isUpcoming || isStarted) && booking.status === 'confirmed' ? (
+        {(isUpcoming || isStarted) && (booking.status === 'confirmed' || booking.status === 'payment_pending') ? (
           <>
             {isStarted ? <Text style={styles.visitStartedText}>Your visit is in progress.</Text> : cancellationAvailable ? (
               isConfirmingCancellation ? (
@@ -574,6 +574,7 @@ export default function ReservationsScreen() {
           tone="forest"
           steps={[
             { title: 'Check upcoming visits', text: 'Review the date, time, site, and dogs attached to your next reservation.' },
+            { title: 'Cancel a regular-rate visit', text: 'Use Cancel Reservation more than one hour before the visit starts. ROVAH records the cancellation before payment is collected, so there is no charge or refund.' },
             { title: 'Message the host', text: 'Open the reservation or Messages if you have a question before the visit.' },
             { title: 'Review a completed visit', text: 'When Review My Visit is available, share your experience for other members.' },
             { title: 'Use site-specific offers', text: 'A valid Courtesy Waiver or Special Discount appears when you book the same site.' },

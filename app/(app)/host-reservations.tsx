@@ -30,7 +30,7 @@ type HostBooking = {
   end_at: string;
   dog_count: number;
   total_amount: number;
-  status: 'confirmed' | 'cancelled';
+  status: 'confirmed' | 'payment_pending' | 'cancelled';
   payment_status: 'pending_configuration' | 'processing' | 'paid' | 'refunded' | 'failed' | 'cancelled';
   properties: { name: string; city: string; state: string } | null;
 };
@@ -204,7 +204,7 @@ export default function HostReservationsScreen() {
   };
 
   const activeBookings = useMemo(() => bookings.filter((booking) => booking.status === 'confirmed' && new Date(booking.start_at) <= currentTime && new Date(booking.end_at) > currentTime), [bookings, currentTime]);
-  const upcoming = useMemo(() => bookings.filter((booking) => booking.status === 'confirmed' && new Date(booking.start_at) > currentTime), [bookings, currentTime]);
+  const upcoming = useMemo(() => bookings.filter((booking) => (booking.status === 'confirmed' || booking.status === 'payment_pending') && new Date(booking.start_at) > currentTime), [bookings, currentTime]);
   const past = useMemo(() => bookings.filter((booking) => booking.status === 'confirmed' && new Date(booking.end_at) <= currentTime).sort((a, b) => +new Date(b.start_at) - +new Date(a.start_at)), [bookings, currentTime]);
   const cancelled = useMemo(() => bookings.filter((booking) => booking.status === 'cancelled').sort((a, b) => +new Date(b.start_at) - +new Date(a.start_at)), [bookings]);
   const currentBookings = activeView === 'upcoming' ? upcoming : activeView === 'past' ? past : cancelled;
@@ -309,7 +309,7 @@ export default function HostReservationsScreen() {
     const dogs = bookingDogs[booking.id] ?? [];
     const subscriptionCreditsRemaining = subscriptionCredits[booking.id];
     const isActive = booking.status === 'confirmed' && new Date(booking.start_at) <= currentTime && new Date(booking.end_at) > currentTime;
-    const canCancel = booking.status === 'confirmed' && new Date(booking.start_at).getTime() - currentTime.getTime() >= 60 * 60 * 1000;
+    const canCancel = (booking.status === 'confirmed' || booking.status === 'payment_pending') && new Date(booking.start_at).getTime() - currentTime.getTime() >= 60 * 60 * 1000;
     return (
       <View key={booking.id} style={[styles.bookingCard, isActive && styles.activeBookingCard]}>
         <View style={styles.bookingHeader}>
@@ -378,9 +378,9 @@ export default function HostReservationsScreen() {
           steps={[
             { title: 'Choose a view', text: 'Use Current, Past, Canceled, or Calendar to focus on the visits you need.' },
             { title: 'Open a reservation', text: 'Review the guest, visit time, payment status, and dog details recorded for that visit.' },
-            { title: 'Understand payment pending', text: 'ROVAH handles payment automatically. The member’s card is secured for the reservation and payment is captured one hour before the visit begins. No host action is needed.' },
+            { title: 'Understand payment timing', text: 'ROVAH collects a standard-rate payment one hour before the visit begins. Before that cutoff, a cancellation is recorded in ROVAH with no guest charge, host payout, or refund.' },
             { title: 'Message the guest', text: 'Tap Message to reply privately or use Special / Gift for a site-specific offer.' },
-            { title: 'Manage a future visit', text: 'Cancel only when necessary. The guest will see the update in My Reservations.' },
+            { title: 'Manage a future visit', text: 'Cancel a standard-rate visit only before the one-hour cutoff. The guest will see the update in My Reservations.' },
           ]}
         />
       </ScrollView>
@@ -396,7 +396,7 @@ export default function HostReservationsScreen() {
             <Text style={styles.cancelModalText}>
               {reservationPendingCancellation ? `${guestNames[reservationPendingCancellation.guest_id] ?? 'This guest'} will see the cancellation in their reservation history.` : ''}
             </Text>
-            <Text style={styles.cancelModalDetail}>Payment and refund details will appear here when live payments are active.</Text>
+            <Text style={styles.cancelModalDetail}>Before the one-hour cutoff, ROVAH records this cancellation before payment is collected. The guest is not charged, there is no host payout, and no refund is needed.</Text>
             {cancellationError ? <Text accessibilityRole="alert" style={styles.cancelModalError}>{cancellationError}</Text> : null}
             <View style={styles.cancelModalActions}>
               <Pressable accessibilityRole="button" disabled={cancellingId !== null} onPress={() => setReservationPendingCancellation(null)} style={styles.keepReservationButton}>
