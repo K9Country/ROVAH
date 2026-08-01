@@ -126,7 +126,7 @@ export default function SubscriptionsScreen() {
     <Pressable accessibilityRole="button" onPress={() => router.replace('/host-dashboard')} style={styles.backButton}><Text style={styles.backText}>Host Dashboard</Text></Pressable>
     <Text style={styles.eyebrow}>GROW YOUR SITE</Text>
     <Text style={styles.title}>Manage Subscriptions</Text>
-    <Text style={styles.description}>Create and manage discounted prepaid visit packages for guests who choose {property.name} as a regular spot.</Text>
+    <Text style={styles.description}>Create discounted prepaid visit packages for guests who choose {property.name} as a regular spot. The package discount applies to the regular price for every dog the guest selects.</Text>
 
     <View style={styles.siteCard}><Text style={styles.siteLabel}>THIS SITE</Text><Text style={styles.siteName}>{property.name}</Text><Text style={styles.siteRate}>Standard hourly rate: ${hourlyRate.toFixed(2)}</Text></View>
 
@@ -135,7 +135,7 @@ export default function SubscriptionsScreen() {
 
     <View style={styles.editorCard}>
       <Text style={styles.sectionHeading}>{draft.id ? 'Edit subscription' : 'Create a subscription'}</Text>
-      <Text style={styles.editorText}>Each credit covers one hour. You choose the number of credits, package discount, and validity period.</Text>
+      <Text style={styles.editorText}>Each credit covers one hour. You choose the number of credits, package discount, and validity period. Guests see the discounted package price for the number of dogs they select, with no later extra-dog fee on included visits.</Text>
       <Field label="Subscription name" value={draft.name} onChangeText={(name) => setDraft((current) => ({ ...current, name }))} placeholder="Example: 10-Visit Subscription" />
       <View style={styles.fieldRow}>
         <View style={styles.flexField}><Field keyboardType="number-pad" label="One-hour visit credits" maxLength={2} value={draft.creditCount} onChangeText={(creditCount) => setDraft((current) => ({ ...current, creditCount: creditCount.replace(/[^0-9]/g, '') }))} placeholder="10" /></View>

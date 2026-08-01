@@ -36,7 +36,7 @@ type ListingImage = PropertyImage & { signed_url?: string };
 type BookingBlock = { start_at: string; end_at: string };
 type BookingDog = { id: string; name: string; breed: string; size: string; behavior_traits: string[] };
 type LoyaltyPassOffer = { id: string; name: string; credit_count: number; package_price: number | string; duration_months: number };
-type MemberLoyaltyPass = { id: string; loyalty_pass_offer_id: string; credit_hours_remaining: number | string; expires_at: string };
+type MemberLoyaltyPass = { id: string; loyalty_pass_offer_id: string; credit_hours_remaining: number | string; covered_dog_count: number; expires_at: string };
 type CourtesyVisitCredit = { id: string; remaining_hours: number | string; expires_at: string; note: string | null };
 type ResolutionDiscountOffer = { id: string; discount_percent: number | string; expires_at: string; note: string | null };
 type SlotPickerKind = 'start' | 'end' | null;
@@ -259,7 +259,7 @@ export default function PropertyDetailsScreen() {
     void Promise.all([
       supabase.from('courtesy_visit_credits').select('id, remaining_hours, expires_at, note').eq('property_id', property.id).eq('status', 'active').gte('expires_at', activeDate),
       supabase.from('resolution_discount_offers').select('id, discount_percent, expires_at, note').eq('property_id', property.id).eq('status', 'active').gte('expires_at', activeDate),
-      supabase.from('member_loyalty_passes').select('id, loyalty_pass_offer_id, credit_hours_remaining, expires_at').eq('property_id', property.id).eq('status', 'active').gte('expires_at', activeDate),
+      supabase.from('member_loyalty_passes').select('id, loyalty_pass_offer_id, credit_hours_remaining, covered_dog_count, expires_at').eq('property_id', property.id).eq('status', 'active').gte('expires_at', activeDate),
     ]).then(([courtesyResult, discountResult, passResult]) => {
       setCourtesyVisitCredits((courtesyResult.data ?? []) as CourtesyVisitCredit[]);
       setResolutionDiscountOffers((discountResult.data ?? []) as ResolutionDiscountOffer[]);
@@ -411,19 +411,23 @@ export default function PropertyDetailsScreen() {
   const resolutionDiscountAmount = selectedResolutionDiscount ? estimatedTotal * (Number(selectedResolutionDiscount.discount_percent) / 100) : 0;
   const selectedLoyaltyPassOffer = loyaltyPassOffers.find((offer) => offer.id === selectedLoyaltyPassOfferId);
   const selectedMemberLoyaltyPass = selectedLoyaltyPassOffer
-    ? memberLoyaltyPasses.find((pass) => pass.loyalty_pass_offer_id === selectedLoyaltyPassOffer.id)
+    ? memberLoyaltyPasses.find((pass) => pass.loyalty_pass_offer_id === selectedLoyaltyPassOffer.id && pass.covered_dog_count >= Math.max(1, dogCount))
     : undefined;
   const selectedPassHasEnoughCredits = Boolean(
     selectedMemberLoyaltyPass
       && (!visitHours || Number(selectedMemberLoyaltyPass.credit_hours_remaining) >= visitHours),
   );
-  const subscriptionExtraDogTotal = selectedLoyaltyPassOffer
-    ? Math.max(0, estimatedTotal - (visitHours * Number(property?.price_per_hour ?? 0)))
+  const subscriptionDogCount = Math.max(1, dogCount);
+  const oneDogPackageValue = selectedLoyaltyPassOffer && property
+    ? selectedLoyaltyPassOffer.credit_count * Number(property.price_per_hour)
     : 0;
-  const subscriptionTotal = selectedLoyaltyPassOffer
+  const subscriptionDiscountRate = oneDogPackageValue > 0 && selectedLoyaltyPassOffer
+    ? Math.max(0, Math.min(1, 1 - Number(selectedLoyaltyPassOffer.package_price) / oneDogPackageValue))
+    : 0;
+  const subscriptionTotal = selectedLoyaltyPassOffer && property
     ? selectedPassHasEnoughCredits
-      ? subscriptionExtraDogTotal
-      : Number(selectedLoyaltyPassOffer.package_price) + subscriptionExtraDogTotal
+      ? 0
+      : selectedLoyaltyPassOffer.credit_count * (Number(property.price_per_hour) + (subscriptionDogCount - 1) * additionalDogRate) * (1 - subscriptionDiscountRate)
     : 0;
   const subscriptionDurationUnsupported = Boolean(selectedLoyaltyPassOffer && visitHours > selectedLoyaltyPassOffer.credit_count);
   const reservationTotal = selectedCourtesyCreditId
@@ -749,11 +753,14 @@ export default function PropertyDetailsScreen() {
               <Text style={styles.loyaltyPassDetails}>Reserve this visit at ${Number(property.price_per_hour).toFixed(2)} per hour.</Text>
             </Pressable>
             {loyaltyPassOffers.map((offer) => {
-              const normalValue = offer.credit_count * Number(property.price_per_hour);
-              const savings = normalValue - Number(offer.package_price);
-              const discountPercent = normalValue > 0 ? Math.round((savings / normalValue) * 100) : 0;
+              const oneDogValue = offer.credit_count * Number(property.price_per_hour);
+              const discountPercent = oneDogValue > 0 ? Math.round((1 - Number(offer.package_price) / oneDogValue) * 100) : 0;
+              const coveredDogCount = Math.max(1, dogCount);
+              const normalValue = offer.credit_count * (Number(property.price_per_hour) + (coveredDogCount - 1) * additionalDogRate);
+              const packagePrice = normalValue * (1 - discountPercent / 100);
+              const savings = normalValue - packagePrice;
               const selected = selectedLoyaltyPassOfferId === offer.id;
-              const ownedPass = memberLoyaltyPasses.find((pass) => pass.loyalty_pass_offer_id === offer.id);
+              const ownedPass = memberLoyaltyPasses.find((pass) => pass.loyalty_pass_offer_id === offer.id && pass.covered_dog_count >= coveredDogCount);
               const enoughCredits = Boolean(ownedPass && Number(ownedPass.credit_hours_remaining) >= visitHours);
               return <Pressable
                 accessibilityRole="radio"
@@ -776,9 +783,9 @@ export default function PropertyDetailsScreen() {
                   </View>
                 </View>
                 <Text style={styles.loyaltyPassOriginalCost}>Original cost: ${normalValue.toFixed(2)}</Text>
-                <Text style={styles.loyaltyPassPrice}>{enoughCredits ? 'Use your available credits' : `Subscription price: $${Number(offer.package_price).toFixed(2)}`}</Text>
-                <Text style={styles.loyaltyPassDetails}>You save ${Math.max(0, savings).toFixed(2)} · {offer.credit_count} one-hour visit credits · Valid for {offer.duration_months} {offer.duration_months === 1 ? 'month' : 'months'}</Text>
-                {ownedPass ? <Text style={styles.loyaltyPassDetails}>Your available balance: {Number(ownedPass.credit_hours_remaining)} credit {Number(ownedPass.credit_hours_remaining) === 1 ? 'hour' : 'hours'}.</Text> : null}
+                <Text style={styles.loyaltyPassPrice}>{enoughCredits ? 'Use your available credits — all selected dogs included' : `Subscription price: $${packagePrice.toFixed(2)}`}</Text>
+                <Text style={styles.loyaltyPassDetails}>You save ${Math.max(0, savings).toFixed(2)} · Covers {coveredDogCount} {coveredDogCount === 1 ? 'dog' : 'dogs'} on every included visit · {offer.credit_count} one-hour visit credits · Valid for {offer.duration_months} {offer.duration_months === 1 ? 'month' : 'months'}</Text>
+                {ownedPass ? <Text style={styles.loyaltyPassDetails}>Your available balance: {Number(ownedPass.credit_hours_remaining)} credit {Number(ownedPass.credit_hours_remaining) === 1 ? 'hour' : 'hours'} for up to {ownedPass.covered_dog_count} {ownedPass.covered_dog_count === 1 ? 'dog' : 'dogs'} per visit.</Text> : null}
                 {selected && subscriptionDurationUnsupported ? <Text style={styles.subscriptionWarning}>This visit is longer than this subscription. Choose a shorter visit or Pay regular rate.</Text> : null}
               </Pressable>;
             })}
@@ -806,13 +813,13 @@ export default function PropertyDetailsScreen() {
             const isSelected = selectedDogIds.includes(dog.id);
             return <Pressable key={dog.id} accessibilityRole="checkbox" accessibilityState={{ checked: isSelected }} onPress={() => setSelectedDogIds((current) => isSelected ? current.filter((id) => id !== dog.id) : [...current, dog.id])} style={[styles.attendingDogOption, isSelected && styles.attendingDogOptionSelected]}><View style={styles.attendingDogCheck}><Text style={styles.attendingDogCheckText}>{isSelected ? '✓' : ''}</Text></View><View style={styles.attendingDogCopy}><Text style={styles.attendingDogName}>{dog.name}</Text><Text style={styles.attendingDogDetails}>{[dog.breed, dog.size].filter(Boolean).join(' · ') || 'Dog details'}</Text></View></Pressable>;
           })}</View> : null}
-          <Text style={styles.dogFeeText}>{dogCount ? `${dogCount} ${dogCount === 1 ? 'dog is' : 'dogs are'} attending. ` : ''}Each additional dog is ${additionalDogRate.toFixed(2)} per hour (50% of the base hourly fee).</Text>
+          <Text style={styles.dogFeeText}>{selectedLoyaltyPassOffer ? `${Math.max(1, dogCount)} ${Math.max(1, dogCount) === 1 ? 'dog is' : 'dogs are'} included in this subscription price. There is no extra-dog charge on included subscription visits.` : `${dogCount ? `${dogCount} ${dogCount === 1 ? 'dog is' : 'dogs are'} attending. ` : ''}Each additional dog is ${additionalDogRate.toFixed(2)} per hour (50% of the base hourly fee).`}</Text>
           {courtesyVisitCredits.length ? <View style={styles.courtesyVisitCard}>{courtesyVisitCredits.map((credit) => { const selected = selectedCourtesyCreditId === credit.id; return <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: selected }} key={credit.id} onPress={() => { setSelectedCourtesyCreditId(selected ? null : credit.id); if (!selected) { setSelectedResolutionDiscountOfferId(null); setSelectedLoyaltyPassOfferId(null); } }} style={[styles.courtesyVisitOption, selected && styles.courtesyVisitOptionSelected]}><Text style={styles.courtesyVisitTitle}>Courtesy Waiver from {property.name}</Text><Text style={styles.courtesyVisitText}>Use by {new Date(credit.expires_at).toLocaleDateString(undefined, { month: 'long', day: 'numeric' })}</Text></Pressable>; })}</View> : null}
           {resolutionDiscountOffers.length ? <View style={styles.resolutionDiscountCard}><Text style={styles.resolutionDiscountTitle}>Special Discount available</Text><Text style={styles.resolutionDiscountText}>Your host has offered a one-time discount for this private space.</Text>{resolutionDiscountOffers.map((offer) => { const selected = selectedResolutionDiscountOfferId === offer.id; return <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: selected }} key={offer.id} onPress={() => { setSelectedResolutionDiscountOfferId(selected ? null : offer.id); if (!selected) setSelectedCourtesyCreditId(null); }} style={[styles.resolutionDiscountOption, selected && styles.resolutionDiscountOptionSelected]}><Text style={styles.resolutionDiscountOptionTitle}>{Number(offer.discount_percent)}% off · expires {new Date(`${offer.expires_at}T12:00:00`).toLocaleDateString()}</Text>{offer.note ? <Text style={styles.resolutionDiscountOptionText}>{offer.note}</Text> : null}</Pressable>; })}</View> : null}
-          <View style={styles.estimateRow}><Text style={styles.estimateLabel}>{selectedCourtesyCreditId ? 'Courtesy Waiver total' : selectedLoyaltyPassOffer ? selectedPassHasEnoughCredits ? 'Subscription credit total' : 'Subscription total' : selectedResolutionDiscount ? 'Special Discount total' : 'Rental Fee'}</Text><View style={styles.estimateAmounts}>{selectedResolutionDiscount && !selectedCourtesyCreditId && !selectedLoyaltyPassOffer ? <Text style={styles.estimateOriginalValue}>${estimatedTotal.toFixed(2)}</Text> : null}<Text style={styles.estimateValue}>{`$${reservationTotal.toFixed(2)}`}</Text></View></View>
+          <View style={styles.estimateRow}><Text style={styles.estimateLabel}>{selectedCourtesyCreditId ? 'Courtesy Waiver total' : selectedLoyaltyPassOffer ? selectedPassHasEnoughCredits ? 'Subscription Reservation — included' : 'Subscription Reservation total' : selectedResolutionDiscount ? 'Special Discount total' : 'Rental Fee'}</Text><View style={styles.estimateAmounts}>{selectedResolutionDiscount && !selectedCourtesyCreditId && !selectedLoyaltyPassOffer ? <Text style={styles.estimateOriginalValue}>${estimatedTotal.toFixed(2)}</Text> : null}<Text style={styles.estimateValue}>{`$${reservationTotal.toFixed(2)}`}</Text></View></View>
           {reservationError ? <View accessibilityRole="alert" style={styles.reservationError}><Text style={styles.reservationErrorText}>{reservationError}</Text></View> : null}
             <Pressable disabled={property.is_temporarily_closed || isBooking || isDogProfilesLoading || subscriptionDurationUnsupported} onPress={reserveSpace} style={[styles.bookingButton, (property.is_temporarily_closed || isBooking || isDogProfilesLoading || subscriptionDurationUnsupported) && styles.buttonDisabled]}>{isBooking ? <ActivityIndicator color={colors.warmWhite} /> : <Text style={styles.bookingButtonText}>{!bookingDate ? 'Choose a date to continue' : !startTime ? 'Choose a start time to continue' : !endTime ? 'Choose an end time to continue' : !selectedDogIds.length ? 'Select attending dogs to continue' : selectedLoyaltyPassOffer && !selectedPassHasEnoughCredits ? 'Buy Subscription & Confirm' : 'Confirm Reservation'}</Text>}</Pressable>
-          {!selectedCourtesyCreditId && reservationTotal > 0 ? <Text style={styles.paymentConsentText}>{selectedLoyaltyPassOffer ? 'By confirming, you authorize ROVAH to charge the full selected subscription and any additional-dog fee now. Your subscription credits are available after payment succeeds.' : 'By confirming, you authorize ROVAH to securely process the displayed reservation total. Near-term visits are secured now; future visits save your card and charge it one hour before the visit. Cancel before then and no charge will be made.'}</Text> : null}
+          {!selectedCourtesyCreditId && reservationTotal > 0 ? <Text style={styles.paymentConsentText}>{selectedLoyaltyPassOffer ? 'By confirming, you authorize ROVAH to charge the full displayed subscription price now. It includes every dog selected above, and the credits are available after payment succeeds.' : 'By confirming, you authorize ROVAH to securely process the displayed reservation total. Near-term visits are secured now; future visits save your card and charge it one hour before the visit. Cancel before then and no charge will be made.'}</Text> : null}
           <HostPageGuide
             title="How to reserve this private space"
             intro="Review the site, choose an available time, select your dogs, and confirm the reservation."
