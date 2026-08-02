@@ -240,15 +240,6 @@ export default function SignInScreen() {
     });
   };
 
-  const bringPasswordIntoView = () => {
-    // Android keyboards can cover the lower half of a browser-embedded form.
-    // Wait for the viewport to resize, then bring the password and sign-in
-    // controls above the keyboard.
-    requestAnimationFrame(() => {
-      setTimeout(() => signInScrollRef.current?.scrollToEnd({ animated: true }), 180);
-    });
-  };
-
   const signInFormFields = (
     <>
       {signInError ? (
@@ -303,7 +294,6 @@ export default function SignInScreen() {
             setPassword(value);
             setSignInError(null);
           }}
-          onFocus={bringPasswordIntoView}
           onSubmitEditing={handleSignIn}
           placeholder="Enter your password"
           placeholderTextColor="#8A877D"
@@ -370,14 +360,13 @@ export default function SignInScreen() {
       ]}
     >
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardView}
       >
         <ScrollView
           contentContainerStyle={styles.container}
-          automaticallyAdjustKeyboardInsets
           keyboardDismissMode="on-drag"
-          keyboardShouldPersistTaps="handled"
+          keyboardShouldPersistTaps="always"
           ref={signInScrollRef}
           showsVerticalScrollIndicator={false}
         >
@@ -467,7 +456,6 @@ export default function SignInScreen() {
                   setPassword(value);
                   setSignInError(null);
                 }}
-                onFocus={bringPasswordIntoView}
                 onSubmitEditing={handleSignIn}
                 placeholder="Enter your password"
                 placeholderTextColor="#8A877D"
