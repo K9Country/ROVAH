@@ -14,7 +14,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors, typography } from '../../constants/theme';
-import { getPasswordResetRedirectUrl } from '../../lib/auth-redirect';
 import { supabase } from '../../lib/supabase';
 
 export default function ForgotPasswordScreen() {
@@ -33,8 +32,11 @@ export default function ForgotPasswordScreen() {
 
     try {
       setIsSending(true);
-      const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
-        redirectTo: getPasswordResetRedirectUrl(isAdministrator ? 'admin' : undefined),
+      const { error } = await supabase.functions.invoke('request-password-reset', {
+        body: {
+          email: normalizedEmail,
+          intent: isAdministrator ? 'admin' : 'guest',
+        },
       });
       if (error) throw error;
       setIsSent(true);
