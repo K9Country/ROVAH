@@ -202,6 +202,22 @@ export default function HostDashboardScreen() {
     );
   }, [dashboardData.properties]);
 
+  const openReservations = async (property: Property) => {
+    // Clear this site's current alert immediately so the dashboard does not
+    // keep pulsing when the host returns. A later confirmed reservation gets
+    // its own new notification and starts the alert again.
+    setUnreadReservationPropertyIds((current) => current.filter((id) => id !== property.id));
+    if (session?.user.id) {
+      await supabase
+        .from('host_reservation_notifications')
+        .update({ read_at: new Date().toISOString() })
+        .eq('host_id', session.user.id)
+        .eq('property_id', property.id)
+        .is('read_at', null);
+    }
+    router.push(`/host-reservations?propertyId=${property.id}&propertyName=${encodeURIComponent(property.name)}&view=upcoming` as never);
+  };
+
   const fullName =
     dashboardData.profile?.full_name ??
     session?.user.user_metadata?.full_name ??
@@ -440,7 +456,7 @@ export default function HostDashboardScreen() {
                   detail="View upcoming visits, completed visits, and your site schedule."
                   hasUnread={unreadReservationPropertyIds.includes(property.id)}
                   pulseForUnread
-                  onPress={() => router.push(`/host-reservations?propertyId=${property.id}&propertyName=${encodeURIComponent(property.name)}&view=upcoming` as never)}
+                  onPress={() => void openReservations(property)}
                 />
                 <PropertyTool
                   icon={'\u{1F4AC}'}
@@ -765,11 +781,8 @@ function PropertyTool({
   }, [hasUnread, pulse, pulseForUnread]);
 
   const unreadCardStyle = useAnimatedStyle(() => ({
-    backgroundColor: interpolateColor(
-      pulse.value,
-      [0, 1],
-      [colors.cream, '#F7E4A8'],
-    ),
+    backgroundColor: interpolateColor(pulse.value, [0, 1], [colors.cream, '#D99B84']),
+    borderColor: interpolateColor(pulse.value, [0, 1], [colors.border, '#A63E35']),
   }));
 
   return (
