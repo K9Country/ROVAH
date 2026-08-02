@@ -571,7 +571,7 @@ export default function PropertyDetailsScreen() {
             // Use the safely available SDK error message below.
           }
         }
-        if (error.message.includes('conflicting') || error.message.includes('reserved')) {
+        if ((serviceMessage ?? error.message).includes('conflicting') || (serviceMessage ?? error.message).includes('reserved')) {
           await loadListing();
           setStartTime(null);
           setEndTime(null);

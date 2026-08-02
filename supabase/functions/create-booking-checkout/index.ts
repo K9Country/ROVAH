@@ -27,6 +27,11 @@ Deno.serve(async (req) => {
   const authorization = req.headers.get('Authorization');
   if (!authorization?.startsWith('Bearer ')) return json({ error: 'Sign in to reserve this space' }, 401);
 
+  // The database reservation is created before Stripe Checkout can return its
+  // URL. Keep its id so a Stripe or network failure cannot leave a false hold
+  // on the calendar.
+  let createdBookingId: string | null = null;
+
   try {
     const userClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -127,8 +132,10 @@ Deno.serve(async (req) => {
 
     const booking = Array.isArray(bookingRows) ? bookingRows[0] : bookingRows;
     if (!booking?.id) return json({ error: 'Reservation could not be created' }, 500);
+    createdBookingId = booking.id;
 
     if (booking.payment_status === 'paid' || Number(booking.total_amount) === 0) {
+      createdBookingId = null;
       return json({
         bookingId: booking.id,
         reservationConfirmed: true,
@@ -255,9 +262,31 @@ Deno.serve(async (req) => {
       .in('status', ['payment_pending', 'confirmed']);
     if (updateError) throw updateError;
 
+    // Checkout is now live and owns the temporary hold. Do not cancel it from
+    // the catch block if anything happens while writing the response.
+    createdBookingId = null;
     return json({ bookingId: booking.id, checkoutUrl: session.url, reservationConfirmed: false });
   } catch (error) {
     console.error('create-booking-checkout', error);
-    return json({ error: 'Unable to start secure checkout' }, 500);
+    if (createdBookingId) {
+      const cleanupClient = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      );
+      const { error: cleanupError } = await cleanupClient
+        .from('bookings')
+        .update({
+          status: 'cancelled',
+          payment_status: 'failed',
+          payment_released_at: new Date().toISOString(),
+          payment_updated_at: new Date().toISOString(),
+        })
+        .eq('id', createdBookingId)
+        .eq('status', 'payment_pending');
+      if (cleanupError) console.error('create-booking-checkout cleanup', cleanupError);
+    }
+    return json({
+      error: 'Unable to start secure checkout. No reservation was made and no payment was collected. Please try again.',
+    }, 500);
   }
 });
