@@ -46,7 +46,7 @@ export default function EverythingDogsScreen() {
                   ) : category.title === 'Boarding & Daycare' ? (
                     <Image accessibilityLabel="Boarding and Daycare" contentFit="contain" source={require('../../assets/images/k9-boarding-daycare-icon.png')} style={styles.categoryImage} />
                   ) : category.title === 'Dog Walking' ? (
-                    <Image accessibilityLabel="Dog Walking" contentFit="contain" source={require('../../assets/images/k9-everything-dogs-icon.png')} style={styles.categoryImage} />
+                    <Image accessibilityLabel="Dog Walking" contentFit="contain" source={require('../../assets/images/k9-dog-walking-icon.png')} style={styles.categoryImage} />
                   ) : category.title === 'Dog Trainers' ? (
                     <Image accessibilityLabel="Dog Trainers" contentFit="contain" source={require('../../assets/images/k9-training-icon.png')} style={styles.trainingImage} />
                   ) : (

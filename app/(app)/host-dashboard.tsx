@@ -454,6 +454,7 @@ export default function HostDashboardScreen() {
                   icon={'\u{1F4C5}'}
                   label="Reservations"
                   detail="View upcoming visits, completed visits, and your site schedule."
+                  imageSource={require('../../assets/images/host-reservations-icon.png')}
                   hasUnread={unreadReservationPropertyIds.includes(property.id)}
                   pulseForUnread
                   onPress={() => void openReservations(property)}
@@ -462,6 +463,7 @@ export default function HostDashboardScreen() {
                   icon={'\u{1F4AC}'}
                   label="Messages"
                   detail="Communicate with guests"
+                  imageSource={require('../../assets/images/host-messages-icon.png')}
                   hasUnread={hasUnreadGuestMessages}
                   onPress={() => router.push(`/host-messages?propertyId=${property.id}` as never)}
                 />
@@ -469,18 +471,21 @@ export default function HostDashboardScreen() {
                   icon={'\u{1F4CC}'}
                   label="Guest Welcome Message"
                   detail="Automatically send your saved message after a reservation is confirmed."
+                  imageSource={require('../../assets/images/host-welcome-message-icon.png')}
                   onPress={() => router.push(`/host-welcome-message?propertyId=${property.id}&propertyName=${encodeURIComponent(property.name)}` as never)}
                 />
                 <PropertyTool
                   icon={'\u{2B50}'}
                   label="Site Reviews"
                   detail="Read guest feedback about this private space."
+                  imageSource={require('../../assets/images/host-site-reviews-icon.png')}
                   onPress={() => router.push(`/host-reviews?propertyId=${property.id}&propertyName=${encodeURIComponent(property.name)}` as never)}
                 />
                 <PropertyTool
                   icon={'\u{1F465}'}
                   label="Guest Reviews"
                   detail="Review completed guests and view feedback shared by other hosts."
+                  imageSource={require('../../assets/images/host-guest-reviews-icon.png')}
                   onPress={() => router.push(`/host-reviews?propertyId=${property.id}&propertyName=${encodeURIComponent(property.name)}&view=guest_records` as never)}
                 />
               </View>
@@ -755,6 +760,7 @@ function SiteStatusBadge({ property, compact = false, payoutReady }: { property:
 
 function PropertyTool({
   icon,
+  imageSource,
   label,
   detail,
   hasUnread = false,
@@ -762,6 +768,7 @@ function PropertyTool({
   onPress,
 }: {
   icon: string;
+  imageSource?: number;
   label: string;
   detail: string;
   hasUnread?: boolean;
@@ -800,7 +807,12 @@ function PropertyTool({
         style={({ pressed }) => [styles.propertyToolPressable, pressed && styles.buttonPressed]}
       >
         <View style={styles.propertyToolIconWrap}>
-          {label === 'Guest Messages' || label === 'Messages' ? (
+          {imageSource ? (
+            <View style={styles.propertyToolArtworkWrap}>
+              <Image source={imageSource} style={styles.propertyToolArtwork} />
+              {hasUnread && (label === 'Guest Messages' || label === 'Messages') ? <UnreadMessageIcon hasUnread size="small" style={styles.propertyToolUnreadBadge} /> : null}
+            </View>
+          ) : label === 'Guest Messages' || label === 'Messages' ? (
             <UnreadMessageIcon hasUnread={hasUnread} size="small" />
           ) : (
             <Text style={styles.propertyToolIcon}>{icon}</Text>
@@ -901,8 +913,11 @@ const styles = StyleSheet.create({
   propertyTools: { borderTopColor: colors.border, borderTopWidth: 1, gap: 16, padding: 16 },
   propertyTool: { backgroundColor: colors.cream, borderColor: colors.border, borderRadius: 18, borderWidth: 1, overflow: 'hidden', ...shadows.card },
   propertyToolPressable: { alignItems: 'center', flexDirection: 'row', minHeight: 92, paddingHorizontal: 15, paddingVertical: 14 },
-  propertyToolIconWrap: { alignItems: 'center', justifyContent: 'center', marginRight: 13, minHeight: 34, minWidth: 34 },
+  propertyToolIconWrap: { alignItems: 'center', justifyContent: 'center', marginRight: 16, minHeight: 34, minWidth: 34 },
   propertyToolIcon: { fontSize: 27 },
+  propertyToolArtworkWrap: { height: 68, position: 'relative', width: 68 },
+  propertyToolArtwork: { borderRadius: 34, height: 68, width: 68 },
+  propertyToolUnreadBadge: { borderColor: '#A63E35', position: 'absolute', right: -7, top: -7 },
   propertyToolCopy: { flex: 1 },
   propertyToolLabel: { color: colors.forest, fontSize: 17, fontWeight: '900' },
   propertyToolDetail: { color: colors.muted, fontSize: 13, lineHeight: 18, marginTop: 4 },
