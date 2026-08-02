@@ -75,7 +75,6 @@ export default function PropertyMessageThreadScreen() {
   const [showResolutionOffer, setShowResolutionOffer] = useState(false);
   const [resolutionKind, setResolutionKind] = useState<'discount' | 'courtesy'>('discount');
   const [resolutionDiscountPercent, setResolutionDiscountPercent] = useState('20');
-  const [resolutionCourtesyHours, setResolutionCourtesyHours] = useState('1');
   const [resolutionExpiresAt, setResolutionExpiresAt] = useState(() => new Date(Date.now() + 90 * 86_400_000).toISOString().slice(0, 10));
   const [showExpirationPicker, setShowExpirationPicker] = useState(false);
   const [expirationCalendarMonth, setExpirationCalendarMonth] = useState(() => new Date(Date.now() + 90 * 86_400_000));
@@ -466,7 +465,7 @@ export default function PropertyMessageThreadScreen() {
 
   const issueResolutionOffer = async () => {
     if (!property || !conversation || !isHostViewer || isIssuingResolution) return;
-    const amount = Number(resolutionKind === 'discount' ? resolutionDiscountPercent : resolutionCourtesyHours);
+    const amount = resolutionKind === 'discount' ? Number(resolutionDiscountPercent) : 1;
 
     if (!Number.isFinite(amount) || amount <= 0) {
       Alert.alert('Enter an amount', resolutionKind === 'discount' ? 'Enter a discount between 1% and 82%.' : 'Enter the number of free hours to offer.');
@@ -474,10 +473,6 @@ export default function PropertyMessageThreadScreen() {
     }
     if (resolutionKind === 'discount' && amount > 82) {
       Alert.alert('Maximum discount is 82%', 'At 82%, the member covers the 18% ROVAH platform fee and the host receives $0. Use a Courtesy Waiver for a completely free visit.');
-      return;
-    }
-    if (resolutionKind === 'courtesy' && amount > 100) {
-      Alert.alert('Maximum Courtesy Waiver is 100 hours', 'Enter a smaller number of free hours.');
       return;
     }
     if (resolutionKind === 'discount' && (!/^\d{4}-\d{2}-\d{2}$/.test(resolutionExpiresAt) || Number.isNaN(new Date(`${resolutionExpiresAt}T12:00:00`).getTime()))) {
@@ -498,7 +493,7 @@ export default function PropertyMessageThreadScreen() {
         : await supabase.rpc('issue_courtesy_visit', {
           p_property_id: property.id,
           p_member_id: conversation.guest_id,
-          p_hours: amount,
+              p_hours: 1,
           p_expires_at: resolutionExpiresAt,
           p_note: resolutionNote.trim() || null,
         });
@@ -511,7 +506,7 @@ export default function PropertyMessageThreadScreen() {
         resolutionKind === 'discount' ? 'Special Discount sent' : 'Courtesy Waiver sent',
         resolutionKind === 'discount'
           ? `The guest can use this ${amount}% discount on their next reservation at ${property.name}.`
-          : `The guest can use these ${amount} free hour${amount === 1 ? '' : 's'} only at ${property.name}. It expires seven days after sending.`
+          : `The guest can use this one free hour with all of their selected dogs only at ${property.name}. It expires seven days after sending.`
       );
     } catch (error) {
       Alert.alert('Unable to send offer', error instanceof Error ? error.message : 'Please try again.');
@@ -649,11 +644,9 @@ export default function PropertyMessageThreadScreen() {
             <Text style={styles.offerIntro}>Send a one-time offer for {property.name}. The guest will receive it in this conversation and see it automatically during their next reservation for this space.</Text>
             <View style={styles.offerKindRow}>
               <Pressable accessibilityRole="button" onPress={() => setResolutionKind('discount')} style={[styles.offerKindButton, resolutionKind === 'discount' && styles.offerKindButtonSelected]}><Text style={[styles.offerKindTitle, resolutionKind === 'discount' && styles.offerKindTitleSelected]}>Special Discount</Text><Text style={[styles.offerKindText, resolutionKind === 'discount' && styles.offerKindTextSelected]}>Guest pays less; ROVAH keeps 18% of the original rate.</Text></Pressable>
-              <Pressable accessibilityRole="button" onPress={() => setResolutionKind('courtesy')} style={[styles.offerKindButton, resolutionKind === 'courtesy' && styles.offerKindButtonSelected]}><Text style={[styles.offerKindTitle, resolutionKind === 'courtesy' && styles.offerKindTitleSelected]}>Courtesy Waiver</Text><Text style={[styles.offerKindText, resolutionKind === 'courtesy' && styles.offerKindTextSelected]}>A free visit for this site, valid for seven days. You may issue one to this guest each calendar month.</Text></Pressable>
+              <Pressable accessibilityRole="button" onPress={() => setResolutionKind('courtesy')} style={[styles.offerKindButton, resolutionKind === 'courtesy' && styles.offerKindButtonSelected]}><Text style={[styles.offerKindTitle, resolutionKind === 'courtesy' && styles.offerKindTitleSelected]}>Courtesy Waiver</Text><Text style={[styles.offerKindText, resolutionKind === 'courtesy' && styles.offerKindTextSelected]}>One free hour for every selected dog, valid for seven days. A member may receive one every seven days.</Text></Pressable>
             </View>
-            <Text style={styles.offerFieldLabel}>{resolutionKind === 'discount' ? 'Discount percentage (1–82%)' : 'Free hours'}</Text>
-            <TextInput keyboardType="decimal-pad" onChangeText={resolutionKind === 'discount' ? setResolutionDiscountPercent : setResolutionCourtesyHours} style={styles.offerInput} value={resolutionKind === 'discount' ? resolutionDiscountPercent : resolutionCourtesyHours} />
-            {resolutionKind === 'discount' ? <><Text style={styles.offerFieldLabel}>Expiration date</Text><Pressable accessibilityLabel="Select offer expiration date" accessibilityRole="button" onPress={() => setShowExpirationPicker(true)} style={styles.expirationSelectButton}><Text style={styles.expirationSelectText}>{new Date(`${resolutionExpiresAt}T12:00:00`).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}</Text><Text style={styles.expirationSelectHint}>Select date</Text></Pressable></> : <Text style={styles.offerPolicyNote}>Courtesy Waivers automatically expire seven days after you send them. They can only be used at {property.name}.</Text>}
+            {resolutionKind === 'discount' ? <><Text style={styles.offerFieldLabel}>Discount percentage (1–82%)</Text><TextInput keyboardType="decimal-pad" onChangeText={setResolutionDiscountPercent} style={styles.offerInput} value={resolutionDiscountPercent} /><Text style={styles.offerFieldLabel}>Expiration date</Text><Pressable accessibilityLabel="Select offer expiration date" accessibilityRole="button" onPress={() => setShowExpirationPicker(true)} style={styles.expirationSelectButton}><Text style={styles.expirationSelectText}>{new Date(`${resolutionExpiresAt}T12:00:00`).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}</Text><Text style={styles.expirationSelectHint}>Select date</Text></Pressable></> : <Text style={styles.offerPolicyNote}>Courtesy Waivers automatically cover exactly one hour for all of the member’s selected dogs. They expire seven days after sending and can only be used at {property.name}.</Text>}
             <Text style={styles.offerFieldLabel}>Message for the guest (optional)</Text>
             <TextInput maxLength={280} multiline onChangeText={setResolutionNote} placeholder="Add a brief note..." placeholderTextColor="#8A877D" style={[styles.offerInput, styles.offerNoteInput]} value={resolutionNote} />
             <Pressable disabled={isIssuingResolution} onPress={() => void issueResolutionOffer()} style={[styles.offerSubmitButton, isIssuingResolution && styles.disabled]}>{isIssuingResolution ? <ActivityIndicator color={colors.warmWhite} /> : <Text style={styles.offerSubmitText}>{resolutionKind === 'discount' ? 'Send Special Discount' : 'Send Courtesy Waiver'}</Text>}</Pressable>

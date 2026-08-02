@@ -87,7 +87,6 @@ export default function HostReservationsScreen() {
   const [cancellationError, setCancellationError] = useState<string | null>(null);
   const [cancellationNotice, setCancellationNotice] = useState<string | null>(null);
   const [courtesyBooking, setCourtesyBooking] = useState<HostBooking | null>(null);
-  const [courtesyHours, setCourtesyHours] = useState('1');
   const [courtesyNote, setCourtesyNote] = useState('');
   const [isIssuingCourtesy, setIsIssuingCourtesy] = useState(false);
   const [courtesyError, setCourtesyError] = useState<string | null>(null);
@@ -299,7 +298,7 @@ export default function HostReservationsScreen() {
       const { error } = await supabase.rpc('issue_courtesy_visit', {
         p_property_id: courtesyBooking.property_id,
         p_member_id: courtesyBooking.guest_id,
-        p_hours: Number(courtesyHours),
+        p_hours: 1,
         p_expires_at: null,
         p_note: courtesyNote.trim() || null,
       });
@@ -424,10 +423,8 @@ export default function HostReservationsScreen() {
         <View style={styles.modalBackdrop}>
           <View style={styles.cancelModal}>
             <Text style={styles.cancelModalTitle}>Issue Courtesy Waiver</Text>
-            <Text style={styles.cancelModalText}>{courtesyBooking ? `Give ${guestNames[courtesyBooking.guest_id] ?? 'this member'} free time at ${courtesyBooking.properties?.name ?? 'this private space'}.` : ''}</Text>
-            <Text style={styles.courtesyLabel}>Free hours</Text>
-            <TextInput keyboardType="decimal-pad" onChangeText={(value) => setCourtesyHours(value.replace(/[^0-9.]/g, ''))} placeholder="1" style={styles.courtesyInput} value={courtesyHours} />
-            <Text style={styles.cancelModalDetail}>This Courtesy Waiver is valid only at this site and expires seven days after you send it. You may issue one to this guest each calendar month.</Text>
+            <Text style={styles.cancelModalText}>{courtesyBooking ? `Give ${guestNames[courtesyBooking.guest_id] ?? 'this member'} one free hour at ${courtesyBooking.properties?.name ?? 'this private space'} for all of their attending dogs.` : ''}</Text>
+            <Text style={styles.cancelModalDetail}>A Courtesy Waiver covers exactly one hour, includes all of the member’s selected dogs, and expires seven days after you send it. A member can receive only one Courtesy Waiver every seven days.</Text>
             <Text style={styles.courtesyLabel}>Note for the member (optional)</Text>
             <TextInput multiline onChangeText={setCourtesyNote} placeholder="Enjoy a Courtesy Waiver at my space." style={[styles.courtesyInput, styles.courtesyNoteInput]} value={courtesyNote} />
             {courtesyError ? <Text accessibilityRole="alert" style={styles.cancelModalError}>{courtesyError}</Text> : null}
