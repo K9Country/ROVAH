@@ -1,5 +1,7 @@
+import { useEventListener } from 'expo';
 import { Image } from 'expo-image';
 import { router, Stack } from 'expo-router';
+import { VideoView, useVideoPlayer } from 'expo-video';
 import { useEffect, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -75,6 +77,12 @@ const benefits: BenefitInfo[] = [
 export default function ChoosePathScreen() {
   const { isHost, isLoading, isMember, session } = useAuth();
   const [selectedBenefit, setSelectedBenefit] = useState<BenefitInfo | null>(null);
+  const [showLaunchIntro, setShowLaunchIntro] = useState(true);
+  const launchPlayer = useVideoPlayer(require('../assets/videos/rovah-launch-intro.mp4'), (player) => {
+    player.muted = true;
+    player.play();
+  });
+  useEventListener(launchPlayer, 'playToEnd', () => setShowLaunchIntro(false));
   useEffect(() => {
     if (isLoading || !session) return;
     if (isHost) {
@@ -103,6 +111,18 @@ export default function ChoosePathScreen() {
     styles.benefitHotspot3,
     styles.benefitHotspot4,
   ];
+
+  if (!isLoading && !session && showLaunchIntro) {
+    return <SafeAreaView style={styles.launchSafeArea}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <View style={styles.launchIntro}>
+        <VideoView contentFit="cover" nativeControls={false} player={launchPlayer} style={styles.launchVideo} />
+        <Pressable accessibilityLabel="Skip introduction" accessibilityRole="button" onPress={() => setShowLaunchIntro(false)} style={styles.skipIntroButton}>
+          <Text style={styles.skipIntroText}>Skip</Text>
+        </Pressable>
+      </View>
+    </SafeAreaView>;
+  }
 
   return (
     <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.safeArea}>
@@ -204,6 +224,11 @@ export default function ChoosePathScreen() {
 }
 
 const styles = StyleSheet.create({
+  launchSafeArea: { backgroundColor: colors.forest, flex: 1 },
+  launchIntro: { backgroundColor: colors.forest, flex: 1 },
+  launchVideo: { flex: 1, width: '100%' },
+  skipIntroButton: { alignSelf: 'center', backgroundColor: 'rgba(255, 255, 255, 0.82)', borderRadius: 18, bottom: 28, minHeight: 38, paddingHorizontal: 18, paddingVertical: 9, position: 'absolute' },
+  skipIntroText: { color: colors.forest, fontSize: 14, fontWeight: '900' },
   safeArea: {
     backgroundColor: '#F1E1C8',
     flex: 1,
