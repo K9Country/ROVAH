@@ -56,6 +56,17 @@ Deno.serve(async (req) => {
       return json({ error: 'Payment has already been captured, so this reservation can no longer be cancelled online.' }, 409);
     }
 
+    if (isSubscriptionReservation) {
+      const { data, error } = await admin.rpc('cancel_subscription_reservation', {
+        p_booking_id: booking.id,
+        p_actor_id: user.id,
+      });
+      if (error || !data?.[0]?.cancelled) {
+        throw error ?? new Error('Unable to cancel this subscription visit.');
+      }
+      return json({ cancelled: true, paymentReleased: false });
+    }
+
     // A payment-pending booking can still have an open Stripe Checkout page.
     // Expire it first, so the guest cannot complete payment after cancellation.
     if (!isSubscriptionReservation && booking.status === 'payment_pending' && booking.stripe_checkout_session_id) {
