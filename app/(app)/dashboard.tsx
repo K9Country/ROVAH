@@ -36,7 +36,7 @@ type MemoryPhoto = {
   path: string;
   url: string;
 };
-type SubscriptionPass = { id: string; property_id: string; credit_hours_total: number; credit_hours_remaining: number; properties: { name: string } | null };
+type SubscriptionPass = { id: string; property_id: string; credit_hours_total: number; credit_hours_remaining: number; expires_at: string; properties: { name: string } | null };
  
 const dashboardActions: DashboardAction[] = [
 {
@@ -101,7 +101,8 @@ export default function DashboardScreen() {
   const loadSubscriptionPasses = useCallback(async () => {
     if (!session?.user.id) { setSubscriptionPasses([]); return; }
     const { data } = await supabase.from('member_loyalty_passes')
-      .select('id, property_id, credit_hours_total, credit_hours_remaining, properties(name)')
+      .select('id, property_id, credit_hours_total, credit_hours_remaining, expires_at, properties(name)')
+      .eq('member_id', session.user.id)
       .eq('status', 'active').gt('credit_hours_remaining', 0).gt('expires_at', new Date().toISOString());
     setSubscriptionPasses((data ?? []).map((pass) => ({ ...pass, properties: Array.isArray(pass.properties) ? pass.properties[0] ?? null : pass.properties })) as SubscriptionPass[]);
   }, [session?.user.id]);
@@ -226,7 +227,8 @@ export default function DashboardScreen() {
 
   useFocusEffect(useCallback(() => {
     void loadPendingSiteReviews();
-  }, [loadPendingSiteReviews]));
+    void loadSubscriptionPasses();
+  }, [loadPendingSiteReviews, loadSubscriptionPasses]));
 
   const handleNavigation = (route: string) => {
     router.push(route as never);
@@ -356,7 +358,7 @@ export default function DashboardScreen() {
             <Text style={styles.subscriptionEyebrow}>SUBSCRIPTION VISITS REMAINING</Text>
             <Text style={styles.subscriptionSite}>{pass.properties?.name ?? 'Your private space'}</Text>
             <Text style={styles.subscriptionCount}>{Number(pass.credit_hours_remaining)} of {Number(pass.credit_hours_total)} visits remaining</Text>
-            <Text style={styles.subscriptionNote}>Your next Subscription Reservation uses 1 visit credit. $0 due.</Text>
+            <Text style={styles.subscriptionNote}>Subscription reservations use 1 visit credit. $0 due.</Text>
           </Pressable>
         ))}
 
@@ -576,7 +578,7 @@ const styles = StyleSheet.create({
     borderColor: '#315738',
     borderRadius: 18,
     borderWidth: 1,
-    marginBottom: 16,
+    marginBottom: 0,
     marginTop: -26,
     paddingHorizontal: 14,
     paddingVertical: 12,
@@ -630,7 +632,7 @@ const styles = StyleSheet.create({
   trustSafetyLinkText: { color: colors.muted, fontSize: 12, marginTop: 4, textAlign: 'center' },
  
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 12 },
-  subscriptionCard: { backgroundColor: colors.lightGreen, borderColor: colors.forest, borderRadius: 18, borderWidth: 1, marginTop: 14, padding: 16, ...shadows.card },
+  subscriptionCard: { backgroundColor: colors.lightGreen, borderColor: colors.forest, borderRadius: 18, borderWidth: 1, marginTop: 12, padding: 16, ...shadows.card },
   subscriptionEyebrow: { color: colors.brown, fontSize: 11, fontWeight: '900', letterSpacing: 1.1 },
   subscriptionSite: { color: colors.forest, fontSize: 18, fontWeight: '900', marginTop: 5 },
   subscriptionCount: { color: colors.forest, fontSize: 22, fontWeight: '900', marginTop: 8 },
