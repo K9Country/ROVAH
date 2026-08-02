@@ -1,11 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
-    Dimensions,
     KeyboardAvoidingView,
     Platform,
     Pressable,
@@ -43,7 +42,6 @@ export default function SignInScreen() {
   const [isResendingVerification, setIsResendingVerification] = useState(false);
   const [signInError, setSignInError] = useState<string | null>(null);
   const [isMemberSignInExpanded, setIsMemberSignInExpanded] = useState(false);
-  const signInScrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     const loadRememberedEmail = async () => {
@@ -222,22 +220,7 @@ export default function SignInScreen() {
   };
 
   const handleMemberSignInToggle = () => {
-    const isOpening = !isMemberSignInExpanded;
-    setIsMemberSignInExpanded(isOpening);
-
-    if (!isOpening) return;
-
-    // Position the expanded form itself at the top of a phone-sized screen.
-    // This keeps the complete email, password, remember-email, and sign-in
-    // controls in reach without asking the member to hunt for them.
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        signInScrollRef.current?.scrollTo({
-          animated: true,
-          y: Math.round(Dimensions.get('window').height * 0.82),
-        });
-      }, 80);
-    });
+    setIsMemberSignInExpanded((current) => !current);
   };
 
   const signInFormFields = (
@@ -367,7 +350,6 @@ export default function SignInScreen() {
           contentContainerStyle={styles.container}
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="always"
-          ref={signInScrollRef}
           showsVerticalScrollIndicator={false}
         >
           {false && intent === 'host' ? <Pressable
