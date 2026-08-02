@@ -38,6 +38,7 @@ type BookingBlock = { start_at: string; end_at: string };
 type BookingDog = { id: string; name: string; breed: string; size: string; behavior_traits: string[] };
 type LoyaltyPassOffer = { id: string; name: string; credit_count: number; package_price: number | string; duration_months: number };
 type MemberLoyaltyPass = { id: string; loyalty_pass_offer_id: string; credit_hours_remaining: number | string; covered_dog_count: number; expires_at: string };
+type ReservationConfirmation = { type: 'loyalty_pass' | 'courtesy_waiver'; date: string; time: string; dogs: string; subscriptionBalance?: string };
 type CourtesyVisitCredit = { id: string; remaining_hours: number | string; expires_at: string; note: string | null };
 type ResolutionDiscountOffer = { id: string; discount_percent: number | string; expires_at: string; note: string | null };
 type SlotPickerKind = 'start' | 'end' | null;
@@ -143,6 +144,7 @@ export default function PropertyDetailsScreen() {
   const [currentTime, setCurrentTime] = useState(() => new Date());
   const [isBooking, setIsBooking] = useState(false);
   const [reservationError, setReservationError] = useState<string | null>(null);
+  const [reservationConfirmation, setReservationConfirmation] = useState<ReservationConfirmation | null>(null);
   const [needsGuestProfile, setNeedsGuestProfile] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
   const [isFollowSaving, setIsFollowSaving] = useState(false);
@@ -603,13 +605,18 @@ export default function PropertyDetailsScreen() {
           .catch((error) => console.warn('Reservation notification email was not sent:', error));
         setSelectedCourtesyCreditId(null);
         setSelectedLoyaltyPassOfferId(null);
-        Alert.alert(
-          data.confirmationType === 'loyalty_pass' ? 'Reservation confirmed' : 'Courtesy Waiver confirmed',
-          data.confirmationType === 'loyalty_pass'
-            ? 'Your subscription credits covered this visit. No payment was needed, and the visit is now in My Reservations.'
-            : 'Your $0.00 Courtesy Waiver is confirmed. No payment was needed, and the visit is now in My Reservations.',
-          [{ text: 'View My Reservations', onPress: () => router.replace('/reservations') }]
-        );
+        const freshPassBalance = data.confirmationType === 'loyalty_pass'
+          ? Math.max(0, Number(selectedMemberLoyaltyPass?.credit_hours_remaining ?? 0) - visitHours)
+          : undefined;
+        setReservationConfirmation({
+          type: data.confirmationType === 'loyalty_pass' ? 'loyalty_pass' : 'courtesy_waiver',
+          date: formatSelectedDate(bookingDate),
+          time: `${formatMilitaryTime(startTime)} – ${formatMilitaryTime(endTime)}`,
+          dogs: dogProfiles.filter((dog) => selectedDogIds.includes(dog.id)).map((dog) => dog.name).join(', '),
+          subscriptionBalance: data.confirmationType === 'loyalty_pass'
+            ? `${freshPassBalance} of ${selectedLoyaltyPassOffer?.credit_count ?? 0} visits remaining`
+            : undefined,
+        });
         return;
       }
       if (!data.checkoutUrl) throw new Error('Secure checkout could not be opened. Please try again.');
@@ -857,6 +864,22 @@ export default function PropertyDetailsScreen() {
         </View>
       </ScrollView>
 
+      <Modal animationType="fade" transparent visible={reservationConfirmation !== null} onRequestClose={() => setReservationConfirmation(null)}>
+        <View style={styles.confirmationBackdrop}>
+          <View style={styles.confirmationModal}>
+            <Text style={styles.confirmationEyebrow}>{reservationConfirmation?.type === 'loyalty_pass' ? 'SUBSCRIPTION VISIT CONFIRMED' : 'COURTESY WAIVER CONFIRMED'}</Text>
+            <Text style={styles.confirmationTitle}>Your reservation is confirmed</Text>
+            <Text style={styles.confirmationProperty}>{property.name}</Text>
+            <Text style={styles.confirmationDetails}>{reservationConfirmation?.date}</Text>
+            <Text style={styles.confirmationDetails}>{reservationConfirmation?.time}</Text>
+            <Text style={styles.confirmationDetails}>{reservationConfirmation?.dogs || 'Your selected dogs'} attending</Text>
+            {reservationConfirmation?.subscriptionBalance ? <View style={styles.confirmationBalance}><Text style={styles.confirmationBalanceLabel}>SUBSCRIPTION BALANCE</Text><Text style={styles.confirmationBalanceText}>{reservationConfirmation.subscriptionBalance}</Text></View> : <Text style={styles.confirmationMessage}>Your Courtesy Waiver covered this one-hour visit for all selected dogs. $0 due.</Text>}
+            <Pressable accessibilityRole="button" onPress={() => { setReservationConfirmation(null); router.replace('/reservations'); }} style={styles.confirmationPrimaryButton}><Text style={styles.confirmationPrimaryButtonText}>View Reservation</Text></Pressable>
+            <Pressable accessibilityRole="button" onPress={() => { setReservationConfirmation(null); router.replace('/dashboard'); }} style={styles.confirmationSecondaryButton}><Text style={styles.confirmationSecondaryButtonText}>Go to Member Dashboard</Text></Pressable>
+          </View>
+        </View>
+      </Modal>
+
       <Modal animationType="slide" transparent visible={slotPicker !== null} onRequestClose={() => setSlotPicker(null)}>
         <Pressable onPress={() => setSlotPicker(null)} style={styles.modalBackdrop}>
           <Pressable onPress={() => undefined} style={styles.slotSheet}>
@@ -914,6 +937,7 @@ const styles = StyleSheet.create({
   loyaltyPassDetails: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 4 },
   loyaltyPassNote: { color: colors.brown, fontSize: 12, fontWeight: '800', lineHeight: 18, marginTop: 12 }, subscriptionWarning: { color: '#8C3A31', fontSize: 12, fontWeight: '900', lineHeight: 18, marginTop: 8 },
   reviewerName: { color: colors.forest, fontSize: 16, fontWeight: '900' }, reviewModalBackdrop: { alignItems: 'center', backgroundColor: 'rgba(0, 0, 0, 0.42)', flex: 1, justifyContent: 'center', padding: 24 }, reviewModal: { backgroundColor: colors.warmWhite, borderRadius: 20, maxWidth: 440, padding: 22, width: '100%' }, fullReviewText: { color: colors.forest, fontSize: 16, lineHeight: 23, marginTop: 16 }, closeReviewButton: { alignItems: 'center', backgroundColor: colors.forest, borderRadius: 12, justifyContent: 'center', marginTop: 22, minHeight: 48 }, closeReviewText: { color: colors.warmWhite, fontWeight: '900' },
+  confirmationBackdrop: { alignItems: 'center', backgroundColor: 'rgba(28, 39, 27, 0.6)', flex: 1, justifyContent: 'center', padding: 22 }, confirmationModal: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 22, borderWidth: 1, maxWidth: 460, padding: 24, width: '100%' }, confirmationEyebrow: { color: colors.brown, fontSize: 12, fontWeight: '900', letterSpacing: 1.15 }, confirmationTitle: { color: colors.forest, fontSize: 25, fontWeight: '900', marginTop: 8 }, confirmationProperty: { color: colors.forest, fontSize: 18, fontWeight: '900', marginTop: 16 }, confirmationDetails: { color: colors.muted, fontSize: 15, lineHeight: 22, marginTop: 4 }, confirmationBalance: { backgroundColor: colors.lightGreen, borderColor: colors.border, borderRadius: 14, borderWidth: 1, marginTop: 16, padding: 13 }, confirmationBalanceLabel: { color: colors.brown, fontSize: 11, fontWeight: '900', letterSpacing: 1 }, confirmationBalanceText: { color: colors.forest, fontSize: 19, fontWeight: '900', marginTop: 4 }, confirmationMessage: { color: colors.muted, fontSize: 15, lineHeight: 22, marginTop: 16 }, confirmationPrimaryButton: { alignItems: 'center', backgroundColor: colors.forest, borderRadius: 12, justifyContent: 'center', marginTop: 22, minHeight: 50 }, confirmationPrimaryButtonText: { color: colors.warmWhite, fontSize: 15, fontWeight: '900' }, confirmationSecondaryButton: { alignItems: 'center', borderColor: colors.forest, borderRadius: 12, borderWidth: 1, justifyContent: 'center', marginTop: 9, minHeight: 50 }, confirmationSecondaryButtonText: { color: colors.forest, fontSize: 15, fontWeight: '900' },
   temporarilyClosedText: { backgroundColor: '#F0C5C0', borderColor: '#D88A80', borderRadius: 10, borderWidth: 1, color: '#95423A', fontSize: 13, fontWeight: '800', lineHeight: 19, marginBottom: 14, padding: 11, textAlign: 'center' },
   modalBackdrop: { backgroundColor: 'rgba(0, 0, 0, 0.42)', flex: 1, justifyContent: 'flex-end' }, slotSheet: { backgroundColor: colors.cream, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '72%', padding: 22 }, slotSheetTitle: { color: colors.forest, fontSize: 22, fontWeight: '900' }, slotSheetText: { color: colors.muted, fontSize: 14, marginTop: 5 }, slotList: { gap: 9, paddingBottom: 12, paddingTop: 18 }, slotButton: { alignItems: 'center', backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 12, borderWidth: 1, minHeight: 48, justifyContent: 'center' }, slotButtonUnavailable: { backgroundColor: '#F0C5C0', borderColor: '#D88A80', opacity: 0.72 }, slotButtonText: { color: colors.forest, fontSize: 16, fontVariant: ['tabular-nums'], fontWeight: '900' }, slotButtonTextUnavailable: { color: '#95423A' }, cancelButton: { alignItems: 'center', justifyContent: 'center', minHeight: 48 }, cancelButtonText: { color: colors.brown, fontSize: 16, fontWeight: '900' },
 });

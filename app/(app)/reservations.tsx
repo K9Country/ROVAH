@@ -33,6 +33,8 @@ type GuestBooking = {
   end_at: string;
   dog_count: number;
   total_amount: number;
+  payment_provider: string | null;
+  loyalty_pass_offer_id: string | null;
   status: 'confirmed' | 'payment_pending' | 'cancelled';
   payment_status: 'pending_configuration' | 'processing' | 'authorized' | 'scheduled' | 'paid' | 'refunded' | 'failed' | 'cancelled';
   stripe_checkout_session_id: string | null;
@@ -113,7 +115,7 @@ export default function ReservationsScreen() {
       supabase
         .from('bookings')
         .select(
-          'id, property_id, start_at, end_at, dog_count, total_amount, status, payment_status, stripe_checkout_session_id, properties(name, city, state)'
+          'id, property_id, start_at, end_at, dog_count, total_amount, payment_provider, loyalty_pass_offer_id, status, payment_status, stripe_checkout_session_id, properties(name, city, state)'
         )
         .eq('guest_id', session.user.id)
         .order('start_at', { ascending: true }),
@@ -492,13 +494,22 @@ export default function ReservationsScreen() {
           <View style={styles.paymentModalCard}>
             <Text style={styles.paymentModalEyebrow}>{paymentConfirmation?.paymentStatus === 'paid' ? 'PAYMENT CAPTURED' : paymentConfirmation?.paymentStatus === 'scheduled' ? 'CARD SAVED' : 'PAYMENT SECURED'}</Text>
             <Text style={styles.paymentModalTitle}>Reservation confirmed</Text>
+            {(() => {
+              const confirmedBooking = paymentConfirmation ? bookings.find((booking) => booking.id === paymentConfirmation.id) : undefined;
+              const isSubscriptionPurchase = confirmedBooking?.payment_provider === 'loyalty_pass_purchase';
+              return <>
             <Text style={styles.paymentModalText}>
-              {paymentConfirmation?.propertyName ?? 'Your private space'} is reserved. {paymentConfirmation?.paymentStatus === 'paid'
+              {paymentConfirmation?.propertyName ?? 'Your private space'} is reserved. {isSubscriptionPurchase
+                ? `Your subscription payment of $${Number(paymentConfirmation?.totalAmount ?? 0).toFixed(2)} was received. This reservation uses the first included visit.`
+                : paymentConfirmation?.paymentStatus === 'paid'
                 ? `Your payment of $${Number(paymentConfirmation?.totalAmount ?? 0).toFixed(2)} has been captured.`
                 : paymentConfirmation?.paymentStatus === 'scheduled'
                   ? `Your card is saved for this reservation. The $${Number(paymentConfirmation?.totalAmount ?? 0).toFixed(2)} charge is scheduled one hour before your visit. Cancel before then and no charge will be made.`
                   : `Your $${Number(paymentConfirmation?.totalAmount ?? 0).toFixed(2)} payment is secured and will be captured one hour before your visit. Cancel before then to release the authorization automatically.`}
             </Text>
+            {confirmedBooking ? <View style={styles.paymentModalDetails}><Text style={styles.paymentModalDetailText}>{formatVisitDate(new Date(confirmedBooking.start_at))}</Text><Text style={styles.paymentModalDetailText}>{formatVisitTime(new Date(confirmedBooking.start_at))} – {formatVisitTime(new Date(confirmedBooking.end_at))}</Text><Text style={styles.paymentModalDetailText}>{confirmedBooking.dogs.map((dog) => dog.name).join(', ') || `${confirmedBooking.dog_count} dog${confirmedBooking.dog_count === 1 ? '' : 's'} attending`}</Text></View> : null}
+              </>;
+            })()}
             <Pressable accessibilityRole="button" onPress={() => setPaymentConfirmation(null)} style={styles.paymentModalPrimaryButton}>
               <Text style={styles.paymentModalPrimaryButtonText}>View Reservation</Text>
             </Pressable>
@@ -654,6 +665,8 @@ const styles = StyleSheet.create({
   paymentModalEyebrow: { color: colors.brown, fontSize: 12, fontWeight: '900', letterSpacing: 1.2 },
   paymentModalTitle: { color: colors.forest, fontSize: 26, fontWeight: '900', lineHeight: 32, marginTop: 8 },
   paymentModalText: { color: colors.muted, fontSize: 16, lineHeight: 24, marginTop: 12 },
+  paymentModalDetails: { backgroundColor: colors.lightGreen, borderColor: colors.border, borderRadius: 14, borderWidth: 1, marginTop: 16, padding: 13 },
+  paymentModalDetailText: { color: colors.forest, fontSize: 15, fontWeight: '800', lineHeight: 22 },
   paymentModalPrimaryButton: { alignItems: 'center', backgroundColor: colors.forest, borderRadius: 12, justifyContent: 'center', marginTop: 22, minHeight: 50 },
   paymentModalPrimaryButtonText: { color: colors.warmWhite, fontSize: 15, fontWeight: '900' },
   paymentModalSecondaryButton: { alignItems: 'center', borderColor: colors.forest, borderRadius: 12, borderWidth: 1, justifyContent: 'center', marginTop: 9, minHeight: 50 },
