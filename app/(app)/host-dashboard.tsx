@@ -447,8 +447,8 @@ export default function HostDashboardScreen() {
               />
 
               <View style={styles.dashboardSection}>
-                <Text style={styles.dashboardSectionEyebrow}>MANAGE YOUR SITE</Text>
-                <Text style={styles.dashboardSectionTitle}>These tools stay connected to {property.name} only.</Text>
+                <Text style={styles.dashboardSectionEyebrow}>GUEST MANAGEMENT</Text>
+                <Text style={styles.dashboardSectionTitle}>Manage reservations, welcome guests, send messages, and review guest experiences for {property.name}.</Text>
               <View style={styles.propertyTools}>
                 <PropertyTool
                   icon={'\u{1F4C5}'}
