@@ -579,7 +579,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
     marginBottom: 0,
-    marginTop: -26,
+    marginTop: -32,
     paddingHorizontal: 14,
     paddingVertical: 12,
     ...shadows.card,
