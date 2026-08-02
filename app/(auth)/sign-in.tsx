@@ -42,7 +42,7 @@ export default function SignInScreen() {
   const [isResendingVerification, setIsResendingVerification] = useState(false);
   const [signInError, setSignInError] = useState<string | null>(null);
   const [isMemberSignInExpanded, setIsMemberSignInExpanded] = useState(false);
-  const shouldPositionSignInRef = useRef(false);
+  const signInSectionYRef = useRef(0);
   const signInScrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
@@ -223,18 +223,26 @@ export default function SignInScreen() {
 
   const handleMemberSignInToggle = () => {
     setIsMemberSignInExpanded((current) => {
-      shouldPositionSignInRef.current = !current;
+      if (!current) {
+        requestAnimationFrame(() => {
+          signInScrollRef.current?.scrollTo({
+            animated: true,
+            y: Math.max(0, signInSectionYRef.current - 12),
+          });
+        });
+      }
       return !current;
     });
   };
 
   const positionSignInSection = (event: { nativeEvent: { layout: { y: number } } }) => {
-    if (!shouldPositionSignInRef.current) return;
+    signInSectionYRef.current = event.nativeEvent.layout.y;
+  };
 
-    shouldPositionSignInRef.current = false;
+  const keepSignInSectionVisible = () => {
     signInScrollRef.current?.scrollTo({
-      animated: true,
-      y: Math.max(0, event.nativeEvent.layout.y - 12),
+      animated: false,
+      y: Math.max(0, signInSectionYRef.current - 12),
     });
   };
 
@@ -288,6 +296,7 @@ export default function SignInScreen() {
           accessibilityLabel="Password"
           autoCapitalize="none"
           autoComplete="current-password"
+          onFocus={keepSignInSectionVisible}
           onChangeText={(value) => {
             setPassword(value);
             setSignInError(null);
