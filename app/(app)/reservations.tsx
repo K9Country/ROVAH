@@ -35,6 +35,7 @@ type GuestBooking = {
   total_amount: number;
   payment_provider: string | null;
   loyalty_pass_offer_id: string | null;
+  member_loyalty_pass_id: string | null;
   status: 'confirmed' | 'payment_pending' | 'cancelled';
   payment_status: 'pending_configuration' | 'processing' | 'authorized' | 'scheduled' | 'paid' | 'refunded' | 'failed' | 'cancelled';
   stripe_checkout_session_id: string | null;
@@ -90,6 +91,7 @@ export default function ReservationsScreen() {
   const [currentTime, setCurrentTime] = useState(() => Date.now());
   const [paymentConfirmation, setPaymentConfirmation] = useState<PaymentConfirmation | null>(null);
   const [paymentConfirmationError, setPaymentConfirmationError] = useState<string | null>(null);
+  const [subscriptionCredits, setSubscriptionCredits] = useState<Record<string, number>>({});
   const handledCheckoutSessionIds = useRef(new Set<string>());
 
   const notifyReservationEmail = useCallback((bookingId: string) => {
@@ -107,6 +109,7 @@ export default function ReservationsScreen() {
     if (!session?.user.id) {
       setBookings([]);
       setReviewedBookingIds(new Set());
+      setSubscriptionCredits({});
       setIsLoading(false);
       return;
     }
@@ -115,7 +118,7 @@ export default function ReservationsScreen() {
       supabase
         .from('bookings')
         .select(
-          'id, property_id, start_at, end_at, dog_count, total_amount, payment_provider, loyalty_pass_offer_id, status, payment_status, stripe_checkout_session_id, properties(name, city, state)'
+          'id, property_id, start_at, end_at, dog_count, total_amount, payment_provider, loyalty_pass_offer_id, member_loyalty_pass_id, status, payment_status, stripe_checkout_session_id, properties(name, city, state)'
         )
         .eq('guest_id', session.user.id)
         .order('start_at', { ascending: true }),
@@ -176,6 +179,27 @@ export default function ReservationsScreen() {
       dogs: dogsByBookingId.get(booking.id) ?? [],
     }));
     setBookings(bookingRows as GuestBooking[]);
+    const subscriptionPassIds = [...new Set(bookingRows.flatMap((booking) => booking.member_loyalty_pass_id ? [booking.member_loyalty_pass_id] : []))];
+    if (subscriptionPassIds.length || bookingIds.length) {
+      const [passIdResult, purchaseBookingResult] = await Promise.all([
+        subscriptionPassIds.length
+          ? supabase.from('member_loyalty_passes').select('id, credit_hours_remaining').in('id', subscriptionPassIds)
+          : Promise.resolve({ data: [], error: null }),
+        supabase.from('member_loyalty_passes').select('purchase_booking_id, credit_hours_remaining').in('purchase_booking_id', bookingIds),
+      ]);
+      if (passIdResult.error || purchaseBookingResult.error) {
+        setSubscriptionCredits({});
+      } else {
+        const creditsByPassId = Object.fromEntries((passIdResult.data ?? []).map((pass) => [pass.id, Number(pass.credit_hours_remaining)]));
+        const creditsByPurchaseBookingId = Object.fromEntries((purchaseBookingResult.data ?? []).flatMap((pass) => pass.purchase_booking_id ? [[pass.purchase_booking_id, Number(pass.credit_hours_remaining)]] : []));
+        setSubscriptionCredits(Object.fromEntries(bookingRows.flatMap((booking) => {
+          const balance = booking.member_loyalty_pass_id ? creditsByPassId[booking.member_loyalty_pass_id] : creditsByPurchaseBookingId[booking.id];
+          return balance === undefined ? [] : [[booking.id, balance]];
+        })));
+      }
+    } else {
+      setSubscriptionCredits({});
+    }
     setReviewedBookingIds(new Set((reviewResult.data ?? []).map((review) => review.booking_id)));
   }, [session?.user.id]);
 
@@ -345,6 +369,7 @@ export default function ReservationsScreen() {
     const cancellationAvailable = canCancel(booking);
     const isCancelling = cancellingBookingId === booking.id;
     const isConfirmingCancellation = bookingToCancelId === booking.id;
+    const subscriptionCreditsRemaining = subscriptionCredits[booking.id];
 
     return (
       <View key={booking.id} style={styles.bookingCard}>
@@ -383,6 +408,7 @@ export default function ReservationsScreen() {
         <Text style={styles.visitDetails}>
           {booking.dog_count} {booking.dog_count === 1 ? 'dog' : 'dogs'} · ${Number(booking.total_amount).toFixed(2)}
         </Text>
+        {subscriptionCreditsRemaining !== undefined ? <View style={styles.subscriptionBalanceCard}><Text style={styles.subscriptionBalanceLabel}>SUBSCRIPTION VISITS REMAINING</Text><Text style={styles.subscriptionBalanceValue}>{subscriptionCreditsRemaining} {subscriptionCreditsRemaining === 1 ? 'visit' : 'visits'} remaining</Text></View> : null}
         <Text style={styles.paymentStatusText}>
           {booking.payment_status === 'paid'
             ? 'Payment captured and received'
@@ -660,6 +686,9 @@ const styles = StyleSheet.create({
   paymentPendingText: { color: colors.muted, fontSize: 14, lineHeight: 20, marginTop: 5 },
   paymentPendingButton: { alignItems: 'center', borderColor: colors.forest, borderRadius: 10, borderWidth: 1, justifyContent: 'center', marginTop: 12, minHeight: 42 },
   paymentPendingButtonText: { color: colors.forest, fontSize: 14, fontWeight: '900' },
+  subscriptionBalanceCard: { backgroundColor: colors.lightGreen, borderColor: '#91B58D', borderRadius: 14, borderWidth: 1, marginTop: 13, padding: 12 },
+  subscriptionBalanceLabel: { color: colors.olive, fontSize: 10, fontWeight: '900', letterSpacing: 0.9 },
+  subscriptionBalanceValue: { color: colors.forest, fontSize: 17, fontVariant: ['tabular-nums'], fontWeight: '900', marginTop: 4 },
   paymentModalBackdrop: { alignItems: 'center', backgroundColor: 'rgba(28, 39, 27, 0.6)', flex: 1, justifyContent: 'center', padding: 22 },
   paymentModalCard: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 22, borderWidth: 1, maxWidth: 460, padding: 24, width: '100%' },
   paymentModalEyebrow: { color: colors.brown, fontSize: 12, fontWeight: '900', letterSpacing: 1.2 },
