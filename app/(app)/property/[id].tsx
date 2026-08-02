@@ -120,6 +120,7 @@ export default function PropertyDetailsScreen() {
   const [loyaltyPassOffers, setLoyaltyPassOffers] = useState<LoyaltyPassOffer[]>([]);
   const [memberLoyaltyPasses, setMemberLoyaltyPasses] = useState<MemberLoyaltyPass[]>([]);
   const [selectedLoyaltyPassOfferId, setSelectedLoyaltyPassOfferId] = useState<string | null>(null);
+  const [hasChosenReservationRate, setHasChosenReservationRate] = useState(false);
   const [courtesyVisitCredits, setCourtesyVisitCredits] = useState<CourtesyVisitCredit[]>([]);
   const [selectedCourtesyCreditId, setSelectedCourtesyCreditId] = useState<string | null>(null);
   const [resolutionDiscountOffers, setResolutionDiscountOffers] = useState<ResolutionDiscountOffer[]>([]);
@@ -254,8 +255,11 @@ export default function PropertyDetailsScreen() {
       setSelectedResolutionDiscountOfferId(null);
       setMemberLoyaltyPasses([]);
       setSelectedLoyaltyPassOfferId(null);
+      setHasChosenReservationRate(false);
       return;
     }
+    setSelectedLoyaltyPassOfferId(null);
+    setHasChosenReservationRate(false);
     const activeDate = new Date().toISOString();
     void Promise.all([
       supabase.from('courtesy_visit_credits').select('id, remaining_hours, expires_at, note').eq('property_id', property.id).eq('status', 'active').gte('expires_at', activeDate),
@@ -418,6 +422,19 @@ export default function PropertyDetailsScreen() {
     selectedMemberLoyaltyPass
       && (!visitHours || Number(selectedMemberLoyaltyPass.credit_hours_remaining) >= visitHours),
   );
+  const compatiblePassOffers = loyaltyPassOffers.filter((offer) => memberLoyaltyPasses.some((pass) => (
+    pass.loyalty_pass_offer_id === offer.id
+    && pass.covered_dog_count >= Math.max(1, dogCount)
+    && (!visitHours || Number(pass.credit_hours_remaining) >= visitHours)
+  )));
+
+  // A guest who has exactly one subscription that covers this visit should not
+  // have to discover and select it manually. They can always choose the regular
+  // rate instead, but their eligible credits are the clear default.
+  useEffect(() => {
+    if (hasChosenReservationRate || selectedLoyaltyPassOfferId || selectedCourtesyCreditId || selectedResolutionDiscountOfferId) return;
+    if (compatiblePassOffers.length === 1) setSelectedLoyaltyPassOfferId(compatiblePassOffers[0].id);
+  }, [compatiblePassOffers, hasChosenReservationRate, selectedCourtesyCreditId, selectedLoyaltyPassOfferId, selectedResolutionDiscountOfferId]);
   const subscriptionDogCount = Math.max(1, dogCount);
   const oneDogPackageValue = selectedLoyaltyPassOffer && property
     ? selectedLoyaltyPassOffer.credit_count * Number(property.price_per_hour)
@@ -736,13 +753,13 @@ export default function PropertyDetailsScreen() {
           {needsGuestProfile ? <Pressable accessibilityRole="button" onPress={() => router.push(`/profile?returnTo=/property/${property.id}` as never)} style={styles.profileRequiredCard}><Text style={styles.profileRequiredTitle}>Complete your guest profile before reserving</Text><Text style={styles.profileRequiredText}>Add your private contact and dog details once, then return here to finish this reservation.</Text><Text style={styles.profileRequiredLink}>Complete guest profile →</Text></Pressable> : null}
           {property.is_temporarily_closed ? <Text style={styles.temporarilyClosedText}>This private space is temporarily closed and is not accepting new reservations.</Text> : null}
           {loyaltyPassOffers.length > 0 ? <View style={styles.loyaltyPassSection}>
-            <Text style={styles.loyaltyPassEyebrow}>OPTIONAL SUBSCRIPTION</Text>
+            <Text style={styles.loyaltyPassEyebrow}>{memberLoyaltyPasses.length ? 'YOUR ACTIVE SUBSCRIPTION' : 'OPTIONAL SUBSCRIPTION'}</Text>
             <Text style={styles.loyaltyPassTitle}>Make this your regular spot</Text>
-            <Text style={styles.loyaltyPassIntro}>This host offers discounted prepaid visit credits for guests who want to come back again.</Text>
+            <Text style={styles.loyaltyPassIntro}>{selectedPassHasEnoughCredits ? 'Your available subscription credits are selected for this visit. You can switch to the regular rate below if you prefer.' : memberLoyaltyPasses.length ? 'Choose your available subscription credits or the regular rate for this visit.' : 'This host offers discounted prepaid visit credits for guests who want to come back again.'}</Text>
             <Pressable
               accessibilityRole="radio"
               accessibilityState={{ checked: selectedLoyaltyPassOfferId === null }}
-              onPress={() => setSelectedLoyaltyPassOfferId(null)}
+              onPress={() => { setHasChosenReservationRate(true); setSelectedLoyaltyPassOfferId(null); }}
               style={[styles.loyaltyPassOffer, selectedLoyaltyPassOfferId === null && styles.loyaltyPassOfferSelected]}
             >
               <View style={styles.loyaltyPassOfferHeader}>
@@ -768,6 +785,7 @@ export default function PropertyDetailsScreen() {
                 accessibilityState={{ checked: selected }}
                 key={offer.id}
                 onPress={() => {
+                  setHasChosenReservationRate(true);
                   setSelectedLoyaltyPassOfferId(selected ? null : offer.id);
                   if (!selected) {
                     setSelectedCourtesyCreditId(null);
