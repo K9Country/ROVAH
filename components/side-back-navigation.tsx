@@ -13,16 +13,19 @@ export function SideBackNavigation() {
 
   // Dashboards are destinations, not steps in a flow. In particular, the
   // Host Dashboard intentionally has no back affordance.
-  if (isLoading || (!isMember && !isHost) || dashboardRoutes.has(routeRoot)) return null;
+  // The welcome page and dashboards are starting points. Every other screen
+  // after welcome gets the same middle-left back control, including sign-in,
+  // sign-up, and public information pages.
+  if (isLoading || pathname === '/' || pathname === '/choose-path' || dashboardRoutes.has(routeRoot)) return null;
 
-  const returnToDashboard = isHost ? '/host-dashboard' : '/dashboard';
+  const fallbackRoute = isHost ? '/host-dashboard' : isMember ? '/dashboard' : '/choose-path';
 
   const goBack = () => {
     if (router.canGoBack()) {
       router.back();
       return;
     }
-    router.replace(returnToDashboard as never);
+    router.replace(fallbackRoute as never);
   };
 
   return (

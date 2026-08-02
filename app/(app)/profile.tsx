@@ -418,8 +418,8 @@ export default function GuestProfileScreen() {
 
           <ProfileSection title="Member information">
             <View style={styles.row}>
-              <View style={styles.nameField}><Field label="First name" required error={fieldErrors.first_name} value={profile.first_name} onChangeText={(value) => updateProfile('first_name', value)} autoComplete="name" autoCapitalize="words" /></View>
-              <View style={styles.nameField}><Field label="Last name" required error={fieldErrors.last_name} value={profile.last_name} onChangeText={(value) => updateProfile('last_name', value)} autoComplete="name" autoCapitalize="words" /></View>
+              <View style={styles.nameField}><Field label="First name" required error={fieldErrors.first_name} value={profile.first_name} onChangeText={(value) => updateProfile('first_name', value)} autoComplete="given-name" autoCapitalize="words" /></View>
+              <View style={styles.nameField}><Field label="Last name" required error={fieldErrors.last_name} value={profile.last_name} onChangeText={(value) => updateProfile('last_name', value)} autoComplete="family-name" autoCapitalize="words" /></View>
             </View>
             <Field label="Email address" required error={fieldErrors.email} value={profile.email} onChangeText={(value) => updateProfile('email', value)} autoComplete="email" autoCapitalize="none" keyboardType="email-address" />
             <Field label="Phone number" required error={fieldErrors.phone} value={profile.phone} onChangeText={(value) => updateProfile('phone', formatUsPhoneNumber(value))} autoComplete="tel" keyboardType="phone-pad" maxLength={12} placeholder="248-555-1234" />
@@ -532,7 +532,7 @@ type FieldProps = {
   onChangeText: (value: string) => void;
   required?: boolean;
   placeholder?: string;
-  autoComplete?: 'name' | 'email' | 'tel' | 'street-address' | 'postal-code';
+  autoComplete?: 'given-name' | 'family-name' | 'name' | 'email' | 'tel' | 'street-address' | 'postal-code';
   autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
   keyboardType?: 'default' | 'email-address' | 'phone-pad' | 'number-pad';
   maxLength?: number;

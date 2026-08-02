@@ -42,6 +42,21 @@ function splitFullName(fullName: string) {
   return { firstName, lastName: lastNameParts.join(' ') };
 }
 
+function normalizeNameParts(firstName: string, lastName: string, fullName = '') {
+  const normalizedFirstName = firstName.trim();
+  const normalizedLastName = lastName.trim();
+
+  if (normalizedFirstName && normalizedFirstName === normalizedLastName) {
+    return splitFullName(normalizedFirstName);
+  }
+
+  if (normalizedFirstName || normalizedLastName) {
+    return { firstName: normalizedFirstName, lastName: normalizedLastName };
+  }
+
+  return splitFullName(fullName);
+}
+
 export default function HostOnboardingScreen() {
   const { isHost, isLoading: isAuthLoading, session } = useAuth();
   const [firstName, setFirstName] = useState('');
@@ -105,16 +120,18 @@ export default function HostOnboardingScreen() {
       const metadataLastName = typeof session.user.user_metadata?.last_name === 'string'
         ? session.user.user_metadata.last_name
         : '';
+      const metadataFullName = typeof session.user.user_metadata?.full_name === 'string'
+        ? session.user.user_metadata.full_name
+        : '';
       const metadataNameParts = splitFullName(
-        typeof session.user.user_metadata?.full_name === 'string'
-          ? session.user.user_metadata.full_name
-          : ''
+        metadataFullName
       );
 
       if (profile) {
-        const profileNameParts = splitFullName(profile.full_name);
-        setFirstName(profile.first_name || metadataFirstName || profileNameParts.firstName || metadataNameParts.firstName);
-        setLastName(profile.last_name || metadataLastName || profileNameParts.lastName || metadataNameParts.lastName);
+        const profileNameParts = normalizeNameParts(profile.first_name ?? '', profile.last_name ?? '', profile.full_name);
+        const normalizedMetadataName = normalizeNameParts(metadataFirstName, metadataLastName, metadataFullName);
+        setFirstName(profileNameParts.firstName || normalizedMetadataName.firstName);
+        setLastName(profileNameParts.lastName || normalizedMetadataName.lastName);
         setPhone(formatUsPhoneNumber(profile.phone ?? ''));
         setHomeAddress(profile.home_address ?? '');
         setHomeCity(profile.home_city ?? '');
@@ -129,8 +146,9 @@ export default function HostOnboardingScreen() {
         setControlsProperty(profile.controls_property);
         setAcceptsHostTerms(Boolean(profile.accepted_host_terms_at));
       } else {
-        setFirstName(metadataFirstName || metadataNameParts.firstName);
-        setLastName(metadataLastName || metadataNameParts.lastName);
+        const normalizedMetadataName = normalizeNameParts(metadataFirstName, metadataLastName, metadataFullName);
+        setFirstName(normalizedMetadataName.firstName || metadataNameParts.firstName);
+        setLastName(normalizedMetadataName.lastName || metadataNameParts.lastName);
         setPhone(formatUsPhoneNumber(typeof session.user.user_metadata?.host_phone === 'string' ? session.user.user_metadata.host_phone : ''));
         setHomeAddress(typeof session.user.user_metadata?.host_home_address === 'string' ? session.user.user_metadata.host_home_address : '');
         setHomeCity(typeof session.user.user_metadata?.host_home_city === 'string' ? session.user.user_metadata.host_home_city : '');
@@ -233,8 +251,7 @@ export default function HostOnboardingScreen() {
   };
 
   const handleContinue = async () => {
-    const normalizedFirstName = firstName.trim();
-    const normalizedLastName = lastName.trim();
+    const { firstName: normalizedFirstName, lastName: normalizedLastName } = normalizeNameParts(firstName, lastName);
     const normalizedName = `${normalizedFirstName} ${normalizedLastName}`.trim();
     const normalizedPhone = phone.trim();
     const normalizedHomeAddress = homeAddress.trim();
@@ -386,7 +403,7 @@ export default function HostOnboardingScreen() {
                   value={firstName}
                   onChangeText={(value) => { setFirstName(value); clearFieldError('firstName'); }}
                   placeholder="First name"
-                  autoComplete="name"
+                  autoComplete="given-name"
                   autoCapitalize="words"
                   error={fieldErrors.firstName}
                 />
@@ -397,7 +414,7 @@ export default function HostOnboardingScreen() {
                   value={lastName}
                   onChangeText={(value) => { setLastName(value); clearFieldError('lastName'); }}
                   placeholder="Last name"
-                  autoComplete="name"
+                  autoComplete="family-name"
                   autoCapitalize="words"
                   error={fieldErrors.lastName}
                 />
@@ -665,7 +682,7 @@ type FormFieldProps = {
   onChangeText: (value: string) => void;
   placeholder: string;
   autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
-  autoComplete?: 'name' | 'tel' | 'street-address';
+  autoComplete?: 'given-name' | 'family-name' | 'name' | 'tel' | 'street-address';
   keyboardType?: 'default' | 'phone-pad' | 'number-pad';
   maxLength?: number;
   error?: string;

@@ -1,19 +1,22 @@
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors } from '../../constants/theme';
 
 const resourceCategories = [
-  { title: 'Veterinarians', description: 'Routine care, urgent care, and trusted medical support.' },
-  { title: 'Dog Trainers', description: 'Training support for everyday skills and behavior.' },
-  { title: 'Dog Groomers', description: 'Grooming, bathing, and care to keep dogs feeling their best.' },
-  { title: 'Boarding & Daycare', description: 'Reliable care when your dog needs a place to stay or play.' },
-  { title: 'K9 Products', description: 'Dog essentials, treats, gear, and helpful must-haves.' },
+  { title: 'Veterinarians', slug: 'veterinarians', description: 'Routine care, urgent care, and trusted medical support.' },
+  { title: 'Dog Walking', slug: 'dog-walking', description: 'Professional walks and exercise support for your dog.' },
+  { title: 'Dog Trainers', slug: 'dog-trainers', description: 'Training support for everyday skills and behavior.' },
+  { title: 'Dog Groomers', slug: 'dog-groomers', description: 'Grooming, bathing, and care to keep dogs feeling their best.' },
+  { title: 'Boarding & Daycare', slug: 'boarding-daycare', description: 'Reliable care when your dog needs a place to stay or play.' },
+  { title: 'K9 Products', slug: 'k9-products', description: 'Dog essentials, treats, gear, and helpful must-haves.' },
 ];
 
 export default function EverythingDogsScreen() {
+  const router = useRouter();
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <Stack.Screen options={{ title: 'Everything Dogs' }} />
@@ -29,13 +32,21 @@ export default function EverythingDogsScreen() {
           <View style={styles.categorySection}>
             <View style={styles.categoryList}>
               {resourceCategories.map((category) => (
-                <View key={category.title} style={styles.categoryCard}>
+                <Pressable
+                  key={category.title}
+                  accessibilityRole="link"
+                  accessibilityLabel={`Open ${category.title}`}
+                  onPress={() => router.push(`/everything-dogs/${category.slug}` as never)}
+                  style={({ pressed }) => [styles.categoryCard, pressed && styles.categoryCardPressed]}
+                >
                   {category.title === 'Dog Groomers' ? (
                     <Image accessibilityLabel="Dog Groomers" contentFit="contain" source={require('../../assets/images/k9-groomers-icon.png')} style={styles.categoryImage} />
                   ) : category.title === 'Veterinarians' ? (
                     <Image accessibilityLabel="Veterinarians" contentFit="cover" source={require('../../assets/images/k9-veterinarians-icon.png')} style={styles.categoryImage} />
                   ) : category.title === 'Boarding & Daycare' ? (
                     <Image accessibilityLabel="Boarding and Daycare" contentFit="contain" source={require('../../assets/images/k9-boarding-daycare-icon.png')} style={styles.categoryImage} />
+                  ) : category.title === 'Dog Walking' ? (
+                    <Image accessibilityLabel="Dog Walking" contentFit="contain" source={require('../../assets/images/k9-everything-dogs-icon.png')} style={styles.categoryImage} />
                   ) : category.title === 'Dog Trainers' ? (
                     <Image accessibilityLabel="Dog Trainers" contentFit="contain" source={require('../../assets/images/k9-training-icon.png')} style={styles.trainingImage} />
                   ) : (
@@ -45,7 +56,7 @@ export default function EverythingDogsScreen() {
                     <Text style={styles.categoryTitle}>{category.title}</Text>
                     <Text style={styles.categoryDescription}>{category.description}</Text>
                   </View>
-                </View>
+                </Pressable>
               ))}
             </View>
 
@@ -85,13 +96,14 @@ const styles = StyleSheet.create({
   safeArea: { backgroundColor: colors.cream, flex: 1 },
   container: { paddingBottom: 40 },
   heroImage: { aspectRatio: 3 / 2, width: '100%' },
-  content: { paddingHorizontal: 20 },
+  content: { paddingHorizontal: 0 },
   categorySection: { marginTop: 0 },
-  categoryList: { gap: 10, marginTop: 8 },
-  categoryCard: { alignItems: 'center', backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 18, borderWidth: 1, flexDirection: 'row', minHeight: 94, padding: 14 },
-  categoryImage: { borderRadius: 28, height: 56, marginRight: 13, width: 56 },
-  trainingImage: { backgroundColor: colors.warmWhite, borderRadius: 28, height: 56, marginRight: 13, width: 56 },
-  k9ProductsImage: { borderRadius: 28, height: 56, marginRight: 13, width: 56 },
+  categoryList: { gap: 14, marginHorizontal: 10, marginTop: 12 },
+  categoryCard: { alignItems: 'center', backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 18, borderWidth: 1, flexDirection: 'row', minHeight: 88, paddingHorizontal: 20, paddingVertical: 10, width: '100%' },
+  categoryCardPressed: { opacity: 0.82 },
+  categoryImage: { borderRadius: 27, height: 54, marginRight: 15, width: 54 },
+  trainingImage: { backgroundColor: colors.warmWhite, borderRadius: 27, height: 54, marginRight: 15, width: 54 },
+  k9ProductsImage: { borderRadius: 27, height: 54, marginRight: 15, width: 54 },
   categoryCopy: { flex: 1 },
   categoryTitle: { color: colors.forest, fontSize: 17, fontWeight: '900' },
   categoryDescription: { color: colors.muted, fontSize: 13, lineHeight: 18, marginTop: 3 },

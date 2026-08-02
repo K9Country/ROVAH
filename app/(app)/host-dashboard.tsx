@@ -12,6 +12,15 @@ import {
     View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, {
+  cancelAnimation,
+  interpolateColor,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { UnreadMessageIcon } from '../../components/unread-message-icon';
 import { HostPageGuide } from '../../components/host-page-guide';
@@ -49,12 +58,14 @@ export default function HostDashboardScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isUploadingProfilePhoto, setIsUploadingProfilePhoto] = useState(false);
   const [hasUnreadGuestMessages, setHasUnreadGuestMessages] = useState(false);
+  const [unreadReservationPropertyIds, setUnreadReservationPropertyIds] = useState<string[]>([]);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
 
   const loadDashboard = useCallback(async () => {
     if (!session?.user.id) {
       setDashboardData({ profile: null, properties: [], total_host_earnings: 0 });
+      setUnreadReservationPropertyIds([]);
       setIsLoading(false);
       return;
     }
@@ -155,16 +166,27 @@ export default function HostDashboardScreen() {
       properties: propertiesWithBookingCounts,
       total_host_earnings: propertiesWithBookingCounts.reduce((total, property) => total + property.settled_host_earnings, 0),
     });
-    const { data: conversationData } = await supabase
-      .from('property_conversations')
-      .select('*')
-      .eq('host_id', session.user.id);
+    const [conversationResult, reservationAlertResult] = await Promise.all([
+      supabase
+        .from('property_conversations')
+        .select('*')
+        .eq('host_id', session.user.id),
+      supabase
+        .from('host_reservation_notifications')
+        .select('property_id')
+        .eq('host_id', session.user.id)
+        .is('read_at', null),
+    ]);
+    const conversationData = conversationResult.data;
     const conversations = (conversationData ?? []) as PropertyConversation[];
     const unreadIds = await getUnreadConversationIds(
       conversations,
       session.user.id
     );
     setHasUnreadGuestMessages(unreadIds.size > 0);
+    setUnreadReservationPropertyIds([
+      ...new Set((reservationAlertResult.data ?? []).map((notification) => notification.property_id)),
+    ]);
     setIsLoading(false);
   }, [session?.user.id]);
 
@@ -416,6 +438,8 @@ export default function HostDashboardScreen() {
                   icon={'\u{1F4C5}'}
                   label="Reservations"
                   detail="View upcoming visits, completed visits, and your site schedule."
+                  hasUnread={unreadReservationPropertyIds.includes(property.id)}
+                  pulseForUnread
                   onPress={() => router.push(`/host-reservations?propertyId=${property.id}&propertyName=${encodeURIComponent(property.name)}&view=upcoming` as never)}
                 />
                 <PropertyTool
@@ -712,32 +736,63 @@ function PropertyTool({
   label,
   detail,
   hasUnread = false,
+  pulseForUnread = false,
   onPress,
 }: {
   icon: string;
   label: string;
   detail: string;
   hasUnread?: boolean;
+  pulseForUnread?: boolean;
   onPress: () => void;
 }) {
+  const pulse = useSharedValue(0);
+
+  useEffect(() => {
+    cancelAnimation(pulse);
+    pulse.value = hasUnread && pulseForUnread
+      ? withRepeat(
+          withSequence(
+            withTiming(1, { duration: 700 }),
+            withTiming(0, { duration: 700 }),
+          ),
+          -1,
+          false,
+        )
+      : withTiming(0, { duration: 160 });
+
+    return () => cancelAnimation(pulse);
+  }, [hasUnread, pulse, pulseForUnread]);
+
+  const unreadCardStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(
+      pulse.value,
+      [0, 1],
+      [colors.cream, '#F7E4A8'],
+    ),
+  }));
+
   return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={onPress}
-      style={({ pressed }) => [styles.propertyTool, pressed && styles.buttonPressed]}
-    >
-      <View style={styles.propertyToolIconWrap}>
-        {label === 'Guest Messages' || label === 'Messages' ? (
-          <UnreadMessageIcon hasUnread={hasUnread} size="small" />
-        ) : (
-          <Text style={styles.propertyToolIcon}>{icon}</Text>
-        )}
-      </View>
-      <View style={styles.propertyToolCopy}>
-        <Text style={styles.propertyToolLabel}>{label}</Text>
-        <Text style={styles.propertyToolDetail}>{detail}</Text>
-      </View>
-    </Pressable>
+    <Animated.View style={[styles.propertyTool, unreadCardStyle]}>
+      <Pressable
+        accessibilityLabel={hasUnread && pulseForUnread ? 'New reservation. Open Reservations.' : label}
+        accessibilityRole="button"
+        onPress={onPress}
+        style={({ pressed }) => [styles.propertyToolPressable, pressed && styles.buttonPressed]}
+      >
+        <View style={styles.propertyToolIconWrap}>
+          {label === 'Guest Messages' || label === 'Messages' ? (
+            <UnreadMessageIcon hasUnread={hasUnread} size="small" />
+          ) : (
+            <Text style={styles.propertyToolIcon}>{icon}</Text>
+          )}
+        </View>
+        <View style={styles.propertyToolCopy}>
+          <Text style={styles.propertyToolLabel}>{label}</Text>
+          <Text style={styles.propertyToolDetail}>{detail}</Text>
+        </View>
+      </Pressable>
+    </Animated.View>
   );
 }
 
@@ -825,7 +880,8 @@ const styles = StyleSheet.create({
   growthActionDetail: { color: colors.muted, fontSize: 12, lineHeight: 17, marginTop: 2 },
   growthActionArrow: { color: colors.brown, fontSize: 23, fontWeight: '700', marginLeft: 10 },
   propertyTools: { borderTopColor: colors.border, borderTopWidth: 1, gap: 16, padding: 16 },
-  propertyTool: { alignItems: 'center', backgroundColor: colors.cream, borderColor: colors.border, borderRadius: 18, borderWidth: 1, flexDirection: 'row', minHeight: 92, paddingHorizontal: 15, paddingVertical: 14, ...shadows.card },
+  propertyTool: { backgroundColor: colors.cream, borderColor: colors.border, borderRadius: 18, borderWidth: 1, overflow: 'hidden', ...shadows.card },
+  propertyToolPressable: { alignItems: 'center', flexDirection: 'row', minHeight: 92, paddingHorizontal: 15, paddingVertical: 14 },
   propertyToolIconWrap: { alignItems: 'center', justifyContent: 'center', marginRight: 13, minHeight: 34, minWidth: 34 },
   propertyToolIcon: { fontSize: 27 },
   propertyToolCopy: { flex: 1 },

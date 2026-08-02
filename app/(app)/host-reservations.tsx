@@ -194,6 +194,17 @@ export default function HostReservationsScreen() {
     void initialize();
   }, [loadBookings]);
 
+  useEffect(() => {
+    if (!session?.user.id || !propertyId) return;
+
+    void supabase
+      .from('host_reservation_notifications')
+      .update({ read_at: new Date().toISOString() })
+      .eq('host_id', session.user.id)
+      .eq('property_id', propertyId)
+      .is('read_at', null);
+  }, [propertyId, session?.user.id]);
+
   const refresh = async () => {
     try {
       setIsRefreshing(true);

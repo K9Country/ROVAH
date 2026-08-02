@@ -397,12 +397,15 @@ export default function SignInScreen() {
             ]}
           >
             {intent === 'host' ? (
-              <Image
-                accessibilityLabel="ROVAH host communication artwork"
-                contentFit="contain"
-                source={require('../../assets/images/rovah-host-sign-in-header.png')}
-                style={styles.hostSignInHero}
-              />
+              <View style={styles.memberHeroBleed}>
+                <Image
+                  accessibilityLabel="ROVAH host with ROVAH artwork"
+                  contentFit="cover"
+                  contentPosition="top"
+                  source={require('../../assets/images/rovah-host-sign-in-header.png')}
+                  style={styles.hostEntryHero}
+                />
+              </View>
             ) : (
               <View style={styles.memberHeroBleed}>
                 <Image
@@ -415,7 +418,7 @@ export default function SignInScreen() {
              </View>
              )}
 
-            {intent === 'host' ? (
+            {false && intent === 'host' ? (
               <>
                 <Text style={styles.title}>Host sign in</Text>
                 <Text style={styles.description}>
@@ -425,7 +428,7 @@ export default function SignInScreen() {
             ) : null}
           </View>
  
-          {intent === 'host' ? <View style={styles.form}>
+          {false ? <View style={styles.form}>
             {signInError ? (
               <View accessibilityLiveRegion="polite" accessibilityRole="alert" style={styles.signInError}>
                 <Text style={styles.signInErrorText}>{signInError}</Text>
@@ -569,20 +572,22 @@ export default function SignInScreen() {
               </Pressable>
           </View> : null}
 
-          {intent !== 'host' ? (
-            <View style={styles.memberActionCards}>
+          {(
+            <View style={[styles.memberActionCards, intent === 'host' && styles.hostActionCards]}>
               <View style={styles.memberActionCard}>
                 <View style={styles.memberActionCopy}>
-                  <Text style={styles.memberActionTitle}>New Member</Text>
+                  <Text style={styles.memberActionTitle}>{intent === 'host' ? 'New Host' : 'New Member'}</Text>
                   <Text style={styles.memberActionDescription}>
-                    Create your free ROVAH account and start exploring today.
+                    {intent === 'host'
+                      ? 'Create your free host account and start sharing your private space.'
+                      : 'Create your free ROVAH account and start exploring today.'}
                   </Text>
                 </View>
                 <Pressable
-                  accessibilityHint="Opens member registration"
+                  accessibilityHint={intent === 'host' ? 'Opens host registration' : 'Opens member registration'}
                   accessibilityLabel="Join Now"
                   accessibilityRole="button"
-                  onPress={() => router.push('/sign-up?intent=member' as never)}
+                  onPress={() => router.push((intent === 'host' ? '/sign-up?intent=host' : '/sign-up?intent=member') as never)}
                   style={({ pressed }) => [styles.joinNowButton, pressed && styles.buttonPressed]}
                 >
                   <Text style={styles.joinNowButtonText}>Join Now</Text>
@@ -592,9 +597,11 @@ export default function SignInScreen() {
 
               <View style={styles.memberActionCard}>
                 <View style={styles.memberActionCopy}>
-                  <Text style={styles.memberActionTitle}>Member Sign In</Text>
+                  <Text style={styles.memberActionTitle}>{intent === 'host' ? 'Host Sign In' : 'Member Sign In'}</Text>
                   <Text style={styles.memberActionDescription}>
-                    Sign in to manage your reservations, favorites, and messages.
+                    {intent === 'host'
+                      ? 'Sign in to manage your private spaces, reservations, and guest messages.'
+                      : 'Sign in to manage your reservations, favorites, and messages.'}
                   </Text>
                 </View>
                 <Pressable
@@ -614,7 +621,16 @@ export default function SignInScreen() {
                 ) : null}
               </View>
             </View>
-          ) : null}
+          )}
+
+          <Pressable
+            accessibilityLabel="Return to welcome page"
+            accessibilityRole="button"
+            onPress={() => router.replace('/choose-path' as never)}
+            style={styles.welcomePageLink}
+          >
+            <Text style={styles.welcomePageLinkText}>ROVAH</Text>
+          </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -695,6 +711,11 @@ const styles = StyleSheet.create({
     width: '100%',
   },
 
+  hostEntryHero: {
+    aspectRatio: 0.595,
+    width: '100%',
+  },
+
   memberHeroBleed: {
     alignSelf: 'stretch',
     marginBottom: 0,
@@ -711,6 +732,23 @@ const styles = StyleSheet.create({
 
   memberActionCards: {
     gap: 10,
+  },
+
+  hostActionCards: {
+    marginTop: -155,
+  },
+
+  welcomePageLink: {
+    alignItems: 'center',
+    marginTop: 22,
+    minHeight: 32,
+  },
+
+  welcomePageLinkText: {
+    color: colors.muted,
+    fontSize: 13,
+    fontWeight: '800',
+    textDecorationLine: 'underline',
   },
 
   memberActionCard: {

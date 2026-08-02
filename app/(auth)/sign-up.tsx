@@ -52,6 +52,23 @@ function showExistingAccountMessage(intent?: string) {
 function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
+
+function normalizeNameParts(firstName: string, lastName: string) {
+  const normalizedFirstName = firstName.trim();
+  const normalizedLastName = lastName.trim();
+
+  // Some browser autofill providers can populate both split name fields with
+  // the person's complete name. Keep the saved account name correct even if
+  // that happens before the user has a chance to edit the form.
+  if (normalizedFirstName && normalizedFirstName === normalizedLastName) {
+    const [first, ...lastParts] = normalizedFirstName.split(/\s+/);
+    if (lastParts.length) {
+      return { firstName: first, lastName: lastParts.join(' ') };
+    }
+  }
+
+  return { firstName: normalizedFirstName, lastName: normalizedLastName };
+}
  
 export default function SignUpScreen() {
   const { intent, email: initialEmail } = useLocalSearchParams<{
@@ -139,8 +156,7 @@ export default function SignUpScreen() {
   };
 
   const handleSignUp = async () => {
-    const normalizedFirstName = firstName.trim();
-    const normalizedLastName = lastName.trim();
+    const { firstName: normalizedFirstName, lastName: normalizedLastName } = normalizeNameParts(firstName, lastName);
     const normalizedName = `${normalizedFirstName} ${normalizedLastName}`.trim();
     const normalizedEmail = email.trim().toLowerCase();
     const normalizedPhone = phone.trim();
@@ -371,7 +387,7 @@ export default function SignUpScreen() {
                 <TextInput
                   accessibilityLabel="First name"
                   autoCapitalize="words"
-                  autoComplete="name"
+                  autoComplete="given-name"
                   onChangeText={(value) => { setFirstName(value); setFieldErrors((current) => ({ ...current, firstName: undefined })); }}
                   placeholder="First name"
                   placeholderTextColor="#8A877D"
@@ -387,7 +403,7 @@ export default function SignUpScreen() {
                 <TextInput
                   accessibilityLabel="Last name"
                   autoCapitalize="words"
-                  autoComplete="name"
+                  autoComplete="family-name"
                   onChangeText={(value) => { setLastName(value); setFieldErrors((current) => ({ ...current, lastName: undefined })); }}
                   placeholder="Last name"
                   placeholderTextColor="#8A877D"
