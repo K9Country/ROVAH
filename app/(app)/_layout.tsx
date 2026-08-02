@@ -13,6 +13,7 @@ const hostOnlyRoutes = new Set([
   '/host-dashboard',
   '/host-analytics',
   '/host-guest-message',
+  '/host-welcome-message',
   '/host-guests',
   '/host-messages',
   '/host-payments',

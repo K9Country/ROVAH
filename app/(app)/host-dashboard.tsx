@@ -466,6 +466,12 @@ export default function HostDashboardScreen() {
                   onPress={() => router.push(`/host-messages?propertyId=${property.id}` as never)}
                 />
                 <PropertyTool
+                  icon={'\u{1F4CC}'}
+                  label="Guest Welcome Message"
+                  detail="Automatically send your saved message after a reservation is confirmed."
+                  onPress={() => router.push(`/host-welcome-message?propertyId=${property.id}&propertyName=${encodeURIComponent(property.name)}` as never)}
+                />
+                <PropertyTool
                   icon={'\u{2B50}'}
                   label="Site Reviews"
                   detail="Read guest feedback about this private space."

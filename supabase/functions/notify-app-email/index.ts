@@ -35,17 +35,19 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
 
   try {
-    const authorization = req.headers.get('Authorization');
-    if (!authorization?.startsWith('Bearer ')) return json({ error: 'Unauthorized' }, 401);
-
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
     const service = createClient(supabaseUrl, serviceRoleKey);
-    const token = authorization.slice(7);
+    const authorization = req.headers.get('Authorization');
+    const token = authorization?.startsWith('Bearer ') ? authorization.slice(7) : '';
     // Stripe's signed webhook can make this internal call after a successful
     // payment. The service-role key remains server-only and is never accepted
     // from the app browser.
-    const isTrustedServiceCall = token === serviceRoleKey;
+    const automatedMessageSecret = Deno.env.get('PAYOUT_RUNNER_SECRET') ?? '';
+    const isAutomatedReservationMessage = automatedMessageSecret.length > 0
+      && req.headers.get('x-automated-message-secret') === automatedMessageSecret;
+    const isTrustedServiceCall = token === serviceRoleKey || isAutomatedReservationMessage;
+    if (!authorization?.startsWith('Bearer ') && !isAutomatedReservationMessage) return json({ error: 'Unauthorized' }, 401);
     const { data: { user }, error: userError } = isTrustedServiceCall
       ? { data: { user: null }, error: null }
       : await service.auth.getUser(token);
@@ -117,7 +119,7 @@ Deno.serve(async (req) => {
         .select('id, sender_id, conversation_id, message_text, image_path, property_conversations(id, property_id, guest_id, host_id, properties(name))')
         .eq('id', resourceId)
         .maybeSingle();
-      if (error || !message || message.sender_id !== user.id) return json({ error: 'Message not found' }, 404);
+      if (error || !message || (!isTrustedServiceCall && message.sender_id !== user?.id)) return json({ error: 'Message not found' }, 404);
       const conversation = Array.isArray(message.property_conversations) ? message.property_conversations[0] : message.property_conversations;
       if (!conversation) return json({ error: 'Conversation not found' }, 404);
       const recipientId = message.sender_id === conversation.guest_id ? conversation.host_id : conversation.guest_id;
