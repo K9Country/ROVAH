@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -42,6 +42,8 @@ export default function SignInScreen() {
   const [isResendingVerification, setIsResendingVerification] = useState(false);
   const [signInError, setSignInError] = useState<string | null>(null);
   const [isMemberSignInExpanded, setIsMemberSignInExpanded] = useState(false);
+  const shouldPositionSignInRef = useRef(false);
+  const signInScrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     const loadRememberedEmail = async () => {
@@ -220,7 +222,20 @@ export default function SignInScreen() {
   };
 
   const handleMemberSignInToggle = () => {
-    setIsMemberSignInExpanded((current) => !current);
+    setIsMemberSignInExpanded((current) => {
+      shouldPositionSignInRef.current = !current;
+      return !current;
+    });
+  };
+
+  const positionSignInSection = (event: { nativeEvent: { layout: { y: number } } }) => {
+    if (!shouldPositionSignInRef.current) return;
+
+    shouldPositionSignInRef.current = false;
+    signInScrollRef.current?.scrollTo({
+      animated: true,
+      y: Math.max(0, event.nativeEvent.layout.y - 12),
+    });
   };
 
   const signInFormFields = (
@@ -350,6 +365,7 @@ export default function SignInScreen() {
           contentContainerStyle={styles.container}
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="always"
+          ref={signInScrollRef}
           showsVerticalScrollIndicator={false}
         >
           {false && intent === 'host' ? <Pressable
@@ -565,7 +581,10 @@ export default function SignInScreen() {
                 </Pressable>
               </View>
 
-              <View style={styles.memberActionCard}>
+              <View
+                onLayout={positionSignInSection}
+                style={styles.memberActionCard}
+              >
                 <View style={styles.memberActionCopy}>
                   <Text style={styles.memberActionTitle}>{intent === 'host' ? 'Host Sign In' : 'Member Sign In'}</Text>
                   <Text style={styles.memberActionDescription}>
