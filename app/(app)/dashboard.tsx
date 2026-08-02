@@ -632,7 +632,7 @@ const styles = StyleSheet.create({
   trustSafetyLinkText: { color: colors.muted, fontSize: 12, marginTop: 4, textAlign: 'center' },
  
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 12 },
-  subscriptionCard: { backgroundColor: colors.lightGreen, borderColor: colors.forest, borderRadius: 18, borderWidth: 1, marginTop: 12, padding: 16, ...shadows.card },
+  subscriptionCard: { backgroundColor: colors.lightGreen, borderColor: colors.forest, borderRadius: 18, borderWidth: 1, marginBottom: 12, marginTop: 12, padding: 16, ...shadows.card },
   subscriptionEyebrow: { color: colors.brown, fontSize: 11, fontWeight: '900', letterSpacing: 1.1 },
   subscriptionSite: { color: colors.forest, fontSize: 18, fontWeight: '900', marginTop: 5 },
   subscriptionCount: { color: colors.forest, fontSize: 22, fontWeight: '900', marginTop: 8 },
