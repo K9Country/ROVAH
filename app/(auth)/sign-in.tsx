@@ -239,13 +239,6 @@ export default function SignInScreen() {
     signInSectionYRef.current = event.nativeEvent.layout.y;
   };
 
-  const keepSignInSectionVisible = () => {
-    signInScrollRef.current?.scrollTo({
-      animated: false,
-      y: Math.max(0, signInSectionYRef.current - 12),
-    });
-  };
-
   const signInFormFields = (
     <>
       {signInError ? (
@@ -296,7 +289,6 @@ export default function SignInScreen() {
           accessibilityLabel="Password"
           autoCapitalize="none"
           autoComplete="current-password"
-          onFocus={keepSignInSectionVisible}
           onChangeText={(value) => {
             setPassword(value);
             setSignInError(null);
