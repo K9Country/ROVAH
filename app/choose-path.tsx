@@ -80,7 +80,12 @@ export default function ChoosePathScreen() {
   const [showLaunchIntro, setShowLaunchIntro] = useState(true);
   const launchPlayer = useVideoPlayer(require('../assets/videos/rovah-launch-intro.mp4'), (player) => {
     player.muted = true;
-    player.play();
+  });
+  useEventListener(launchPlayer, 'statusChange', ({ status }) => {
+    if (status === 'readyToPlay') {
+      launchPlayer.muted = true;
+      void launchPlayer.play();
+    }
   });
   useEventListener(launchPlayer, 'playToEnd', () => setShowLaunchIntro(false));
   useEffect(() => {
