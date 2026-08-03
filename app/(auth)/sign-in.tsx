@@ -154,13 +154,13 @@ export default function SignInScreen() {
       const requestedAccountType = intent === 'host' ? 'host' : 'member';
 
       if (!accountType) {
-        await supabase.auth.signOut();
+        await supabase.auth.signOut({ scope: 'local' });
         showSignInError('We could not identify this account type. Please contact ROVAH support.');
         return;
       }
 
       if (accountType !== requestedAccountType) {
-        await supabase.auth.signOut();
+        await supabase.auth.signOut({ scope: 'local' });
         showSignInError(
           accountType === 'host'
             ? 'This email is registered as a Host account. Please use the Host Sign In page.'

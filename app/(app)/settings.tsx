@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../../constants/theme';
 import { memberUi } from '../../constants/member-ui';
 import { HostPageGuide } from '../../components/host-page-guide';
+import { clearExplicitMemberSignOut, markExplicitMemberSignOut } from '../../lib/member-entry';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../services/auth-context';
 
@@ -24,6 +25,7 @@ export default function SettingsScreen() {
   const [preferences, setPreferences] = useState<Preferences>(defaults);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSigningOutEverywhere, setIsSigningOutEverywhere] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -51,6 +53,35 @@ export default function SettingsScreen() {
     }
   };
 
+  const signOutOfAllDevices = () => {
+    Alert.alert(
+      'Sign out of all devices?',
+      'This signs you out of ROVAH on this device and every other phone, tablet, and browser where this account is signed in.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign out everywhere',
+          style: 'destructive',
+          onPress: () => void (async () => {
+            try {
+              setIsSigningOutEverywhere(true);
+              await markExplicitMemberSignOut();
+              const { error } = await supabase.auth.signOut({ scope: 'global' });
+              if (error) throw error;
+              router.dismissAll();
+              router.replace('/choose-path');
+            } catch (error) {
+              await clearExplicitMemberSignOut();
+              Alert.alert('Unable to sign out everywhere', error instanceof Error ? error.message : 'Please try again.');
+            } finally {
+              setIsSigningOutEverywhere(false);
+            }
+          })(),
+        },
+      ]
+    );
+  };
+
   return <SafeAreaView style={styles.safeArea}><ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
     <Text style={[styles.title, memberUi.pageTitle]}>Settings & Privacy</Text>
     <Text style={[styles.description, memberUi.pageDescription]}>Choose the updates you want from ROVAH. Delivery channels are enabled as the service is configured.</Text>
@@ -66,6 +97,7 @@ export default function SettingsScreen() {
       <Pressable onPress={() => router.push('/support' as never)} style={styles.linkRow}><Text style={styles.linkText}>Help, support, and report an issue</Text><Text style={styles.chevron}>›</Text></Pressable>
       <Pressable onPress={() => router.push('/legal' as never)} style={styles.linkRow}><Text style={styles.linkText}>Legal Library</Text><Text style={styles.chevron}>›</Text></Pressable>
     </View>
+    <View style={styles.section}><Text style={styles.sectionTitle}>Account security</Text><Pressable accessibilityRole="button" disabled={isSigningOutEverywhere} onPress={signOutOfAllDevices} style={styles.linkRow}><View><Text style={styles.linkText}>Sign out of all devices</Text><Text style={styles.rowDetail}>Use this if a phone, tablet, or browser may no longer be secure</Text></View>{isSigningOutEverywhere ? <ActivityIndicator color={colors.brown} /> : <Text style={styles.chevron}>{'\u203A'}</Text>}</Pressable></View>
     <View style={styles.section}><Text style={styles.sectionTitle}>Account</Text><Pressable onPress={() => router.push('/delete-account' as never)} style={styles.linkRow}><View><Text style={styles.deleteText}>Delete my ROVAH account</Text><Text style={styles.rowDetail}>Request permanent removal of your account and personal data</Text></View><Text style={styles.chevron}>{'\u203A'}</Text></Pressable></View>
     <HostPageGuide
       title="How to use Settings & Privacy"
@@ -75,6 +107,7 @@ export default function SettingsScreen() {
         { title: 'Choose reservation updates', text: 'Keep Reservation updates on if you want confirmation, change, and cancellation notices.' },
         { title: 'Choose message updates', text: 'Keep Message updates on to receive notices when a host sends you a new message.' },
         { title: 'Use privacy and help links', text: 'Open Help for support or reporting, and Legal Library for the current terms, privacy, safety, pricing, and marketplace policies.' },
+        { title: 'Secure a lost device', text: 'Use Sign out of all devices if a phone, tablet, or browser may no longer be secure. You can then sign in again only on devices you trust.' },
         { title: 'Delete an account', text: 'Use Delete my ROVAH account only when you want to permanently request removal of your account and personal data.' },
       ]}
     />

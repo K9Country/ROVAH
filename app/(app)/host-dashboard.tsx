@@ -235,7 +235,7 @@ export default function HostDashboardScreen() {
     try {
       setIsSigningOut(true);
 
-      const { error } = await supabase.auth.signOut();
+      const { error } = await supabase.auth.signOut({ scope: 'local' });
       if (error) {
         Alert.alert('Unable to sign out', error.message);
         return;
@@ -251,6 +251,33 @@ export default function HostDashboardScreen() {
     } finally {
       setIsSigningOut(false);
     }
+  };
+
+  const handleSignOutAllDevices = () => {
+    Alert.alert(
+      'Sign out of all devices?',
+      'This signs you out of ROVAH on this device and every other phone, tablet, and browser where this account is signed in.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign out everywhere',
+          style: 'destructive',
+          onPress: () => void (async () => {
+            try {
+              setIsSigningOut(true);
+              const { error } = await supabase.auth.signOut({ scope: 'global' });
+              if (error) throw error;
+              router.dismissAll();
+              router.replace('/choose-path');
+            } catch (error) {
+              Alert.alert('Unable to sign out everywhere', error instanceof Error ? error.message : 'Please try again.');
+            } finally {
+              setIsSigningOut(false);
+            }
+          })(),
+        },
+      ]
+    );
   };
 
   const uploadProfilePhoto = async () => {
@@ -708,6 +735,18 @@ export default function HostDashboardScreen() {
               <Text style={styles.signOutButtonText}>Sign Out</Text>
             )}
           </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            disabled={isSigningOut}
+            onPress={handleSignOutAllDevices}
+            style={({ pressed }) => [
+              styles.signOutEverywhereButton,
+              pressed && styles.buttonPressed,
+              isSigningOut && styles.buttonDisabled,
+            ]}
+          >
+            <Text style={styles.signOutEverywhereText}>Sign Out of All Devices</Text>
+          </Pressable>
         </View>
 
         <Pressable
@@ -975,4 +1014,6 @@ const styles = StyleSheet.create({
   accountEmail: { color: colors.forest, fontSize: 14, marginTop: 5, marginBottom: 12 },
   signOutButton: { alignItems: 'center', justifyContent: 'center', borderColor: colors.brown, borderRadius: 12, borderWidth: 1, minHeight: 46, minWidth: 130, paddingHorizontal: 22 },
   signOutButtonText: { color: colors.brown, fontSize: 15, fontWeight: '800' },
+  signOutEverywhereButton: { alignItems: 'center', justifyContent: 'center', marginTop: 10, minHeight: 42, paddingHorizontal: 12 },
+  signOutEverywhereText: { color: colors.muted, fontSize: 13, fontWeight: '800', textDecorationLine: 'underline' },
 });

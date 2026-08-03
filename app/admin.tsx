@@ -206,7 +206,7 @@ export default function AdministratorScreen() {
     // A signed-in member or host must sign out before choosing the authorized
     // administrator account. This keeps the administrator area protected.
     if (session) {
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: 'local' });
     }
     router.replace('/admin-sign-in' as never);
   };

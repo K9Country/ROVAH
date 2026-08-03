@@ -60,14 +60,14 @@ export default function AppLayout() {
     }
 
     if (needsHostAccess && !isHost) {
-      void supabase.auth.signOut();
+      void supabase.auth.signOut({ scope: 'local' });
       router.dismissAll();
       router.replace('/sign-in?intent=host&notice=member' as never);
       return;
     }
 
     if (needsMemberAccess && isHost) {
-      void supabase.auth.signOut();
+      void supabase.auth.signOut({ scope: 'local' });
       router.dismissAll();
       router.replace('/sign-in?notice=host' as never);
     }
