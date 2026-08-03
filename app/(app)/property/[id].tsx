@@ -1,4 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
+import { Image as ExpoImage } from 'expo-image';
 import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -198,9 +199,18 @@ export default function PropertyDetailsScreen() {
     }
 
     const imageRows = (imagesResult.data ?? []) as PropertyImage[];
-    const imagesWithUrls = await Promise.all(imageRows.map(async (image) => {
-      const { data } = await supabase.storage.from('property-images').createSignedUrl(image.storage_path, 60 * 60);
-      return { ...image, signed_url: data?.signedUrl };
+    const imagePaths = imageRows.map((image) => image.storage_path);
+    const { data: signedImages } = imagePaths.length
+      ? await supabase.storage.from('property-images').createSignedUrls(imagePaths, 60 * 60)
+      : { data: [] as { path: string; signedUrl: string }[] };
+    const imageUrlsByPath = new Map(
+      (signedImages ?? []).flatMap((image) =>
+        image.path && image.signedUrl ? [[image.path, image.signedUrl] as const] : []
+      )
+    );
+    const imagesWithUrls = imageRows.map((image) => ({
+      ...image,
+      signed_url: imageUrlsByPath.get(image.storage_path),
     }));
 
     setProperty(propertyResult.data as Property | null);
@@ -697,8 +707,8 @@ export default function PropertyDetailsScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        {coverImage?.signed_url ? <Image source={{ uri: coverImage.signed_url }} style={styles.coverImage} /> : <View style={styles.coverPlaceholder}><Text style={styles.coverPlaceholderText}>Property photo</Text></View>}
-        {images.length > 1 ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photoStrip}>{images.map((image, index) => image.signed_url ? <Pressable accessibilityLabel={`Show property photo ${index + 1}`} accessibilityRole="button" key={image.id} onPress={() => setSelectedImageId(image.id)} style={[styles.thumbnailButton, image.id === coverImage?.id && styles.thumbnailButtonSelected]}><Image source={{ uri: image.signed_url }} style={styles.thumbnail} /></Pressable> : null)}</ScrollView> : null}
+        {coverImage?.signed_url ? <ExpoImage cachePolicy="memory-disk" contentFit="cover" priority="high" source={{ uri: coverImage.signed_url }} style={styles.coverImage} transition={150} /> : <View style={styles.coverPlaceholder}><Text style={styles.coverPlaceholderText}>Property photo</Text></View>}
+        {images.length > 1 ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photoStrip}>{images.map((image, index) => image.signed_url ? <Pressable accessibilityLabel={`Show property photo ${index + 1}`} accessibilityRole="button" key={image.id} onPress={() => setSelectedImageId(image.id)} style={[styles.thumbnailButton, image.id === coverImage?.id && styles.thumbnailButtonSelected]}><ExpoImage cachePolicy="memory-disk" contentFit="cover" priority="low" source={{ uri: image.signed_url }} style={styles.thumbnail} transition={100} /></Pressable> : null)}</ScrollView> : null}
         <Text style={styles.title}>{property.name}</Text><Text style={styles.location}>{location}</Text>
         <View style={styles.listingSummary}>
           <ListingSummaryRow label="Guest Rating" value={siteRating === null ? 'No guest ratings yet' : `★ ${siteRating.toFixed(1)} / 5`} />

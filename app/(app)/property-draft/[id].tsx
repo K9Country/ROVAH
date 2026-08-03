@@ -1,12 +1,12 @@
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
+import { Image as ExpoImage } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
     BackHandler,
-    Image,
     KeyboardAvoidingView,
     Modal,
     Platform,
@@ -249,14 +249,19 @@ export default function PropertyDraftScreen() {
     );
 
     const imageRows = (imagesResult.data ?? []) as PropertyImage[];
-    const imagesWithUrls = await Promise.all(
-      imageRows.map(async (image) => {
-        const { data } = await supabase.storage
-          .from('property-images')
-          .createSignedUrl(image.storage_path, 60 * 60);
-        return { ...image, signed_url: data?.signedUrl };
-      })
+    const imagePaths = imageRows.map((image) => image.storage_path);
+    const { data: signedImages } = imagePaths.length
+      ? await supabase.storage.from('property-images').createSignedUrls(imagePaths, 60 * 60)
+      : { data: [] as { path: string; signedUrl: string }[] };
+    const imageUrlsByPath = new Map(
+      (signedImages ?? []).flatMap((image) =>
+        image.path && image.signedUrl ? [[image.path, image.signedUrl] as const] : []
+      )
     );
+    const imagesWithUrls = imageRows.map((image) => ({
+      ...image,
+      signed_url: imageUrlsByPath.get(image.storage_path),
+    }));
     setImages(imagesWithUrls);
     setHasUnsavedChanges(false);
     setIsLoading(false);
@@ -893,7 +898,7 @@ export default function PropertyDraftScreen() {
               {images.map((image) => (
                 <View key={image.id} style={styles.imageTile}>
                   <View style={styles.photoPreview}>
-                    {image.signed_url ? <Image source={{ uri: image.signed_url }} style={styles.image} /> : <View style={styles.imageFallback}><Text>Photo</Text></View>}
+                    {image.signed_url ? <ExpoImage cachePolicy="memory-disk" contentFit="cover" priority="low" source={{ uri: image.signed_url }} style={styles.image} transition={100} /> : <View style={styles.imageFallback}><Text>Photo</Text></View>}
                   </View>
 
                   <View style={styles.photoActions}>

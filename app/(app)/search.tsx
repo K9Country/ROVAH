@@ -1,4 +1,5 @@
 import * as Location from 'expo-location';
+import { Image as ExpoImage } from 'expo-image';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -240,15 +241,20 @@ export default function SearchScreen() {
       favoriteResult.error ? [] : (favoriteResult.data ?? []).map((favorite) => favorite.property_id)
     );
 
-    const imagesWithUrls = await Promise.all(
-      ((imageResult.error ? [] : imageResult.data ?? []) as DiscoverImage[]).map(async (image) => {
-        const { data: signedImage } = await supabase.storage
-          .from('property-images')
-          .createSignedUrl(image.storage_path, 60 * 60);
-
-        return { ...image, signed_url: signedImage?.signedUrl };
-      })
+    const imageRows = (imageResult.error ? [] : imageResult.data ?? []) as DiscoverImage[];
+    const imagePaths = imageRows.map((image) => image.storage_path);
+    const { data: signedImages } = imagePaths.length
+      ? await supabase.storage.from('property-images').createSignedUrls(imagePaths, 60 * 60)
+      : { data: [] as { path: string; signedUrl: string }[] };
+    const imageUrlsByPath = new Map(
+      (signedImages ?? []).flatMap((image) =>
+        image.path && image.signedUrl ? [[image.path, image.signedUrl] as const] : []
+      )
     );
+    const imagesWithUrls = imageRows.map((image) => ({
+      ...image,
+      signed_url: imageUrlsByPath.get(image.storage_path),
+    }));
 
     const promotionRows = (promotionResult.error
       ? []
@@ -545,10 +551,14 @@ export default function SearchScreen() {
           style={({ pressed }) => pressed && styles.cardPressed}
         >
         {selectedImageUrl ? (
-          <Image
+          <ExpoImage
             accessibilityLabel={`${item.name} selected property photo`}
+            cachePolicy="memory-disk"
+            contentFit="cover"
+            priority="high"
             source={{ uri: selectedImageUrl }}
             style={styles.propertyImage}
+            transition={150}
           />
         ) : (
           <View style={styles.imagePlaceholder}>
@@ -619,7 +629,14 @@ export default function SearchScreen() {
                   ]}
                 >
                   {image.signed_url ? (
-                    <Image source={{ uri: image.signed_url }} style={styles.thumbnailImage} />
+                    <ExpoImage
+                      cachePolicy="memory-disk"
+                      contentFit="cover"
+                      priority="low"
+                      source={{ uri: image.signed_url }}
+                      style={styles.thumbnailImage}
+                      transition={100}
+                    />
                   ) : (
                     <View style={styles.thumbnailPlaceholder} />
                   )}
