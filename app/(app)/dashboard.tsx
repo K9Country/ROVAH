@@ -518,7 +518,7 @@ export default function DashboardScreen() {
                   accessibilityLabel="A saved memory from a ROVAH visit"
                   allowDownscaling
                   cachePolicy="memory-disk"
-                  contentFit="cover"
+                  contentFit="contain"
                   source={{ uri: memories[activeMemoryIndex].url }}
                   style={styles.memoryImage}
                   transition={300}
