@@ -383,6 +383,13 @@ export default function DashboardScreen() {
                       size="small"
                       style={styles.actionMessageIcon}
                     />
+                  ) : action.title === 'Followed Sites' ? (
+                    <Image
+                      accessibilityLabel="Followed Sites"
+                      resizeMode="contain"
+                      source={require('../../assets/images/member-followed-sites-icon.png')}
+                      style={styles.followedSitesImage}
+                    />
                   ) : action.title === 'Dog Profiles' ? (
                     <Image
                       accessibilityLabel="Dog Profiles"
@@ -689,6 +696,7 @@ const styles = StyleSheet.create({
     height: 32,
     width: 32,
   },
+  followedSitesImage: { height: 32, width: 32 },
   everythingDogsImage: { height: 44, width: 72 },
   favoriteActionIcon: {
     color: colors.red,
