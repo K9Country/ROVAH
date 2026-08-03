@@ -375,7 +375,7 @@ export default function DashboardScreen() {
               ]}
             >
               <View style={styles.actionStack}>
-                <View style={styles.actionIconSlot}>
+                <View style={[styles.actionIconSlot, action.title === 'Everything Dogs' && styles.everythingDogsIconSlot]}>
                   {action.title === 'Messages' ? (
                     <UnreadMessageIcon
                       hasUnread={hasUnreadMessages}
@@ -403,7 +403,14 @@ export default function DashboardScreen() {
 
                 <View style={styles.actionCopy}>
                   <Text style={styles.actionTitle}>{action.title}</Text>
-                  <Text style={styles.actionDescription}>{action.description}</Text>
+                  <Text
+                    numberOfLines={action.title === 'Everything Dogs' ? 2 : undefined}
+                    adjustsFontSizeToFit={action.title === 'Everything Dogs'}
+                    minimumFontScale={0.8}
+                    style={[styles.actionDescription, action.title === 'Everything Dogs' && styles.everythingDogsActionDescription]}
+                  >
+                    {action.description}
+                  </Text>
                 </View>
               </View>
             </Pressable>
@@ -670,7 +677,7 @@ const styles = StyleSheet.create({
     ...shadows.card,
     justifyContent: 'center',
   },
-  everythingDogsActionCard: { backgroundColor: colors.lightGreen },
+  everythingDogsActionCard: { backgroundColor: colors.warmWhite },
 
   actionIcon: {
     fontSize: 28,
@@ -681,7 +688,7 @@ const styles = StyleSheet.create({
     height: 32,
     width: 32,
   },
-  everythingDogsImage: { height: 40, width: 64 },
+  everythingDogsImage: { height: 44, width: 72 },
   favoriteActionIcon: {
     color: colors.red,
   },
@@ -689,11 +696,13 @@ const styles = StyleSheet.create({
   actionMessageIcon: {},
   actionStack: { width: '100%' },
   actionIconSlot: { alignItems: 'flex-start', height: 32, justifyContent: 'flex-start', marginBottom: 6, width: 32 },
+  everythingDogsIconSlot: { height: 44, marginBottom: 4, width: 72 },
   actionCopy: { width: '100%' },
  
   actionTitle: { ...memberUi.cardTitle, marginBottom: 0 },
  
   actionDescription: { ...memberUi.cardDescription, minHeight: 40 },
+  everythingDogsActionDescription: { fontSize: 11, lineHeight: 14, marginTop: 3, minHeight: 28 },
  
   cardPressed: {
     opacity: 0.75,
