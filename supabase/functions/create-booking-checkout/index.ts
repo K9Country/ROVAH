@@ -226,7 +226,7 @@ Deno.serve(async (req) => {
         // off-session later.
         payment_method_types: ['card'],
         metadata: { booking_id: booking.id, payment_flow: 'scheduled_card' },
-        setup_intent_data: { metadata: { booking_id: booking.id }, usage: 'off_session' },
+        setup_intent_data: { metadata: { booking_id: booking.id } },
         success_url: `${appUrl}/reservations?payment=success&session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${appUrl}/property/${propertyId}?payment=cancelled`,
         expires_at: expiresAt,
