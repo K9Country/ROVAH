@@ -404,10 +404,10 @@ export default function DashboardScreen() {
                 <View style={styles.actionCopy}>
                   <Text style={styles.actionTitle}>{action.title}</Text>
                   <Text
-                    numberOfLines={action.title === 'Everything Dogs' ? 2 : undefined}
-                    adjustsFontSizeToFit={action.title === 'Everything Dogs'}
+                    numberOfLines={2}
+                    adjustsFontSizeToFit
                     minimumFontScale={0.8}
-                    style={[styles.actionDescription, action.title === 'Everything Dogs' && styles.everythingDogsActionDescription]}
+                    style={styles.actionDescription}
                   >
                     {action.description}
                   </Text>
@@ -701,8 +701,7 @@ const styles = StyleSheet.create({
  
   actionTitle: { ...memberUi.cardTitle, marginBottom: 0 },
  
-  actionDescription: { ...memberUi.cardDescription, minHeight: 40 },
-  everythingDogsActionDescription: { fontSize: 11, lineHeight: 14, marginTop: 3, minHeight: 28 },
+  actionDescription: { ...memberUi.cardDescription, fontSize: 11, lineHeight: 14, marginTop: 3, minHeight: 28 },
  
   cardPressed: {
     opacity: 0.75,
