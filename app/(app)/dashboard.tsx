@@ -404,6 +404,13 @@ export default function DashboardScreen() {
                       source={require('../../assets/images/member-parent-profile-icon.png')}
                       style={styles.parentProfileImage}
                     />
+                  ) : action.title === 'My Reservations' ? (
+                    <Image
+                      accessibilityLabel="My Reservations"
+                      resizeMode="contain"
+                      source={require('../../assets/images/member-reservations-icon.png')}
+                      style={styles.reservationsImage}
+                    />
                   ) : action.title === 'Everything Dogs' ? (
                     <Image
                       accessibilityLabel="Everything Dogs"
@@ -704,6 +711,7 @@ const styles = StyleSheet.create({
     width: 32,
   },
   parentProfileImage: { height: 32, width: 32 },
+  reservationsImage: { height: 32, width: 32 },
   followedSitesImage: { height: 32, width: 32 },
   everythingDogsImage: { height: 44, width: 72 },
   favoriteActionIcon: {
