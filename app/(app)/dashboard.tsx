@@ -740,7 +740,7 @@ const styles = StyleSheet.create({
   cameraIcon: { borderColor: colors.gold, borderRadius: 4, borderWidth: 1.8, height: 16, justifyContent: 'center', position: 'relative', width: 22 },
   cameraIconTop: { backgroundColor: colors.gold, borderTopLeftRadius: 2, borderTopRightRadius: 2, height: 3, left: 4, position: 'absolute', top: -5, width: 8 },
   cameraIconLens: { alignSelf: 'center', borderColor: '#F0B56F', borderRadius: 5, borderWidth: 1.6, height: 9, width: 9 },
-  memoryCarousel: { backgroundColor: colors.lightGreen, borderRadius: 13, height: 220, overflow: 'hidden', position: 'relative', width: '100%' },
+  memoryCarousel: { backgroundColor: '#FFFFFF', borderColor: colors.forest, borderRadius: 13, borderWidth: 1, height: 220, overflow: 'hidden', position: 'relative', width: '100%' },
   memoryImage: { height: '100%', width: '100%' },
   memoryCounter: { backgroundColor: 'rgba(25, 55, 31, 0.78)', borderRadius: 12, bottom: 10, paddingHorizontal: 9, paddingVertical: 4, position: 'absolute', right: 10 },
   memoryCounterText: { color: colors.warmWhite, fontSize: 12, fontWeight: '900' },
