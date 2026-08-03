@@ -214,7 +214,7 @@ export default function HostReservationsScreen() {
   };
 
   const activeBookings = useMemo(() => bookings.filter((booking) => booking.status === 'confirmed' && new Date(booking.start_at) <= currentTime && new Date(booking.end_at) > currentTime), [bookings, currentTime]);
-  const upcoming = useMemo(() => bookings.filter((booking) => (booking.status === 'confirmed' || booking.status === 'payment_pending') && new Date(booking.start_at) > currentTime), [bookings, currentTime]);
+  const upcoming = useMemo(() => bookings.filter((booking) => booking.status === 'confirmed' && new Date(booking.start_at) > currentTime), [bookings, currentTime]);
   const past = useMemo(() => bookings.filter((booking) => booking.status === 'confirmed' && new Date(booking.end_at) <= currentTime).sort((a, b) => +new Date(b.start_at) - +new Date(a.start_at)), [bookings, currentTime]);
   const cancelled = useMemo(() => bookings.filter((booking) => booking.status === 'cancelled').sort((a, b) => +new Date(b.start_at) - +new Date(a.start_at)), [bookings]);
   const currentBookings = activeView === 'upcoming' ? upcoming : activeView === 'past' ? past : cancelled;
@@ -319,7 +319,7 @@ export default function HostReservationsScreen() {
     const dogs = bookingDogs[booking.id] ?? [];
     const subscriptionCreditsRemaining = subscriptionCredits[booking.id];
     const isActive = booking.status === 'confirmed' && new Date(booking.start_at) <= currentTime && new Date(booking.end_at) > currentTime;
-    const canCancel = (booking.status === 'confirmed' || booking.status === 'payment_pending') && new Date(booking.start_at).getTime() - currentTime.getTime() >= 60 * 60 * 1000;
+    const canCancel = booking.status === 'confirmed' && new Date(booking.start_at).getTime() - currentTime.getTime() >= 60 * 60 * 1000;
     return (
       <View key={booking.id} style={[styles.bookingCard, isActive && styles.activeBookingCard]}>
         <View style={styles.bookingHeader}>

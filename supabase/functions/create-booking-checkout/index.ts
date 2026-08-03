@@ -59,18 +59,15 @@ Deno.serve(async (req) => {
       return json({ error: 'Reservation details are incomplete' }, 400);
     }
 
-    // Card authorizations are time-limited by the card networks. Visits inside
-    // that window use an authorization hold; future visits use Checkout's
-    // secure card-saving flow and are charged one hour before the visit.
+    // Every standard-rate visit uses Stripe's secure card-saving flow. This
+    // avoids time-limited card authorizations and lets ROVAH make the agreed
+    // off-session charge exactly one hour before the visit.
     const visitStart = new Date(startAt);
-    const latestSecureBookingStart = Date.now() + 6 * 24 * 60 * 60 * 1000;
     if (Number.isNaN(visitStart.getTime())) return json({ error: 'Choose a valid visit time' }, 400);
     // A subscription is a prepaid package: its credits can be used whenever
     // the member visits, so the entire package must be captured at checkout.
-    // Only regular reservations scheduled beyond the authorization window save
-    // a card for the later, one-hour-before-visit charge.
     const isSubscriptionPurchase = Boolean(loyaltyPassOfferId);
-    const needsScheduledCard = !isSubscriptionPurchase && visitStart.getTime() > latestSecureBookingStart;
+    const needsScheduledCard = !isSubscriptionPurchase;
 
     const adminClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -158,6 +155,10 @@ Deno.serve(async (req) => {
     const { error: holdError } = await adminClient
       .from('bookings')
       .update({
+        // Until Stripe confirms a card setup or a subscription payment, this
+        // is only a short checkout hold. It is not a confirmed reservation and
+        // is intentionally hidden from the host and guest reservation lists.
+        status: 'payment_pending',
         payment_status: 'processing',
         payment_provider: isSubscriptionPurchase ? 'loyalty_pass_purchase' : 'stripe',
         // The member confirms this charge flow by selecting Confirm
@@ -225,13 +226,11 @@ Deno.serve(async (req) => {
         // off-session later.
         payment_method_types: ['card'],
         metadata: { booking_id: booking.id, payment_flow: 'scheduled_card' },
-        setup_intent_data: {
-          metadata: { booking_id: booking.id },
-        },
+        setup_intent_data: { metadata: { booking_id: booking.id }, usage: 'off_session' },
         success_url: `${appUrl}/reservations?payment=success&session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${appUrl}/property/${propertyId}?payment=cancelled`,
         expires_at: expiresAt,
-      })
+      }, { idempotencyKey: `rovah-booking-checkout-${booking.id}` })
       : await stripe.checkout.sessions.create({
         mode: 'payment',
         customer_email: user.email ?? undefined,

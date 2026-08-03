@@ -109,7 +109,7 @@ function datesInCalendarMonth(month: Date) {
 }
 
 export default function PropertyDetailsScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, payment } = useLocalSearchParams<{ id: string; payment?: string }>();
   const { isMember, session } = useAuth();
   const [property, setProperty] = useState<Property | null>(null);
   const [details, setDetails] = useState<PropertyDraftDetails>(emptyDetails);
@@ -155,6 +155,12 @@ export default function PropertyDetailsScreen() {
     const refreshCurrentTime = setInterval(() => setCurrentTime(new Date()), 30_000);
     return () => clearInterval(refreshCurrentTime);
   }, []);
+
+  useEffect(() => {
+    if (payment === 'cancelled') {
+      setReservationError('Card entry is required to confirm this reservation. No reservation was created and no payment was collected.');
+    }
+  }, [payment]);
 
   useEffect(() => {
     if (startTime && startTime.getTime() <= currentTime.getTime()) {
@@ -857,7 +863,7 @@ export default function PropertyDetailsScreen() {
           <View style={styles.estimateRow}><Text style={styles.estimateLabel}>{selectedCourtesyCreditId ? 'Courtesy Waiver total' : selectedLoyaltyPassOffer ? selectedPassHasEnoughCredits ? 'Subscription Reservation — included' : 'Subscription Reservation total' : selectedResolutionDiscount ? 'Special Discount total' : 'Rental Fee'}</Text><View style={styles.estimateAmounts}>{selectedResolutionDiscount && !selectedCourtesyCreditId && !selectedLoyaltyPassOffer ? <Text style={styles.estimateOriginalValue}>${estimatedTotal.toFixed(2)}</Text> : null}<Text style={styles.estimateValue}>{`$${reservationTotal.toFixed(2)}`}</Text></View></View>
           {reservationError ? <View accessibilityRole="alert" style={styles.reservationError}><Text style={styles.reservationErrorText}>{reservationError}</Text></View> : null}
             <Pressable disabled={property.is_temporarily_closed || isBooking || isDogProfilesLoading || subscriptionDurationUnsupported || courtesyVisitRequiresOneHour} onPress={reserveSpace} style={[styles.bookingButton, (property.is_temporarily_closed || isBooking || isDogProfilesLoading || subscriptionDurationUnsupported || courtesyVisitRequiresOneHour) && styles.buttonDisabled]}>{isBooking ? <ActivityIndicator color={colors.warmWhite} /> : <Text style={styles.bookingButtonText}>{courtesyVisitRequiresOneHour ? 'Choose a one-hour visit to continue' : !bookingDate ? 'Choose a date to continue' : !startTime ? 'Choose a start time to continue' : !endTime ? 'Choose an end time to continue' : !selectedDogIds.length ? 'Select attending dogs to continue' : selectedLoyaltyPassOffer && !selectedPassHasEnoughCredits ? 'Buy Subscription & Confirm' : 'Confirm Reservation'}</Text>}</Pressable>
-          {!selectedCourtesyCreditId && reservationTotal > 0 ? <Text style={styles.paymentConsentText}>{selectedLoyaltyPassOffer ? 'By confirming, you authorize ROVAH to charge the full displayed subscription price now. It includes every dog selected above, and the credits are available after payment succeeds. Subscription purchases are not refundable.' : 'For a standard-rate visit, ROVAH collects payment one hour before the visit begins. Cancel in My Reservations before that cutoff: ROVAH records the cancellation, no charge is collected, and no refund is needed.'}</Text> : null}
+          {!selectedCourtesyCreditId && reservationTotal > 0 ? <Text style={styles.paymentConsentText}>{selectedLoyaltyPassOffer ? 'By confirming, you authorize ROVAH to charge the full displayed subscription price now. It includes every dog selected above, and the credits are available after payment succeeds. Subscription purchases are not refundable.' : 'Continue to secure card entry to confirm this visit. ROVAH does not charge the card today; it charges one hour before the visit begins. Cancel in My Reservations before that cutoff: no charge is collected and no refund is needed.'}</Text> : null}
           <HostPageGuide
             title="How to reserve this private space"
             intro="Review the site, choose an available time, select your dogs, and confirm the reservation."

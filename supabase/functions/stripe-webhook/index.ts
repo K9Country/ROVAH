@@ -156,8 +156,9 @@ Deno.serve(async (req) => {
         const { error } = await admin.from('bookings').update({
           status: 'cancelled',
           payment_status: event.type === 'checkout.session.expired' ? 'cancelled' : 'failed',
+          payment_released_at: new Date().toISOString(),
           payment_updated_at: new Date().toISOString(),
-        }).eq('id', bookingId).eq('status', 'payment_pending');
+        }).eq('id', bookingId).eq('status', 'payment_pending').eq('payment_status', 'processing');
         if (error) throw error;
         await cancelPendingLoyaltyPass(admin, bookingId);
       }

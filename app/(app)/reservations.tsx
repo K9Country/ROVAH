@@ -287,8 +287,7 @@ export default function ReservationsScreen() {
     () =>
       bookings.filter(
         (booking) =>
-          booking.status === 'payment_pending' ||
-          (booking.status === 'confirmed' && new Date(booking.start_at).getTime() > currentTime)
+          booking.status === 'confirmed' && new Date(booking.start_at).getTime() > currentTime
       ),
     [bookings, currentTime]
   );
@@ -326,7 +325,7 @@ export default function ReservationsScreen() {
   };
 
   const canCancel = (booking: GuestBooking) =>
-    (booking.status === 'confirmed' || booking.status === 'payment_pending') &&
+    booking.status === 'confirmed' &&
     new Date(booking.start_at).getTime() - currentTime >= cancellationWindowMs;
 
   const cancelBooking = async (booking: GuestBooking) => {
@@ -396,7 +395,7 @@ export default function ReservationsScreen() {
                   : styles.confirmedStatusText,
               ]}
             >
-              {booking.status === 'cancelled' ? 'Cancelled' : booking.status === 'payment_pending' ? 'Payment pending' : isStarted ? 'Started' : 'Confirmed'}
+              {booking.status === 'cancelled' ? 'Cancelled' : isStarted ? 'Started' : 'Confirmed'}
             </Text>
           </View>
         </View>
@@ -433,7 +432,7 @@ export default function ReservationsScreen() {
           </View>
         </View> : null}
 
-        {(isUpcoming || isStarted) && (booking.status === 'confirmed' || booking.status === 'payment_pending') ? (
+        {(isUpcoming || isStarted) && booking.status === 'confirmed' ? (
           <>
             {isStarted ? <Text style={styles.visitStartedText}>Your visit is in progress.</Text> : cancellationAvailable ? (
               isConfirmingCancellation ? (
