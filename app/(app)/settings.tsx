@@ -26,12 +26,20 @@ export default function SettingsScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isSigningOutEverywhere, setIsSigningOutEverywhere] = useState(false);
+  const [smsUpdates, setSmsUpdates] = useState(false);
+  const [smsPhone, setSmsPhone] = useState('');
 
   useEffect(() => {
     const load = async () => {
       if (!session?.user.id) return;
       const { data } = await supabase.from('member_notification_preferences').select('booking_updates, message_updates, review_reminders, product_updates, local_promotions').eq('user_id', session.user.id).maybeSingle();
       if (data) setPreferences(data as Preferences);
+      const [{ data: smsPreference }, { data: profile }] = await Promise.all([
+        supabase.from('sms_notification_preferences').select('sms_updates').eq('user_id', session.user.id).maybeSingle(),
+        supabase.from('guest_profiles').select('phone').eq('user_id', session.user.id).maybeSingle(),
+      ]);
+      setSmsUpdates(Boolean(smsPreference?.sms_updates));
+      setSmsPhone(profile?.phone ?? '');
       setIsLoading(false);
     };
     void load();
@@ -48,6 +56,26 @@ export default function SettingsScreen() {
     } catch {
       setPreferences(preferences);
       Alert.alert('Unable to update preferences', 'Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const updateSms = async () => {
+    if (!session?.user.id || isSaving) return;
+    if (!smsUpdates && !smsPhone.trim()) {
+      Alert.alert('Add a phone number first', 'Open Parent Profile to add a phone number before turning on text message updates.');
+      return;
+    }
+    const next = !smsUpdates;
+    setSmsUpdates(next);
+    try {
+      setIsSaving(true);
+      const { error } = await supabase.rpc('set_sms_notification_preference', { p_enabled: next, p_phone: smsPhone.trim(), p_source: 'settings' });
+      if (error) throw error;
+    } catch {
+      setSmsUpdates(!next);
+      Alert.alert('Unable to update text messages', 'Please try again.');
     } finally {
       setIsSaving(false);
     }
@@ -89,6 +117,7 @@ export default function SettingsScreen() {
       <Text style={styles.sectionTitle}>Notifications</Text>
       <SettingRow label="Reservation updates" detail="Confirmations, changes, and cancellations" value={preferences.booking_updates} onPress={() => void update('booking_updates')} />
       <SettingRow label="Message updates" detail="New messages from hosts or guests" value={preferences.message_updates} onPress={() => void update('message_updates')} />
+      <SettingRow label="Text message updates" detail="Optional reservation, account, and message alerts. Reply STOP to opt out." value={smsUpdates} onPress={() => void updateSms()} />
       <SettingRow label="Review reminders" detail="A reminder after a completed visit" value={preferences.review_reminders} onPress={() => void update('review_reminders')} />
       <SettingRow label="ROVAH updates" detail="Optional product and community updates" value={preferences.product_updates} onPress={() => void update('product_updates')} />
       <SettingRow label="Local promotions" detail="Optional nearby private-space offers from ROVAH hosts" value={preferences.local_promotions} onPress={() => void update('local_promotions')} last />

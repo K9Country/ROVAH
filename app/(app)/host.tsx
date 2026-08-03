@@ -17,6 +17,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors, typography } from '../../constants/theme';
+import { SmsConsent } from '../../components/sms-consent';
 import { formatUsPhoneNumber, hasValidUsPhoneNumber, phoneNumberHelpText } from '../../lib/phone-number';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../services/auth-context';
@@ -78,6 +79,9 @@ export default function HostOnboardingScreen() {
   const [isUploadingProfilePhoto, setIsUploadingProfilePhoto] = useState(false);
   const [controlsProperty, setControlsProperty] = useState(false);
   const [acceptsHostTerms, setAcceptsHostTerms] = useState(false);
+  const [smsUpdates, setSmsUpdates] = useState(false);
+  const [savedSmsUpdates, setSavedSmsUpdates] = useState(false);
+  const [consentedSmsPhone, setConsentedSmsPhone] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<HostFieldName, string>>>({});
@@ -155,6 +159,12 @@ export default function HostOnboardingScreen() {
         setHomeState(typeof session.user.user_metadata?.host_home_state === 'string' ? session.user.user_metadata.host_home_state : '');
         setHomePostalCode(typeof session.user.user_metadata?.host_home_postal_code === 'string' ? session.user.user_metadata.host_home_postal_code : '');
       }
+
+      const { data: smsPreference } = await supabase.from('sms_notification_preferences').select('sms_updates, consented_phone').eq('user_id', session.user.id).maybeSingle();
+      const enabled = Boolean(smsPreference?.sms_updates);
+      setSmsUpdates(enabled);
+      setSavedSmsUpdates(enabled);
+      setConsentedSmsPhone(smsPreference?.consented_phone ?? '');
 
       setIsLoading(false);
     };
@@ -313,6 +323,16 @@ export default function HostOnboardingScreen() {
         return;
       }
 
+      if (smsUpdates !== savedSmsUpdates || (smsUpdates && normalizedPhone !== consentedSmsPhone)) {
+        const { error: smsError } = await supabase.rpc('set_sms_notification_preference', { p_enabled: smsUpdates, p_phone: normalizedPhone, p_source: 'profile' });
+        if (smsError) {
+          Alert.alert('Host profile saved', 'Your SMS preference could not be saved. Please try again.');
+          return;
+        }
+        setSavedSmsUpdates(smsUpdates);
+        if (smsUpdates) setConsentedSmsPhone(normalizedPhone);
+      }
+
       const { error: authUpdateError } = await supabase.auth.updateUser({
         data: {
           full_name: normalizedName,
@@ -423,13 +443,14 @@ export default function HostOnboardingScreen() {
             <FormField
               label="Phone number"
               value={phone}
-              onChangeText={(value) => { setPhone(formatUsPhoneNumber(value)); clearFieldError('phone'); }}
+              onChangeText={(value) => { const next = formatUsPhoneNumber(value); setPhone(next); if (next !== consentedSmsPhone) setSmsUpdates(false); clearFieldError('phone'); }}
               placeholder="248-555-1234"
               autoComplete="tel"
               keyboardType="phone-pad"
               maxLength={12}
               error={fieldErrors.phone}
             />
+            <SmsConsent checked={smsUpdates} onChange={setSmsUpdates} />
             <View style={[styles.hostPhotoCard, fieldErrors.profilePhoto && styles.hostPhotoCardError]}>
               <View style={styles.hostPhotoCopy}>
                 <Text style={styles.hostPhotoTitle}>Host photo</Text>

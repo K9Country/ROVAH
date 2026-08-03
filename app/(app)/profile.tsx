@@ -19,6 +19,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../../constants/theme';
 import { memberUi } from '../../constants/member-ui';
 import { HostPageGuide } from '../../components/host-page-guide';
+import { SmsConsent } from '../../components/sms-consent';
 import { formatUsPhoneNumber, hasValidUsPhoneNumber, phoneNumberHelpText } from '../../lib/phone-number';
 import { markExplicitMemberSignOut } from '../../lib/member-entry';
 import { supabase } from '../../lib/supabase';
@@ -78,6 +79,9 @@ export default function GuestProfileScreen() {
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<ProfileFieldName, string>>>({});
   const [profileImageUri, setProfileImageUri] = useState<string | null>(null);
   const [dogProfiles, setDogProfiles] = useState<DogSummary[]>([]);
+  const [smsUpdates, setSmsUpdates] = useState(false);
+  const [savedSmsUpdates, setSavedSmsUpdates] = useState(false);
+  const [consentedSmsPhone, setConsentedSmsPhone] = useState('');
   const isOnboarding = onboarding === 'true' && !isComplete;
 
   useEffect(() => {
@@ -142,6 +146,12 @@ export default function GuestProfileScreen() {
         setIsComplete(false);
         setProfileImageUri(null);
       }
+
+      const { data: smsPreference } = await supabase.from('sms_notification_preferences').select('sms_updates, consented_phone').eq('user_id', session.user.id).maybeSingle();
+      const enabled = Boolean(smsPreference?.sms_updates);
+      setSmsUpdates(enabled);
+      setSavedSmsUpdates(enabled);
+      setConsentedSmsPhone(smsPreference?.consented_phone ?? '');
 
       const { data: savedDogs, error: savedDogsError } = await supabase
         .from('dog_profiles')
@@ -292,6 +302,13 @@ export default function GuestProfileScreen() {
         throw error;
       }
 
+      if (smsUpdates !== savedSmsUpdates || (smsUpdates && profile.phone.trim() !== consentedSmsPhone)) {
+        const { error: smsError } = await supabase.rpc('set_sms_notification_preference', { p_enabled: smsUpdates, p_phone: profile.phone.trim(), p_source: 'profile' });
+        if (smsError) throw smsError;
+        setSavedSmsUpdates(smsUpdates);
+        if (smsUpdates) setConsentedSmsPhone(profile.phone.trim());
+      }
+
       const { error: authUpdateError } = await supabase.auth.updateUser({
         data: {
           full_name: `${profile.first_name.trim()} ${profile.last_name.trim()}`.trim(),
@@ -422,7 +439,8 @@ export default function GuestProfileScreen() {
               <View style={styles.nameField}><Field label="Last name" required error={fieldErrors.last_name} value={profile.last_name} onChangeText={(value) => updateProfile('last_name', value)} autoComplete="family-name" autoCapitalize="words" /></View>
             </View>
             <Field label="Email address" required error={fieldErrors.email} value={profile.email} onChangeText={(value) => updateProfile('email', value)} autoComplete="email" autoCapitalize="none" keyboardType="email-address" />
-            <Field label="Phone number" required error={fieldErrors.phone} value={profile.phone} onChangeText={(value) => updateProfile('phone', formatUsPhoneNumber(value))} autoComplete="tel" keyboardType="phone-pad" maxLength={12} placeholder="248-555-1234" />
+            <Field label="Phone number" required error={fieldErrors.phone} value={profile.phone} onChangeText={(value) => { const next = formatUsPhoneNumber(value); updateProfile('phone', next); if (next !== consentedSmsPhone) setSmsUpdates(false); }} autoComplete="tel" keyboardType="phone-pad" maxLength={12} placeholder="248-555-1234" />
+            <SmsConsent checked={smsUpdates} onChange={setSmsUpdates} />
           </ProfileSection>
 
           <ProfileSection title="Private home address">
