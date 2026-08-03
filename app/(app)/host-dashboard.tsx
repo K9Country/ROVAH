@@ -456,10 +456,10 @@ export default function HostDashboardScreen() {
               <View style={styles.dashboardSection}>
                 <Text style={styles.dashboardSectionEyebrow}>GROW YOUR SITE</Text>
                 <Text style={styles.dashboardSectionTitle}>Build a Stronger Listing</Text>
-                <DashboardAction icon="✦" label="Get Discovered" detail="Share a $2.00 site message with eligible new local members." onPress={() => router.push(`/local-promotions?propertyId=${property.id}` as never)} />
-                <DashboardAction icon="↻" label="Subscriptions" detail="Create, modify, or end repeat-visit packages for this site." onPress={() => router.push(`/subscriptions/${property.id}` as never)} />
-                <DashboardAction icon="★" label="Make Your Site Stand Out" detail="Keep the listing, photos, and guest feedback current." onPress={() => router.push(`/property-draft/${property.id}` as never)} />
-                <DashboardAction icon="↗" label="Communicate With Your Guest" detail="Send a site-only broadcast to guests connected to this private space." onPress={() => router.push(`/host-guest-message?propertyId=${property.id}&propertyName=${encodeURIComponent(property.name)}` as never)} />
+                <DashboardAction label="Get Discovered" detail="Share a $2.00 site message with eligible new local members." onPress={() => router.push(`/local-promotions?propertyId=${property.id}` as never)} />
+                <DashboardAction label="Subscriptions" detail="Create, modify, or end repeat-visit packages for this site." onPress={() => router.push(`/subscriptions/${property.id}` as never)} />
+                <DashboardAction label="Make Your Site Stand Out" detail="Keep the listing, photos, and guest feedback current." onPress={() => router.push(`/property-draft/${property.id}` as never)} />
+                <DashboardAction label="Communicate With Your Guest" detail="Send a site-only broadcast to guests connected to this private space." onPress={() => router.push(`/host-guest-message?propertyId=${property.id}&propertyName=${encodeURIComponent(property.name)}` as never)} />
               </View>
 
               <HostPageGuide
@@ -867,19 +867,16 @@ function PropertyTool({
 }
 
 function DashboardAction({
-  icon,
   label,
   detail,
   onPress,
 }: {
-  icon: string;
   label: string;
   detail: string;
   onPress: () => void;
 }) {
   return (
     <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.growthAction, pressed && styles.buttonPressed]}>
-      <Text style={styles.growthActionIcon}>{icon}</Text>
       <View style={styles.growthActionCopy}>
         <Text style={styles.growthActionLabel}>{label}</Text>
         <Text style={styles.growthActionDetail}>{detail}</Text>
@@ -944,7 +941,6 @@ const styles = StyleSheet.create({
   dashboardSectionEyebrow: { color: colors.brown, fontSize: 11, fontWeight: '900', letterSpacing: 1.1, marginHorizontal: 16 },
   dashboardSectionTitle: { color: colors.muted, fontSize: 13, lineHeight: 19, marginHorizontal: 16, marginTop: 5, marginBottom: 10 },
   growthAction: { alignItems: 'center', borderTopColor: colors.border, borderTopWidth: 1, flexDirection: 'row', minHeight: 62, paddingHorizontal: 16 },
-  growthActionIcon: { color: colors.brown, fontSize: 19, marginRight: 11, width: 21 },
   growthActionCopy: { flex: 1 },
   growthActionLabel: { color: colors.forest, fontSize: 15, fontWeight: '900' },
   growthActionDetail: { color: colors.muted, fontSize: 12, lineHeight: 17, marginTop: 2 },
