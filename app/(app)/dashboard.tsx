@@ -380,7 +380,7 @@ export default function DashboardScreen() {
                     <UnreadMessageIcon
                       hasUnread={hasUnreadMessages}
                       imageSource={require('../../assets/images/member-messages-icon.png')}
-                      size="small"
+                      size="member"
                       style={styles.actionMessageIcon}
                     />
                   ) : action.title === 'Followed Sites' ? (
@@ -702,26 +702,26 @@ const styles = StyleSheet.create({
   everythingDogsActionCard: { backgroundColor: colors.warmWhite },
 
   actionIcon: {
-    fontSize: 28,
-    height: 32,
-    lineHeight: 32,
+    fontSize: 34,
+    height: 38,
+    lineHeight: 38,
   },
   dogProfilesImage: {
-    height: 32,
-    width: 32,
+    height: 38,
+    width: 38,
   },
-  parentProfileImage: { height: 32, width: 32 },
-  reservationsImage: { height: 32, width: 32 },
-  followedSitesImage: { height: 32, width: 32 },
-  everythingDogsImage: { height: 44, width: 72 },
+  parentProfileImage: { height: 38, width: 38 },
+  reservationsImage: { height: 38, width: 38 },
+  followedSitesImage: { height: 38, width: 38 },
+  everythingDogsImage: { height: 53, width: 86 },
   favoriteActionIcon: {
     color: colors.red,
   },
 
   actionMessageIcon: {},
   actionStack: { flex: 1, width: '100%' },
-  actionIconSlot: { alignItems: 'flex-start', height: 32, justifyContent: 'flex-start', marginBottom: 6, width: 32 },
-  everythingDogsIconSlot: { height: 44, marginBottom: 4, width: 72 },
+  actionIconSlot: { alignItems: 'flex-start', height: 38, justifyContent: 'flex-start', marginBottom: 6, width: 38 },
+  everythingDogsIconSlot: { height: 53, marginBottom: 4, width: 86 },
   actionCopy: { marginTop: 'auto', width: '100%' },
  
   actionTitle: { ...memberUi.cardTitle, marginBottom: 0 },

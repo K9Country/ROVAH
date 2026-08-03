@@ -15,7 +15,7 @@ import { colors } from '../constants/theme';
 type UnreadMessageIconProps = {
   hasUnread: boolean;
   imageSource?: ImageSourcePropType;
-  size?: 'small' | 'regular';
+  size?: 'member' | 'small' | 'regular';
   style?: StyleProp<ViewStyle>;
 };
 
@@ -56,6 +56,7 @@ export function UnreadMessageIcon({
       accessibilityLabel={hasUnread ? 'Unread messages' : 'Messages'}
       style={[
         styles.badge,
+        size === 'member' && styles.memberBadge,
         size === 'small' && styles.smallBadge,
         animatedStyle,
         style,
@@ -66,7 +67,7 @@ export function UnreadMessageIcon({
           accessibilityLabel={hasUnread ? 'Unread messages' : 'Messages'}
           resizeMode="contain"
           source={imageSource}
-          style={[styles.image, size === 'small' && styles.smallImage]}
+          style={[styles.image, size === 'member' && styles.memberImage, size === 'small' && styles.smallImage]}
         />
       ) : (
         <Text style={[styles.icon, size === 'small' && styles.smallIcon]}>💬</Text>
@@ -96,6 +97,11 @@ const styles = StyleSheet.create({
   smallIcon: {
     fontSize: 16,
   },
+  memberBadge: {
+    borderRadius: 19,
+    height: 38,
+    width: 38,
+  },
   image: {
     height: 38,
     width: 38,
@@ -103,5 +109,9 @@ const styles = StyleSheet.create({
   smallImage: {
     height: 30,
     width: 30,
+  },
+  memberImage: {
+    height: 36,
+    width: 36,
   },
 });
