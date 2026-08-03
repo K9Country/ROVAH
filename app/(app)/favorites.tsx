@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors } from '../../constants/theme';
 import { memberUi } from '../../constants/member-ui';
+import { HostPageGuide } from '../../components/host-page-guide';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../services/auth-context';
 import type { Property } from '../../types/property';
@@ -171,6 +172,18 @@ export default function FavoritesScreen() {
               </Pressable>
             ) : null}
           </View>
+        }
+        ListFooterComponent={
+          <HostPageGuide
+            title="How to use Sites I Follow"
+            intro="Keep private spaces you may want to visit again in one easy list."
+            tone="forest"
+            steps={[
+              { title: 'Open a site', text: 'Tap a saved site to review its current photos, rules, pricing, and available visit times.' },
+              { title: 'Reserve when ready', text: 'Choose an available time from the site page and complete the reservation there.' },
+              { title: 'Remove a site', text: 'Tap Unfollow to remove it from this list. This does not change past or upcoming reservations.' },
+            ]}
+          />
         }
         refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={async () => { setIsRefreshing(true); await loadFavorites(); setIsRefreshing(false); }} tintColor={colors.forest} />}
         renderItem={({ item }) => (

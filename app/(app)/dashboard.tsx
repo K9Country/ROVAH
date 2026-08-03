@@ -573,8 +573,8 @@ export default function DashboardScreen() {
             { title: 'Keep profiles ready', text: 'Complete Parent Profile and add every dog that may attend a visit before you reserve.' },
             { title: 'Find a private space', text: 'Open Book Your Reservation to browse available properties. Review the site details, rules, amenities, arrival information, and rate before choosing a visit.' },
             { title: 'Choose a visit time', text: 'Select an available date, start time, end time, and every dog attending. A courtesy waiver, when available, can only be used at the host site that issued it.' },
-            { title: 'Confirm your reservation', text: 'Review the total and select Confirm Reservation. For a paid visit, your card is secured at confirmation and payment settles one hour before the visit begins. A zero-dollar courtesy visit confirms without payment.' },
-            { title: 'Manage upcoming or previous visits', text: 'Use My Reservations to check upcoming plans, completed visits, or cancellations. Cancel before the one-hour window when eligible for an automatic refund under the Cancellation and Refund Policy.' },
+            { title: 'Choose regular or subscription use', text: 'A regular visit is charged one hour before it starts. A subscription is paid when you purchase it, is not refundable, and provides visits only at the host site until it expires at 10:00 p.m. local site time on its final day.' },
+            { title: 'Confirm and manage visits', text: 'Review the details, then confirm. Use My Reservations to see upcoming plans, completed visits, your subscription balance, or cancellations. A regular-rate visit may be cancelled more than one hour before it starts; no charge has been collected, so no refund is needed.' },
             { title: 'Review and message', text: 'Open Messages when you need to contact a host. After a completed visit, use Site Reviews when it appears to share your feedback about the property.' },
             { title: 'Explore Everything Dogs', text: 'Open Everything Dogs to browse dog services and products whenever you are ready.' },
           ]}

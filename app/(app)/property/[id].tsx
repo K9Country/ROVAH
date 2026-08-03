@@ -866,9 +866,9 @@ export default function PropertyDetailsScreen() {
               { title: 'Review the site', text: 'Check the details, amenities, rules, arrival information, photos, and map before booking.' },
               { title: 'Choose an available time', text: 'Select a green date, then an available start and end time. Pink times cannot be booked.' },
               { title: 'Select attending dogs', text: 'Choose every dog coming. The host receives the visit details needed to prepare.' },
-              { title: 'Choose your rate', text: 'Pick regular hourly pricing or one subscription. A Courtesy Waiver or Special Discount may be used instead, but offers do not stack.' },
+              { title: 'Choose your rate', text: 'Choose regular hourly pricing or a subscription for this site. Subscription purchases are paid now, cannot be refunded, and cover the included dogs for the available visit credits. A Courtesy Waiver or Special Discount may be used instead; offers do not stack.' },
               { title: 'Know the cancellation window', text: 'For a regular-rate visit, cancel in My Reservations more than one hour before it starts. ROVAH records the cancellation before payment is collected, so there is no charge or refund.' },
-              { title: 'Confirm and check My Reservations', text: 'After confirmation, open My Reservations to review the visit or message the host.' },
+              { title: 'Confirm and check My Reservations', text: 'After confirmation, open My Reservations to review the visit, see a subscription balance when one was used, or message the host.' },
             ]}
           />
         </View>

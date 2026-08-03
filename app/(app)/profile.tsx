@@ -492,6 +492,7 @@ export default function GuestProfileScreen() {
               { title: 'Manage your dogs', text: 'Add, update, or remove Dog Profiles. You need at least one dog before you can reserve a space.' },
               { title: 'Save and continue', text: 'Save Parent Profile when every required field is complete. You can then return to the Member Dashboard.' },
               { title: 'Use Messages for questions', text: 'Reservation questions stay in ROVAH Messages without sharing your personal contact details.' },
+              { title: 'Delete an account when needed', text: 'Delete My Profile permanently removes your member profile and personal data request. Reservation history may be retained only where records or safety requirements apply.' },
             ]}
           />
         </ScrollView>

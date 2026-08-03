@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors } from '../../constants/theme';
 import { memberUi } from '../../constants/member-ui';
+import { HostPageGuide } from '../../components/host-page-guide';
 import { getPendingSiteReviews, type PendingSiteReview } from '../../lib/site-reviews';
 import { useAuth } from '../../services/auth-context';
 
@@ -58,6 +59,16 @@ export default function SiteReviewsScreen() {
             <Text style={styles.reviewButtonText}>Review visit</Text>
           </Pressable>
         </View>) : null}
+        <HostPageGuide
+          title="How to use Site Reviews"
+          intro="Reviews are available after a completed visit and help other dog families choose with confidence."
+          tone="forest"
+          steps={[
+            { title: 'Wait for the visit to end', text: 'A completed visit appears here when it is ready for your feedback.' },
+            { title: 'Share your experience', text: 'Open Review visit and describe the private space honestly and respectfully.' },
+            { title: 'Keep it useful', text: 'Helpful details include the space, arrival experience, amenities, and anything future guests should know.' },
+          ]}
+        />
       </ScrollView>
     </SafeAreaView>
   );

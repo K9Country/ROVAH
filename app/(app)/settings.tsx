@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors } from '../../constants/theme';
 import { memberUi } from '../../constants/member-ui';
+import { HostPageGuide } from '../../components/host-page-guide';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../services/auth-context';
 
@@ -66,6 +67,17 @@ export default function SettingsScreen() {
       <Pressable onPress={() => router.push('/legal' as never)} style={styles.linkRow}><Text style={styles.linkText}>Legal Library</Text><Text style={styles.chevron}>›</Text></Pressable>
     </View>
     <View style={styles.section}><Text style={styles.sectionTitle}>Account</Text><Pressable onPress={() => router.push('/delete-account' as never)} style={styles.linkRow}><View><Text style={styles.deleteText}>Delete my ROVAH account</Text><Text style={styles.rowDetail}>Request permanent removal of your account and personal data</Text></View><Text style={styles.chevron}>{'\u203A'}</Text></Pressable></View>
+    <HostPageGuide
+      title="How to use Settings & Privacy"
+      intro="Choose the notifications and account tools that work best for you."
+      tone="forest"
+      steps={[
+        { title: 'Choose reservation updates', text: 'Keep Reservation updates on if you want confirmation, change, and cancellation notices.' },
+        { title: 'Choose message updates', text: 'Keep Message updates on to receive notices when a host sends you a new message.' },
+        { title: 'Use privacy and help links', text: 'Open Help for support or reporting, and Legal Library for the current terms, privacy, safety, pricing, and marketplace policies.' },
+        { title: 'Delete an account', text: 'Use Delete my ROVAH account only when you want to permanently request removal of your account and personal data.' },
+      ]}
+    />
   </ScrollView></SafeAreaView>;
 }
 

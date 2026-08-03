@@ -612,6 +612,7 @@ export default function ReservationsScreen() {
           steps={[
             { title: 'Check upcoming visits', text: 'Review the date, time, site, and dogs attached to your next reservation.' },
             { title: 'Cancel a regular-rate visit', text: 'Use Cancel Reservation more than one hour before the visit starts. ROVAH records the cancellation before payment is collected, so there is no charge or refund.' },
+            { title: 'Check subscription visits', text: 'A subscription visit shows its remaining visit balance. Subscription purchases are not refundable and may be used only at the site that issued them before their expiration date.' },
             { title: 'Message the host', text: 'Open the reservation or Messages if you have a question before the visit.' },
             { title: 'Review a completed visit', text: 'When Review My Visit is available, share your experience for other members.' },
             { title: 'Use site-specific offers', text: 'A valid Courtesy Waiver or Special Discount appears when you book the same site.' },

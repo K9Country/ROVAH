@@ -20,6 +20,7 @@ import {
 
 import { colors } from '../../constants/theme';
 import { memberUi } from '../../constants/member-ui';
+import { HostPageGuide } from '../../components/host-page-guide';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../services/auth-context';
 import type { Property } from '../../types/property';
@@ -863,6 +864,19 @@ export default function SearchScreen() {
               </Pressable>
             ) : null}
           </View>
+        }
+        ListFooterComponent={
+          <HostPageGuide
+            title="How to search private spaces"
+            intro="Use this page to find a private space that fits your dog and visit plans."
+            tone="forest"
+            steps={[
+              { title: 'Search your area', text: 'Enter a city, ZIP code, or property name. You can also use your current location.' },
+              { title: 'Use filters', text: 'Open Search Filter to narrow results by fencing, size, amenities, or other site features.' },
+              { title: 'Open a listing', text: 'Review photos, rules, amenities, host details, local time, and available dates before reserving.' },
+              { title: 'Follow a favorite', text: 'Tap Follow on a listing to save it to Sites I Follow for a future visit.' },
+            ]}
+          />
         }
         ItemSeparatorComponent={() => <View style={styles.propertySeparator} />}
         refreshControl={
