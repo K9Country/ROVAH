@@ -1,4 +1,5 @@
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -79,6 +80,9 @@ type PropertyBasicsDraft = {
   fenceHeightFeet: string;
   timeZone: PropertyTimeZone;
 };
+
+const SITE_PHOTO_MAX_DIMENSION = 2048;
+const SITE_PHOTO_COMPRESSION = 0.82;
 
 const defaultSchedule = (): DaySchedule[] =>
   dayNames.map((_, day_of_week) => ({
@@ -319,13 +323,28 @@ export default function PropertyDraftScreen() {
     try {
       setIsUploading(true);
       for (const [index, asset] of result.assets.entries()) {
-        const extension = asset.fileName?.split('.').pop() ?? asset.mimeType?.split('/').pop() ?? 'jpg';
-        const path = `${session.user.id}/${id}/${Date.now()}-${index}.${extension}`;
-        const response = await fetch(asset.uri);
+        const context = ImageManipulator.ImageManipulator.manipulate(asset.uri);
+        const largestDimension = Math.max(asset.width, asset.height);
+
+        if (largestDimension > SITE_PHOTO_MAX_DIMENSION) {
+          context.resize(
+            asset.width >= asset.height
+              ? { width: SITE_PHOTO_MAX_DIMENSION, height: null }
+              : { width: null, height: SITE_PHOTO_MAX_DIMENSION }
+          );
+        }
+
+        const renderedImage = await context.renderAsync();
+        const optimizedPhoto = await renderedImage.saveAsync({
+          compress: SITE_PHOTO_COMPRESSION,
+          format: ImageManipulator.SaveFormat.JPEG,
+        });
+        const path = `${session.user.id}/${id}/${Date.now()}-${index}.jpg`;
+        const response = await fetch(optimizedPhoto.uri);
         const arrayBuffer = await response.arrayBuffer();
         const { error: uploadError } = await supabase.storage
           .from('property-images')
-          .upload(path, arrayBuffer, { contentType: asset.mimeType ?? 'image/jpeg', upsert: false });
+          .upload(path, arrayBuffer, { contentType: 'image/jpeg', upsert: false });
         if (uploadError) throw uploadError;
 
         const { error: imageError } = await supabase.from('property_images').insert({
@@ -868,7 +887,7 @@ export default function PropertyDraftScreen() {
           <Section title="Photos" subtitle={`${images.length} uploaded`} icon="Photos" requiredForReview>
             <View style={styles.photoGuidance}>
               <Text style={styles.photoGuidanceTitle}>Photos are required to publish</Text>
-              <Text style={styles.photoGuidanceText}>More high-quality photos help guests picture their visit, build trust, and drive more bookings. Aim for at least 8 recent photos of the entrance, parking, play areas, fencing, and amenities.</Text>
+              <Text style={styles.photoGuidanceText}>More high-quality photos help guests picture their visit, build trust, and drive more bookings. ROVAH automatically optimizes each new photo for faster uploads and viewing. Aim for at least 8 recent photos of the entrance, parking, play areas, fencing, and amenities.</Text>
             </View>
             <View style={styles.imageGrid}>
               {images.map((image) => (
