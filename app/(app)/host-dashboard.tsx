@@ -950,7 +950,7 @@ const styles = StyleSheet.create({
   growthActionDetail: { color: colors.muted, fontSize: 12, lineHeight: 17, marginTop: 2 },
   growthActionArrow: { color: colors.brown, fontSize: 23, fontWeight: '700', marginLeft: 10 },
   propertyTools: { borderTopColor: colors.border, borderTopWidth: 1, gap: 16, padding: 16 },
-  propertyTool: { backgroundColor: colors.cream, borderColor: colors.border, borderRadius: 18, borderWidth: 1, overflow: 'hidden', ...shadows.card },
+  propertyTool: { backgroundColor: '#FFFFFF', borderColor: colors.olive, borderRadius: 18, borderWidth: 1, overflow: 'hidden', ...shadows.card },
   propertyToolPressable: { alignItems: 'center', flexDirection: 'row', minHeight: 92, paddingHorizontal: 15, paddingVertical: 14 },
   propertyToolIconWrap: { alignItems: 'center', justifyContent: 'center', marginRight: 16, minHeight: 34, minWidth: 34 },
   propertyToolIcon: { fontSize: 27 },
