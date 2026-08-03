@@ -31,6 +31,8 @@ Deno.serve(async (req) => {
   // URL. Keep its id so a Stripe or network failure cannot leave a false hold
   // on the calendar.
   let createdBookingId: string | null = null;
+  let paymentAttemptUserId: string | null = null;
+  let checkoutStage = 'authenticate_member';
 
   try {
     const userClient = createClient(
@@ -40,6 +42,7 @@ Deno.serve(async (req) => {
     );
     const { data: { user }, error: userError } = await userClient.auth.getUser(authorization.slice(7));
     if (userError || !user) return json({ error: 'Sign in to reserve this space' }, 401);
+    paymentAttemptUserId = user.id;
 
     const body = await req.json();
     const propertyId = typeof body.propertyId === 'string' ? body.propertyId : null;
@@ -119,6 +122,7 @@ Deno.serve(async (req) => {
       return json({ error: 'This private space is completing secure payout setup and cannot accept reservations yet.' }, 422);
     }
 
+    checkoutStage = 'create_reservation';
     const { data: bookingRows, error: bookingError } = await userClient.rpc('create_booking_with_dogs_and_subscription', {
       p_property_id: propertyId,
       p_start_at: startAt,
@@ -150,11 +154,12 @@ Deno.serve(async (req) => {
     if (!stripeSecretKey) return json({ error: 'Payments are not configured yet' }, 503);
 
     const expiresAt = Math.floor(Date.now() / 1000) + 30 * 60;
+    checkoutStage = 'prepare_reservation_payment';
     const { error: holdError } = await adminClient
       .from('bookings')
       .update({
         payment_status: 'processing',
-        payment_provider: 'stripe',
+        payment_provider: isSubscriptionPurchase ? 'loyalty_pass_purchase' : 'stripe',
         // The member confirms this charge flow by selecting Confirm
         // Reservation before we open Stripe Checkout. Keep an audit time for
         // the saved-card, off-session flow used for future visits.
@@ -186,6 +191,7 @@ Deno.serve(async (req) => {
     const stripe = new Stripe(stripeSecretKey);
     let customerId: string | null = null;
     if (needsScheduledCard) {
+      checkoutStage = 'load_saved_card_customer';
       const { data: guest, error: guestError } = await adminClient
         .from('guest_profiles')
         .select('stripe_customer_id')
@@ -194,6 +200,7 @@ Deno.serve(async (req) => {
       if (guestError) throw guestError;
       customerId = guest?.stripe_customer_id ?? null;
       if (!customerId) {
+        checkoutStage = 'create_saved_card_customer';
         const customer = await stripe.customers.create({
           email: user.email ?? undefined,
           metadata: { rovah_guest_id: user.id },
@@ -207,13 +214,18 @@ Deno.serve(async (req) => {
       }
     }
 
+    checkoutStage = needsScheduledCard ? 'create_saved_card_checkout' : 'create_immediate_checkout';
     const session = needsScheduledCard
       ? await stripe.checkout.sessions.create({
         mode: 'setup',
         customer: customerId!,
+        // Future regular reservations use this card for the automatic charge
+        // one hour before the visit. Restrict the setup session to cards so
+        // Checkout never selects a payment method that cannot be charged
+        // off-session later.
+        payment_method_types: ['card'],
         metadata: { booking_id: booking.id, payment_flow: 'scheduled_card' },
         setup_intent_data: {
-          usage: 'off_session',
           metadata: { booking_id: booking.id },
         },
         success_url: `${appUrl}/reservations?payment=success&session_id={CHECKOUT_SESSION_ID}`,
@@ -244,10 +256,11 @@ Deno.serve(async (req) => {
         success_url: `${appUrl}/reservations?payment=success&session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${appUrl}/property/${propertyId}?payment=cancelled`,
         expires_at: expiresAt,
-      });
+      }, { idempotencyKey: `rovah-booking-checkout-${booking.id}` });
 
     if (!session.url) throw new Error('Stripe did not return a checkout link');
 
+    checkoutStage = 'save_checkout_session';
     const { error: updateError } = await adminClient
       .from('bookings')
       .update({
@@ -273,6 +286,12 @@ Deno.serve(async (req) => {
         Deno.env.get('SUPABASE_URL') ?? '',
         Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
       );
+      await cleanupClient.from('payment_attempt_failures').insert({
+        booking_id: createdBookingId,
+        guest_id: paymentAttemptUserId,
+        stage: checkoutStage,
+        error_message: error instanceof Error ? error.message : String(error),
+      });
       const { error: cleanupError } = await cleanupClient
         .from('bookings')
         .update({
