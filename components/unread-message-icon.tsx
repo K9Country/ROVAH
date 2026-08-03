@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
+import { Image, StyleSheet, Text, type ImageSourcePropType, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, {
   cancelAnimation,
   interpolateColor,
@@ -14,12 +14,14 @@ import { colors } from '../constants/theme';
 
 type UnreadMessageIconProps = {
   hasUnread: boolean;
+  imageSource?: ImageSourcePropType;
   size?: 'small' | 'regular';
   style?: StyleProp<ViewStyle>;
 };
 
 export function UnreadMessageIcon({
   hasUnread,
+  imageSource,
   size = 'regular',
   style,
 }: UnreadMessageIconProps) {
@@ -59,7 +61,16 @@ export function UnreadMessageIcon({
         style,
       ]}
     >
-      <Text style={[styles.icon, size === 'small' && styles.smallIcon]}>💬</Text>
+      {imageSource ? (
+        <Image
+          accessibilityLabel={hasUnread ? 'Unread messages' : 'Messages'}
+          resizeMode="contain"
+          source={imageSource}
+          style={[styles.image, size === 'small' && styles.smallImage]}
+        />
+      ) : (
+        <Text style={[styles.icon, size === 'small' && styles.smallIcon]}>💬</Text>
+      )}
     </Animated.View>
   );
 }
@@ -84,5 +95,13 @@ const styles = StyleSheet.create({
   },
   smallIcon: {
     fontSize: 16,
+  },
+  image: {
+    height: 38,
+    width: 38,
+  },
+  smallImage: {
+    height: 30,
+    width: 30,
   },
 });

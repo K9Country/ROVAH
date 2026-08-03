@@ -379,6 +379,7 @@ export default function DashboardScreen() {
                   {action.title === 'Messages' ? (
                     <UnreadMessageIcon
                       hasUnread={hasUnreadMessages}
+                      imageSource={require('../../assets/images/member-messages-icon.png')}
                       size="small"
                       style={styles.actionMessageIcon}
                     />
