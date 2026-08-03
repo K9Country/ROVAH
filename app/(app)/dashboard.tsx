@@ -694,10 +694,10 @@ const styles = StyleSheet.create({
   },
 
   actionMessageIcon: {},
-  actionStack: { width: '100%' },
+  actionStack: { flex: 1, width: '100%' },
   actionIconSlot: { alignItems: 'flex-start', height: 32, justifyContent: 'flex-start', marginBottom: 6, width: 32 },
   everythingDogsIconSlot: { height: 44, marginBottom: 4, width: 72 },
-  actionCopy: { width: '100%' },
+  actionCopy: { marginTop: 'auto', width: '100%' },
  
   actionTitle: { ...memberUi.cardTitle, marginBottom: 0 },
  
