@@ -77,7 +77,7 @@ const dashboardActions: DashboardAction[] = [
   },
   {
     title: 'Everything Dogs',
-    description: 'Explore helpful resources, services, and must-haves for your dog.',
+    description: 'Resources, Services, and Must-haves for your Dog',
     icon: '🐶',
     route: '/everything-dogs',
   },
@@ -393,7 +393,7 @@ export default function DashboardScreen() {
                     <Image
                       accessibilityLabel="Everything Dogs"
                       resizeMode="contain"
-                      source={require('../../assets/images/k9-everything-dogs-dashboard-icon.png')}
+                      source={require('../../assets/images/member-everything-dogs-icon.png')}
                       style={styles.everythingDogsImage}
                     />
                   ) : (
@@ -681,7 +681,7 @@ const styles = StyleSheet.create({
     height: 32,
     width: 32,
   },
-  everythingDogsImage: { height: 32, width: 32 },
+  everythingDogsImage: { height: 40, width: 64 },
   favoriteActionIcon: {
     color: colors.red,
   },
