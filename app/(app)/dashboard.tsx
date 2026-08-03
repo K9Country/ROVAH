@@ -669,7 +669,8 @@ const styles = StyleSheet.create({
 
   memoriesSection: { backgroundColor: colors.warmWhite, borderColor: colors.border, borderRadius: 18, borderWidth: 1, marginTop: 14, padding: 15, ...shadows.card },
   feedbackReviewsArea: { gap: 18, marginTop: 18 },
-  memberDashboardGuide: { marginTop: -6 },
+  // The guide itself has a 12px top margin, so 6px here keeps all three dashboard actions 18px apart.
+  memberDashboardGuide: { marginTop: 6 },
   memoriesHeader: { alignItems: 'center', flexDirection: 'row', gap: 12, marginBottom: 13 },
   memoriesCopy: { flex: 1 },
   memoriesTitle: { color: colors.forest, fontSize: 19, fontWeight: '900', marginBottom: 3 },
