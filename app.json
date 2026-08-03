@@ -11,12 +11,16 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
+      "bundleIdentifier": "dog.rovah.app",
+      "buildNumber": "1",
       "supportsTablet": true,
       "config": {
         "usesNonExemptEncryption": false
       }
     },
     "android": {
+      "package": "dog.rovah.app",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#0F3B24",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
