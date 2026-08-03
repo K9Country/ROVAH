@@ -394,8 +394,8 @@ export default function DashboardScreen() {
                     <Image
                       accessibilityLabel="Dog Profiles"
                       resizeMode="contain"
-                      source={require('../../assets/images/member-sign-in-paw.png')}
-                      style={styles.dogProfilesActionPaw}
+                      source={require('../../assets/images/member-dog-profiles-icon.png')}
+                      style={styles.dogProfilesImage}
                     />
                   ) : action.title === 'Parent Profile' ? (
                     <Image
@@ -699,7 +699,7 @@ const styles = StyleSheet.create({
     height: 32,
     lineHeight: 32,
   },
-  dogProfilesActionPaw: {
+  dogProfilesImage: {
     height: 32,
     width: 32,
   },
