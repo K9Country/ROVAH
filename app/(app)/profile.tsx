@@ -224,6 +224,21 @@ export default function GuestProfileScreen() {
       );
 
       if (error) throw error;
+
+      // Opening Dog Profiles must retain every Parent Profile choice, including
+      // optional SMS consent. Without this, the profile reloads the previous
+      // preference when the member returns from adding a dog.
+      if (smsUpdates !== savedSmsUpdates || (smsUpdates && profile.phone.trim() !== consentedSmsPhone)) {
+        const { error: smsError } = await supabase.rpc('set_sms_notification_preference', {
+          p_enabled: smsUpdates,
+          p_phone: profile.phone.trim(),
+          p_source: 'profile',
+        });
+        if (smsError) throw smsError;
+        setSavedSmsUpdates(smsUpdates);
+        if (smsUpdates) setConsentedSmsPhone(profile.phone.trim());
+      }
+
       setIsDogProfileRequiredOpen(false);
       router.push('/dog-profiles?returnTo=parent' as never);
     } catch (error) {
