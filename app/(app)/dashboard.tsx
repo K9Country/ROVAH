@@ -397,6 +397,13 @@ export default function DashboardScreen() {
                       source={require('../../assets/images/member-sign-in-paw.png')}
                       style={styles.dogProfilesActionPaw}
                     />
+                  ) : action.title === 'Parent Profile' ? (
+                    <Image
+                      accessibilityLabel="Parent Profile"
+                      resizeMode="contain"
+                      source={require('../../assets/images/member-parent-profile-icon.png')}
+                      style={styles.parentProfileImage}
+                    />
                   ) : action.title === 'Everything Dogs' ? (
                     <Image
                       accessibilityLabel="Everything Dogs"
@@ -696,6 +703,7 @@ const styles = StyleSheet.create({
     height: 32,
     width: 32,
   },
+  parentProfileImage: { height: 32, width: 32 },
   followedSitesImage: { height: 32, width: 32 },
   everythingDogsImage: { height: 44, width: 72 },
   favoriteActionIcon: {
