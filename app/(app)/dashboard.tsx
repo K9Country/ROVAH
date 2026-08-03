@@ -1,10 +1,12 @@
 import * as ImagePicker from 'expo-image-picker';
+import { Image as ExpoImage } from 'expo-image';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
     Image,
+    Modal,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -91,6 +93,8 @@ export default function DashboardScreen() {
   const [hasUnreadHostFeedback, setHasUnreadHostFeedback] = useState(false);
   const [hasPendingSiteReviews, setHasPendingSiteReviews] = useState(false);
   const [memories, setMemories] = useState<MemoryPhoto[]>([]);
+  const [activeMemoryIndex, setActiveMemoryIndex] = useState(0);
+  const [selectedMemory, setSelectedMemory] = useState<MemoryPhoto | null>(null);
 
   const [hasLoadedMemories, setHasLoadedMemories] = useState(false);
   const [isLoadingMemories, setIsLoadingMemories] = useState(false);
@@ -138,7 +142,7 @@ export default function DashboardScreen() {
     try {
       const { data: files, error: listError } = await supabase.storage
         .from('guest-memories')
-        .list(session.user.id, { limit: 30, sortBy: { column: 'created_at', order: 'desc' } });
+        .list(session.user.id, { limit: 12, sortBy: { column: 'created_at', order: 'desc' } });
 
       if (listError) {
         setMemoryStatus('We could not load your memories.');
@@ -175,6 +179,24 @@ export default function DashboardScreen() {
       setIsLoadingMemories(false);
     }
   }, [session?.user.id]);
+
+  useEffect(() => {
+    void loadMemories();
+  }, [loadMemories]);
+
+  useEffect(() => {
+    if (memories.length < 2) {
+      setActiveMemoryIndex(0);
+      return;
+    }
+
+    setActiveMemoryIndex((current) => current % memories.length);
+    const rotation = setInterval(() => {
+      setActiveMemoryIndex((current) => (current + 1) % memories.length);
+    }, 5_000);
+
+    return () => clearInterval(rotation);
+  }, [memories.length]);
 
   const loadUnreadHostFeedback = useCallback(async () => {
     if (!session?.user.id) {
@@ -484,15 +506,52 @@ export default function DashboardScreen() {
               <Text style={styles.memoriesEmptyText}>View your saved memory photos</Text>
             </Pressable>
           ) : memories.length ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.memoriesScroll}>
-              {memories.map((memory) => <Image key={memory.path} source={{ uri: memory.url }} style={styles.memoryImage} />)}
-            </ScrollView>
+            <>
+              <Pressable
+                accessibilityHint="Opens this memory photo full screen"
+                accessibilityLabel={`View memory photo ${activeMemoryIndex + 1} of ${memories.length} full screen`}
+                accessibilityRole="button"
+                onPress={() => setSelectedMemory(memories[activeMemoryIndex])}
+                style={styles.memoryCarousel}
+              >
+                <ExpoImage
+                  accessibilityLabel="A saved memory from a ROVAH visit"
+                  allowDownscaling
+                  cachePolicy="memory-disk"
+                  contentFit="cover"
+                  source={{ uri: memories[activeMemoryIndex].url }}
+                  style={styles.memoryImage}
+                  transition={300}
+                />
+                <View pointerEvents="none" style={styles.memoryCounter}>
+                  <Text style={styles.memoryCounterText}>{activeMemoryIndex + 1} of {memories.length}</Text>
+                </View>
+              </Pressable>
+              <View style={styles.memoryDots}>
+                {memories.map((memory, index) => <View key={memory.path} style={[styles.memoryDot, index === activeMemoryIndex && styles.memoryDotActive]} />)}
+              </View>
+              <Text style={styles.memoryHint}>Photos rotate automatically. Tap a photo to view it full screen.</Text>
+            </>
           ) : (
             <View style={styles.memoriesEmpty}><Text style={styles.memoriesEmptyText}>Add photos from your site visits and adventures together.</Text></View>
           )}
 
           {memoryStatus ? <Text style={styles.memoryStatus}>{memoryStatus}</Text> : null}
         </View>
+
+        <Modal
+          animationType="fade"
+          onRequestClose={() => setSelectedMemory(null)}
+          transparent
+          visible={Boolean(selectedMemory)}
+        >
+          <View style={styles.memoryViewer}>
+            {selectedMemory ? <ExpoImage cachePolicy="memory-disk" contentFit="contain" source={{ uri: selectedMemory.url }} style={styles.memoryViewerImage} /> : null}
+            <Pressable accessibilityLabel="Close full screen memory photo" accessibilityRole="button" onPress={() => setSelectedMemory(null)} style={styles.memoryViewerClose}>
+              <Text style={styles.memoryViewerCloseText}>Close</Text>
+            </Pressable>
+          </View>
+        </Modal>
 
         <View style={styles.feedbackReviewsArea}>
           <HostFeedbackButton
@@ -681,11 +740,21 @@ const styles = StyleSheet.create({
   cameraIcon: { borderColor: colors.gold, borderRadius: 4, borderWidth: 1.8, height: 16, justifyContent: 'center', position: 'relative', width: 22 },
   cameraIconTop: { backgroundColor: colors.gold, borderTopLeftRadius: 2, borderTopRightRadius: 2, height: 3, left: 4, position: 'absolute', top: -5, width: 8 },
   cameraIconLens: { alignSelf: 'center', borderColor: '#F0B56F', borderRadius: 5, borderWidth: 1.6, height: 9, width: 9 },
-  memoriesScroll: { gap: 10 },
-  memoryImage: { backgroundColor: colors.lightGreen, borderRadius: 13, height: 180, width: 180 },
+  memoryCarousel: { backgroundColor: colors.lightGreen, borderRadius: 13, height: 220, overflow: 'hidden', position: 'relative', width: '100%' },
+  memoryImage: { height: '100%', width: '100%' },
+  memoryCounter: { backgroundColor: 'rgba(25, 55, 31, 0.78)', borderRadius: 12, bottom: 10, paddingHorizontal: 9, paddingVertical: 4, position: 'absolute', right: 10 },
+  memoryCounterText: { color: colors.warmWhite, fontSize: 12, fontWeight: '900' },
+  memoryDots: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: 5, justifyContent: 'center', marginTop: 9 },
+  memoryDot: { backgroundColor: '#C9CEC4', borderRadius: 3, height: 6, width: 6 },
+  memoryDotActive: { backgroundColor: colors.forest, width: 18 },
+  memoryHint: { color: colors.muted, fontSize: 12, lineHeight: 17, marginTop: 8, textAlign: 'center' },
   memoriesEmpty: { alignItems: 'center', backgroundColor: colors.cream, borderColor: colors.border, borderRadius: 13, borderStyle: 'dashed', borderWidth: 1, justifyContent: 'center', minHeight: 180, padding: 18 },
   memoriesEmptyText: { color: colors.muted, fontSize: 14, lineHeight: 20, textAlign: 'center' },
   memoryStatus: { color: colors.red, fontSize: 13, fontWeight: '700', marginTop: 10 },
+  memoryViewer: { alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.94)', flex: 1, justifyContent: 'center', padding: 18 },
+  memoryViewerImage: { height: '88%', width: '100%' },
+  memoryViewerClose: { alignItems: 'center', backgroundColor: colors.warmWhite, borderRadius: 18, justifyContent: 'center', marginTop: 12, minHeight: 42, paddingHorizontal: 20 },
+  memoryViewerCloseText: { color: colors.forest, fontSize: 14, fontWeight: '900' },
  
   actionCard: {
     alignItems: 'flex-start',
