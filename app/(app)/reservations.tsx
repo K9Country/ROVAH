@@ -306,13 +306,17 @@ export default function ReservationsScreen() {
   const historyBookings = useMemo(
     () =>
       bookings
-        .filter((booking) => !upcomingBookings.some((upcoming) => upcoming.id === booking.id) && !startedBookings.some((started) => started.id === booking.id))
+        .filter(
+          (booking) =>
+            booking.status === 'cancelled' ||
+            (booking.status === 'confirmed' && new Date(booking.end_at).getTime() <= currentTime)
+        )
         .sort(
           (first, second) =>
             new Date(second.start_at).getTime() -
             new Date(first.start_at).getTime()
         ),
-    [bookings, startedBookings, upcomingBookings]
+    [bookings, currentTime]
   );
 
   const handleRefresh = async () => {
