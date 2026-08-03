@@ -98,9 +98,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   memberBadge: {
-    borderRadius: 19,
-    height: 38,
-    width: 38,
+    borderRadius: 23,
+    height: 46,
+    width: 46,
   },
   image: {
     height: 38,
@@ -111,7 +111,7 @@ const styles = StyleSheet.create({
     width: 30,
   },
   memberImage: {
-    height: 36,
-    width: 36,
+    height: 44,
+    width: 44,
   },
 });

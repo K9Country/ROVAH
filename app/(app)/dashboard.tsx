@@ -703,17 +703,17 @@ const styles = StyleSheet.create({
   everythingDogsActionCard: { backgroundColor: colors.warmWhite },
 
   actionIcon: {
-    fontSize: 34,
-    height: 38,
-    lineHeight: 38,
+    fontSize: 41,
+    height: 46,
+    lineHeight: 46,
   },
   dogProfilesImage: {
-    height: 38,
-    width: 38,
+    height: 46,
+    width: 46,
   },
-  parentProfileImage: { height: 38, width: 38 },
-  reservationsImage: { height: 38, width: 38 },
-  followedSitesImage: { height: 38, width: 38 },
+  parentProfileImage: { height: 46, width: 46 },
+  reservationsImage: { height: 46, width: 46 },
+  followedSitesImage: { height: 46, width: 46 },
   everythingDogsImage: { height: 53, width: 86 },
   favoriteActionIcon: {
     color: colors.red,
@@ -721,7 +721,7 @@ const styles = StyleSheet.create({
 
   actionMessageIcon: {},
   actionStack: { flex: 1, width: '100%' },
-  actionIconSlot: { alignItems: 'flex-start', height: 38, justifyContent: 'flex-start', marginBottom: 6, width: 38 },
+  actionIconSlot: { alignItems: 'flex-start', height: 46, justifyContent: 'flex-start', marginBottom: 6, width: 46 },
   everythingDogsIconSlot: { height: 53, marginBottom: 4, width: 86 },
   actionCopy: { marginTop: 'auto', width: '100%' },
  
