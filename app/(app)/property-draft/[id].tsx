@@ -64,6 +64,7 @@ type TimePickerTarget =
   | { kind: 'template-start' | 'template-end' }
   | { kind: 'day-start' | 'day-end'; day: number }
   | null;
+type ScheduleDatePickerTarget = 'start' | 'end' | null;
 type DateAvailabilityOverride = Omit<PropertyDateAvailability, 'id' | 'created_at' | 'updated_at'> & {
   id?: string;
 };
@@ -166,6 +167,8 @@ export default function PropertyDraftScreen() {
   const [templateEndDate, setTemplateEndDate] = useState('');
   const [selectedScheduleDays, setSelectedScheduleDays] = useState<number[]>([]);
   const [timePickerTarget, setTimePickerTarget] = useState<TimePickerTarget>(null);
+  const [scheduleDatePickerTarget, setScheduleDatePickerTarget] = useState<ScheduleDatePickerTarget>(null);
+  const [scheduleDatePickerMonth, setScheduleDatePickerMonth] = useState(() => startOfDay(new Date()));
   const [dateAvailability, setDateAvailability] = useState<DateAvailabilityOverride[]>([]);
   const [propertyBasics, setPropertyBasics] = useState<PropertyBasicsDraft | null>(null);
   const [availabilityCalendarMonth, setAvailabilityCalendarMonth] = useState(() => startOfDay(new Date()));
@@ -826,6 +829,33 @@ export default function PropertyDraftScreen() {
     setDeleteConfirmationVisible(true);
   };
 
+  const openScheduleDatePicker = (target: Exclude<ScheduleDatePickerTarget, null>) => {
+    const selectedValue = target === 'start' ? templateStartDate : templateEndDate;
+    const selectedDate = isValidDateInput(selectedValue)
+      ? new Date(`${selectedValue}T12:00:00`)
+      : new Date();
+    setScheduleDatePickerMonth(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1));
+    setScheduleDatePickerTarget(target);
+  };
+
+  const chooseScheduleDate = (value: string) => {
+    if (scheduleDatePickerTarget === 'start') {
+      setTemplateStartDate(value);
+      if (templateEndDate && value > templateEndDate) setTemplateEndDate('');
+    } else if (scheduleDatePickerTarget === 'end') {
+      setTemplateEndDate(value);
+    }
+    setHasUnsavedChanges(true);
+    setScheduleDatePickerTarget(null);
+  };
+
+  const clearScheduleDateRange = () => {
+    setTemplateStartDate('');
+    setTemplateEndDate('');
+    setHasUnsavedChanges(true);
+    setScheduleDatePickerTarget(null);
+  };
+
   const confirmDeleteListing = async () => {
     if (!id || !session?.user.id || isDeleting) return;
 
@@ -1029,29 +1059,29 @@ export default function PropertyDraftScreen() {
                 <View style={styles.scheduleRangeFields}>
                   <View style={styles.scheduleRangeField}>
                     <Text style={styles.templateTimeLabel}>Beginning date</Text>
-                    <TextInput
+                    <Pressable
                       accessibilityLabel="Schedule beginning date"
-                      autoCapitalize="none"
-                      maxLength={10}
-                      onChangeText={setTemplateStartDate}
-                      placeholder="YYYY-MM-DD"
-                      placeholderTextColor={colors.muted}
-                      style={styles.scheduleRangeInput}
-                      value={templateStartDate}
-                    />
+                      onPress={() => openScheduleDatePicker('start')}
+                      style={styles.scheduleDateSelector}
+                    >
+                      <Text style={[styles.scheduleDateSelectorText, !templateStartDate && styles.scheduleDateSelectorPlaceholder]}>
+                        {templateStartDate || 'Pick a date'}
+                      </Text>
+                      <Text style={styles.scheduleDateSelectorIcon}>⌄</Text>
+                    </Pressable>
                   </View>
                   <View style={styles.scheduleRangeField}>
                     <Text style={styles.templateTimeLabel}>Ending date</Text>
-                    <TextInput
+                    <Pressable
                       accessibilityLabel="Schedule ending date"
-                      autoCapitalize="none"
-                      maxLength={10}
-                      onChangeText={setTemplateEndDate}
-                      placeholder="YYYY-MM-DD"
-                      placeholderTextColor={colors.muted}
-                      style={styles.scheduleRangeInput}
-                      value={templateEndDate}
-                    />
+                      onPress={() => openScheduleDatePicker('end')}
+                      style={styles.scheduleDateSelector}
+                    >
+                      <Text style={[styles.scheduleDateSelectorText, !templateEndDate && styles.scheduleDateSelectorPlaceholder]}>
+                        {templateEndDate || 'Pick a date'}
+                      </Text>
+                      <Text style={styles.scheduleDateSelectorIcon}>⌄</Text>
+                    </Pressable>
                   </View>
                 </View>
               </View>
@@ -1306,6 +1336,85 @@ export default function PropertyDraftScreen() {
 
         <Modal
           animationType="slide"
+          onRequestClose={() => setScheduleDatePickerTarget(null)}
+          transparent
+          visible={scheduleDatePickerTarget !== null}
+        >
+          <Pressable onPress={() => setScheduleDatePickerTarget(null)} style={styles.modalBackdrop}>
+            <Pressable onPress={() => undefined} style={styles.scheduleDateSheet}>
+              <Text style={styles.slotSheetTitle}>
+                Pick the {scheduleDatePickerTarget === 'start' ? 'beginning' : 'ending'} date
+              </Text>
+              <Text style={styles.slotSheetText}>
+                {scheduleDatePickerTarget === 'start'
+                  ? 'Choose the first day these weekly hours apply.'
+                  : 'Choose the final day these weekly hours apply.'}
+              </Text>
+              <View style={styles.calendarHeader}>
+                <Pressable
+                  accessibilityLabel="Previous month"
+                  onPress={() => setScheduleDatePickerMonth((month) => new Date(month.getFullYear(), month.getMonth() - 1, 1))}
+                  style={styles.monthButton}
+                >
+                  <Text style={styles.monthButtonText}>‹</Text>
+                </Pressable>
+                <Text style={styles.monthTitle}>
+                  {monthNames[scheduleDatePickerMonth.getMonth()]} {scheduleDatePickerMonth.getFullYear()}
+                </Text>
+                <Pressable
+                  accessibilityLabel="Next month"
+                  onPress={() => setScheduleDatePickerMonth((month) => new Date(month.getFullYear(), month.getMonth() + 1, 1))}
+                  style={styles.monthButton}
+                >
+                  <Text style={styles.monthButtonText}>›</Text>
+                </Pressable>
+              </View>
+              <View style={styles.weekdayRow}>
+                {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => (
+                  <Text key={`${day}-${index}`} style={styles.weekdayLabel}>{day}</Text>
+                ))}
+              </View>
+              <View style={styles.calendarGrid}>
+                {datesInCalendarMonth(scheduleDatePickerMonth).map((date) => {
+                  const value = dateKey(date);
+                  const outsideMonth = date.getMonth() !== scheduleDatePickerMonth.getMonth();
+                  const beforeStart = scheduleDatePickerTarget === 'end' && Boolean(templateStartDate) && value < templateStartDate;
+                  const disabled = outsideMonth || beforeStart;
+                  const selectedValue = scheduleDatePickerTarget === 'start' ? templateStartDate : templateEndDate;
+                  const selected = value === selectedValue;
+                  return (
+                    <Pressable
+                      accessibilityLabel={`Choose ${value}`}
+                      disabled={disabled}
+                      key={value}
+                      onPress={() => chooseScheduleDate(value)}
+                      style={[
+                        styles.calendarDay,
+                        selected && styles.calendarDaySelected,
+                        disabled && styles.scheduleDateCalendarDayDisabled,
+                      ]}
+                    >
+                      <Text style={[styles.calendarDayText, selected && styles.calendarDayTextSelected, disabled && styles.scheduleDateCalendarDayTextDisabled]}>
+                        {date.getDate()}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <View style={styles.scheduleDateActions}>
+                <Pressable accessibilityRole="button" onPress={clearScheduleDateRange} style={styles.scheduleDateClearButton}>
+                  <Text style={styles.scheduleDateClearButtonText}>Clear date range</Text>
+                </Pressable>
+                <Pressable accessibilityRole="button" onPress={() => setScheduleDatePickerTarget(null)} style={styles.scheduleDateDoneButton}>
+                  <Text style={styles.scheduleDateDoneButtonText}>Done</Text>
+                </Pressable>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
+
+        <Modal
+          animationType="slide"
           onRequestClose={() => setTimePickerTarget(null)}
           transparent
           visible={timePickerTarget !== null}
@@ -1511,7 +1620,10 @@ const styles = StyleSheet.create({
   scheduleRangeHint: { color: colors.muted, fontSize: 12, lineHeight: 17, marginTop: 3 },
   scheduleRangeFields: { flexDirection: 'row', gap: 10, marginTop: 10 },
   scheduleRangeField: { flex: 1 },
-  scheduleRangeInput: { backgroundColor: colors.warmWhite, borderColor: '#CBD1BD', borderRadius: 10, borderWidth: 1, color: colors.forest, fontSize: 14, minHeight: 44, paddingHorizontal: 10 },
+  scheduleDateSelector: { alignItems: 'center', backgroundColor: colors.warmWhite, borderColor: '#CBD1BD', borderRadius: 10, borderWidth: 1, flexDirection: 'row', justifyContent: 'space-between', minHeight: 44, paddingHorizontal: 10 },
+  scheduleDateSelectorText: { color: colors.forest, fontSize: 13, fontVariant: ['tabular-nums'], fontWeight: '800' },
+  scheduleDateSelectorPlaceholder: { color: colors.muted, fontWeight: '700' },
+  scheduleDateSelectorIcon: { color: colors.brown, fontSize: 18, fontWeight: '900' },
   templateTimeRow: { flexDirection: 'row', gap: 10, marginTop: 13 },
   templateTimeField: { flex: 1 },
   templateTimeLabel: { color: colors.forest, fontSize: 12, fontWeight: '900', marginBottom: 5 },
@@ -1561,6 +1673,14 @@ const styles = StyleSheet.create({
   markUnavailableButton: { alignItems: 'center', backgroundColor: '#F0C5C0', borderColor: '#D88A80', borderRadius: 11, borderWidth: 1, flex: 1, justifyContent: 'center', minHeight: 44, paddingHorizontal: 8 },
   markUnavailableButtonText: { color: '#95423A', fontSize: 12, fontWeight: '900' },
   modalBackdrop: { backgroundColor: 'rgba(0, 0, 0, 0.42)', flex: 1, justifyContent: 'flex-end' },
+  scheduleDateSheet: { backgroundColor: colors.cream, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 22, paddingBottom: 30 },
+  scheduleDateCalendarDayDisabled: { opacity: 0.28 },
+  scheduleDateCalendarDayTextDisabled: { color: colors.muted },
+  scheduleDateActions: { flexDirection: 'row', gap: 10, marginTop: 18 },
+  scheduleDateClearButton: { alignItems: 'center', borderColor: colors.border, borderRadius: 11, borderWidth: 1, flex: 1, justifyContent: 'center', minHeight: 46, paddingHorizontal: 8 },
+  scheduleDateClearButtonText: { color: colors.brown, fontSize: 13, fontWeight: '900', textAlign: 'center' },
+  scheduleDateDoneButton: { alignItems: 'center', backgroundColor: colors.forest, borderRadius: 11, flex: 1, justifyContent: 'center', minHeight: 46, paddingHorizontal: 8 },
+  scheduleDateDoneButtonText: { color: colors.warmWhite, fontSize: 13, fontWeight: '900', textAlign: 'center' },
   slotSheet: { backgroundColor: colors.cream, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '72%', padding: 22 },
   slotSheetTitle: { color: colors.forest, fontSize: 22, fontWeight: '900' },
   slotSheetText: { color: colors.muted, fontSize: 14, marginTop: 5 },
