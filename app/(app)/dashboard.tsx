@@ -644,7 +644,7 @@ const styles = StyleSheet.create({
  
   // Keep the guest-dashboard artwork at its original portrait ratio.
   header: { aspectRatio: 1024 / 1536, backgroundColor: '#F2E8DC', marginTop: -38, width: '100%' },
-  dashboardContent: { marginTop: -25, paddingBottom: 36, paddingHorizontal: 20 },
+  dashboardContent: { marginTop: -25, paddingBottom: 96, paddingHorizontal: 20 },
 
   userIntro: { marginBottom: 16, paddingHorizontal: 2 },
  
