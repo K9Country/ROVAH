@@ -864,6 +864,7 @@ export default function SearchScreen() {
             ) : null}
           </View>
         }
+        ItemSeparatorComponent={() => <View style={styles.propertySeparator} />}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
@@ -1327,7 +1328,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 20,
-    marginBottom: 5,
+  },
+
+  propertySeparator: {
+    backgroundColor: '#D5D5D1',
+    height: 1,
+    marginVertical: 14,
   },
 
   imagePlaceholder: {
