@@ -322,6 +322,11 @@ export default function ReservationsScreen() {
   const handleRefresh = async () => {
     try {
       setIsRefreshing(true);
+      // A Checkout confirmation can transiently fail while the browser is
+      // returning from Stripe. Let an explicit refresh retry every temporary
+      // checkout hold instead of only reloading the confirmed-reservations
+      // list, which intentionally excludes payment_pending rows.
+      handledCheckoutSessionIds.current.clear();
       await loadBookings();
     } finally {
       setIsRefreshing(false);
