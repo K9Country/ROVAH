@@ -51,6 +51,7 @@ Deno.serve(async (req) => {
     for (const booking of bookings ?? []) {
       if (!booking.stripe_checkout_session_id) continue;
 
+      let stage = 'retrieve Checkout session';
       try {
         const session = await stripe.checkout.sessions.retrieve(booking.stripe_checkout_session_id);
         if (session.status !== 'complete') {
@@ -59,8 +60,10 @@ Deno.serve(async (req) => {
         }
 
         if (session.mode === 'setup') {
+          stage = 'read saved-card setup intent';
           const setupIntentId = stripeId(session.setup_intent);
           if (!setupIntentId) throw new Error('Completed Stripe setup session has no setup intent');
+          stage = 'confirm reservation from saved card';
           await markBookingPaymentScheduled({
             admin,
             bookingId: booking.id,
@@ -69,8 +72,10 @@ Deno.serve(async (req) => {
             stripe,
           });
         } else {
+          stage = 'read Stripe payment intent';
           const paymentIntentId = stripeId(session.payment_intent);
           if (!paymentIntentId) throw new Error('Completed Stripe payment session has no payment intent');
+          stage = 'confirm reservation from payment';
           await markBookingAuthorized({
             admin,
             bookingId: booking.id,
@@ -79,11 +84,20 @@ Deno.serve(async (req) => {
             stripe,
           });
         }
+        stage = 'notify reservation parties';
         await notifyReservationParties(booking.id);
         results.push({ bookingId: booking.id, status: 'confirmed' });
       } catch (bookingError) {
-        console.error('reconcile-pending-booking-checkouts', booking.id, bookingError instanceof Error ? bookingError.message : bookingError);
-        results.push({ bookingId: booking.id, status: 'reconciliation error' });
+        const message = bookingError instanceof Error
+          ? bookingError.message
+          : typeof bookingError === 'object' && bookingError && 'message' in bookingError
+            ? String(bookingError.message)
+            : String(bookingError);
+        console.error('reconcile-pending-booking-checkouts', booking.id, message);
+        // This response is available only to the protected scheduler and lets
+        // operations identify a Stripe-side state mismatch without logging
+        // card or customer details.
+        results.push({ bookingId: booking.id, status: `reconciliation error at ${stage}: ${message}` });
       }
     }
 
