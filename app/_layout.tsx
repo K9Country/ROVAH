@@ -33,12 +33,10 @@ function RootNavigator() {
       <Stack.Screen name="host-info" />
       <Stack.Screen name="pricing" />
       <Stack.Screen name="trust-safety" />
-      <Stack.Screen name="legal" />
       <Stack.Screen name="legal-acceptance" />
       <Stack.Screen name="admin" />
       <Stack.Screen name="admin-sign-in" />
       <Stack.Screen name="auth/callback" />
-      <Stack.Screen name="(auth)" />
       <Stack.Screen name="(app)" />
     </Stack>
   );
