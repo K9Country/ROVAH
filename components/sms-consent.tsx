@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { colors } from '../constants/theme';
 
@@ -9,7 +9,7 @@ export function SmsConsent({ checked, onChange }: { checked: boolean; onChange: 
       <View style={[styles.box, checked && styles.boxChecked]}>{checked ? <Text style={styles.check}>✓</Text> : null}</View>
       <View style={styles.copy}><Text style={styles.title}>Text message updates (optional)</Text><Text style={styles.text}>I agree to receive ROVAH text messages about reservations, account updates, and messages. Consent is not required to use ROVAH. Message frequency varies. Message and data rates may apply. Reply STOP to opt out or HELP for help.</Text></View>
     </Pressable>
-    <Text style={styles.legal}>By selecting this option, you also acknowledge the <Text accessibilityRole="link" onPress={() => router.push('/privacy' as never)} style={styles.link}>Privacy Policy</Text> and <Text accessibilityRole="link" onPress={() => router.push('/legal/terms-of-service' as never)} style={styles.link}>Terms of Service</Text>.</Text>
+    <Text style={styles.legal}>By selecting this option, you also acknowledge the <Text accessibilityRole="link" onPress={() => void Linking.openURL('https://rovah.dog/sms-privacy.html')} style={styles.link}>SMS Privacy Notice</Text>, <Text accessibilityRole="link" onPress={() => router.push('/privacy' as never)} style={styles.link}>Privacy Policy</Text>, and <Text accessibilityRole="link" onPress={() => router.push('/legal/terms-of-service' as never)} style={styles.link}>Terms of Service</Text>.</Text>
   </View>;
 }
 

@@ -74,14 +74,27 @@ Deno.serve(async (req) => {
       return json({ error: 'Property not found' }, 404);
     }
 
-    const [{ data: guest }, { data: host }] = await Promise.all([
+    const [{ data: guest }, { data: host }, { data: smsPreference }] = await Promise.all([
       adminClient.from('guest_profiles').select('full_name').eq('user_id', booking.guest_id).maybeSingle(),
       adminClient.from('host_profiles').select('phone').eq('user_id', property.host_id).maybeSingle(),
+      adminClient
+        .from('sms_notification_preferences')
+        .select('sms_updates, consented_phone, opted_out_at')
+        .eq('user_id', property.host_id)
+        .maybeSingle(),
     ]);
     const recipient = host?.phone ? toE164(host.phone) : null;
     if (!recipient) {
       await adminClient.from('bookings').update({ host_sms_notification_claimed_at: null }).eq('id', booking.id);
       return json({ error: 'The host has no valid mobile number configured' }, 422);
+    }
+
+    const consentedRecipient = smsPreference?.consented_phone
+      ? toE164(smsPreference.consented_phone)
+      : null;
+    if (!smsPreference?.sms_updates || smsPreference.opted_out_at || consentedRecipient !== recipient) {
+      await adminClient.from('bookings').update({ host_sms_notification_claimed_at: null }).eq('id', booking.id);
+      return json({ sent: false, reason: 'host_sms_not_opted_in' });
     }
 
     const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID');
