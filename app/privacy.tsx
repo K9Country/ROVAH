@@ -130,7 +130,7 @@ export default function PrivacyScreen() {
 
           <View style={styles.contactCard}>
             <Text style={styles.contactTitle}>Questions about privacy?</Text>
-            <Text style={styles.contactText}>Email Privacypolicy@k9country.net and our team will help with your privacy question or request.</Text>
+            <Text style={styles.contactText}>Email support@rovah.dog and our team will help with your privacy question or request.</Text>
           </View>
         </> : null}
       </ScrollView>

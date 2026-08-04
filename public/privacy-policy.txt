@@ -573,7 +573,7 @@ Securing your device and email account;
 Logging out of shared devices;
 Avoiding suspicious messages and links; and
 Promptly notifying us of suspected unauthorized access.
-Please report suspected security incidents to Privacypolicy@k9country.net.
+Please report suspected security incidents to support@rovah.dog.
 
 10. SECURITY INCIDENTS
 If we discover a security incident involving personal information, we may:
@@ -618,7 +618,7 @@ These rights are subject to legal exceptions. For example, we may retain informa
 12. HOW TO SUBMIT A PRIVACY REQUEST
 Submit privacy requests by contacting:
 
-Email: Privacypolicy@k9country.net
+Email: support@rovah.dog
 Subject line: Privacy Request
 
 You should provide:
@@ -639,7 +639,7 @@ We will respond within the time required by applicable law. We may extend the re
 You will not be discriminated against for exercising an applicable privacy right. However, some Services may not function without information that is necessary to provide them.
 
 13. APPEALS
-If we deny a privacy request and applicable law grants a right to appeal, you may appeal by emailing Privacypolicy@k9country.net with the subject line Privacy Appeal.
+If we deny a privacy request and applicable law grants a right to appeal, you may appeal by emailing support@rovah.dog with the subject line Privacy Appeal.
 
 Include the original request, our response, and the reason you believe the decision should be reconsidered.
 
@@ -698,7 +698,7 @@ Other recipients at your direction.
 C. Sale, Sharing, and Targeted Advertising
 ROVAH does not sell personal information for cash as a regular business practice.
 
-ROVAH may use analytics or advertising technologies that constitute â€œsale,â€ â€œsharing,â€ or â€œtargeted advertisingâ€ under certain state laws. Where applicable, you may opt out through our cookie-preference system, an opt-out link, or by contacting Privacypolicy@k9country.net.
+ROVAH may use analytics or advertising technologies that constitute â€œsale,â€ â€œsharing,â€ or â€œtargeted advertisingâ€ under certain state laws. Where applicable, you may opt out through our cookie-preference system, an opt-out link, or by contacting support@rovah.dog.
 
 We will process recognized opt-out preference signals where required and technically feasible.
 
@@ -733,10 +733,10 @@ Participation will be voluntary.
 F. California â€œShine the Lightâ€
 California residents may request information concerning certain disclosures of personal information to third parties for their direct-marketing purposes where applicable.
 
-Requests may be sent to Privacypolicy@k9country.net with the subject line California Shine the Light Request.
+Requests may be sent to support@rovah.dog with the subject line California Shine the Light Request.
 
 G. Nevada Residents
-Nevada residents may submit a verified request to opt out of certain sales of covered information by emailing Privacypolicy@k9country.net.
+Nevada residents may submit a verified request to opt out of certain sales of covered information by emailing support@rovah.dog.
 
 ROVAH does not currently sell covered information for monetary consideration as defined by Nevada law.
 
@@ -770,7 +770,7 @@ Suspected policy violations; and
 Safety-risk identification.
 Automated tools may flag activity for human review. Unless specifically disclosed, ROVAH does not use solely automated decisions to make decisions that produce legal or similarly significant effects concerning employment, housing, credit, education, healthcare, or insurance.
 
-Where applicable law provides a right to opt out of qualifying profiling or request information about automated decisions, you may contact Privacypolicy@k9country.net.
+Where applicable law provides a right to opt out of qualifying profiling or request information about automated decisions, you may contact support@rovah.dog.
 
 17. CHILDREN AND MINORS
 The Services are intended for adults who are legally capable of entering a binding agreement.
@@ -786,7 +786,7 @@ ROVAH does not knowingly permit children under 13 to create accounts or knowingl
 
 If we learn that we collected personal information from a child under 13 without legally valid parental consent, we will take reasonable steps to delete it.
 
-Parents or guardians who believe a child provided information should contact Privacypolicy@k9country.net.
+Parents or guardians who believe a child provided information should contact support@rovah.dog.
 
 Users must not submit identifying information, photographs, precise location, or other personal information about a minor unless they are legally authorized to do so and the information is reasonably necessary for using the Services.
 
@@ -831,7 +831,7 @@ Request information about automated decisions; and
 File a complaint with a supervisory authority.
 Where we rely on legitimate interests, you may request information about the balancing of those interests.
 
-To exercise a right, contact Privacypolicy@k9country.net.
+To exercise a right, contact support@rovah.dog.
 
 22. DO NOT TRACK AND GLOBAL PRIVACY CONTROL
 Some browsers transmit â€œDo Not Trackâ€ signals. Because there is no universally accepted standard for responding to all Do Not Track signals, the Services may not respond to them.
@@ -860,9 +860,9 @@ Questions, complaints, privacy requests, or security concerns may be directed to
 
 ROVAH
 Attn: Privacy and Data Protection
-Email: Privacypolicy@k9country.net
+Email: support@rovah.dog
 For general customer-support questions, contact:
-Email: support@k9country.net
+Email: support@rovah.dog
 
 25. SUPPLEMENTAL NOTICES
 Certain features may be subject to supplemental notices, including:
